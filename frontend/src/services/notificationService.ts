@@ -1,21 +1,11 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiClient } from '../lib/apiClient';
 
 export async function listMyNotifications() {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
+  const { data } = await apiClient.get('/me/notifications');
   return data;
 }
 
 export async function markNotificationRead(notificationId: string) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('id', notificationId)
-    .select()
-    .single();
-  if (error) throw error;
+  const { data } = await apiClient.patch(`/me/notifications/${notificationId}/read`);
   return data;
 }

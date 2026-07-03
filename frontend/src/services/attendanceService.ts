@@ -1,23 +1,19 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiClient } from '../lib/apiClient';
+
+function remap(record: any) {
+  const { guard_profile, job, ...rest } = record;
+  return { ...rest, guard_profiles: guard_profile ?? null, job_posts: job ?? null };
+}
 
 export async function listEmployerAttendance(companyId?: string) {
-  let query = supabase
-    .from('attendance_records')
-    .select('*, guard_profiles(full_name, mobile), job_posts(title)')
-    .order('attendance_date', { ascending: false });
-  if (companyId) query = query.eq('company_id', companyId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  const { data } = await apiClient.get('/employer/attendance', { params: { company_id: companyId } });
+  return (data ?? []).map(remap);
 }
 
 export async function updateAttendanceStatus(recordId: string, status: string, employerRemarks?: string) {
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .update({ status, employer_remarks: employerRemarks })
-    .eq('id', recordId)
-    .select()
-    .single();
-  if (error) throw error;
+  const { data } = await apiClient.patch(`/employer/attendance/${recordId}/status`, {
+    status,
+    employer_remarks: employerRemarks,
+  });
   return data;
 }

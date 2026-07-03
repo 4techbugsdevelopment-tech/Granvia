@@ -1,15 +1,11 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiClient } from '../lib/apiClient';
 
 export async function getEmployerWallet() {
-  const { data, error } = await supabase.from('employer_wallets').select('*').single();
-  if (error) throw error;
+  const { data } = await apiClient.get('/employer/wallet');
   return data;
 }
 
 export async function listWalletTransactions(companyId?: string) {
-  let query = supabase.from('wallet_transactions').select('*').order('created_at', { ascending: false });
-  if (companyId) query = query.eq('company_id', companyId);
-  const { data, error } = await query;
-  if (error) throw error;
+  const { data } = await apiClient.get('/employer/wallet/transactions', { params: { company_id: companyId } });
   return data;
 }

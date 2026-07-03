@@ -4,8 +4,18 @@
     {
       "name": "granvia-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "granvia-api",
+      "runtimeExecutable": "php",
+      "runtimeArgs": [
+        "-S", "127.0.0.1:8000",
+        "-t", "C:/reactprojects/granvia/backend/public",
+        "C:/reactprojects/granvia/backend/public/index.php"
+      ],
+      "port": 8000
     }
   ]
 }

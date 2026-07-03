@@ -1,26 +1,19 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiClient } from '../lib/apiClient';
 
 export async function listEmployerPayments(companyId?: string) {
-  let query = supabase
-    .from('payments')
-    .select('*, job_posts(title), guard_profiles(full_name)')
-    .order('created_at', { ascending: false });
-  if (companyId) query = query.eq('company_id', companyId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  const { data } = await apiClient.get('/employer/payments', { params: { company_id: companyId } });
+  return (data ?? []).map((payment: any) => {
+    const { job, guard_profile, ...rest } = payment;
+    return { ...rest, job_posts: job ?? null, guard_profiles: guard_profile ?? null };
+  });
 }
 
 export async function createPaymentRecord(input: Record<string, unknown>) {
-  const { data, error } = await supabase.from('payments').insert(input).select().single();
-  if (error) throw error;
+  const { data } = await apiClient.post('/employer/payments', input);
   return data;
 }
 
 export async function listEmployerInvoices(companyId?: string) {
-  let query = supabase.from('invoices').select('*').order('created_at', { ascending: false });
-  if (companyId) query = query.eq('company_id', companyId);
-  const { data, error } = await query;
-  if (error) throw error;
+  const { data } = await apiClient.get('/employer/invoices', { params: { company_id: companyId } });
   return data;
 }

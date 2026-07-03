@@ -78,7 +78,7 @@ const pageTitles: Record<EmployerPage, string> = Object.fromEntries(
 interface EmployerAppProps { onLogout: () => void }
 
 export default function EmployerApp({ onLogout }: EmployerAppProps) {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const [page, setPage] = useState<EmployerPage>('dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -101,14 +101,14 @@ export default function EmployerApp({ onLogout }: EmployerAppProps) {
       .catch(console.error);
   }, [refresh]);
 
-  if (!user || !profile) {
+  if (!profile) {
     return <div className="min-h-screen grid place-items-center text-sm text-gray-500">Loading employer workspace...</div>;
   }
 
   const employer: EmployerInfo = {
-    id: user.id,
-    email: profile.email || user.email || '',
-    contactPersonName: employerProfile?.contact_person_name || profile.full_name || user.email || '',
+    id: profile.id,
+    email: profile.email || '',
+    contactPersonName: employerProfile?.contact_person_name || profile.full_name || profile.email || '',
     mobile: profile.mobile || '',
     city: employerProfile?.city || '',
     state: employerProfile?.state || '',
@@ -610,7 +610,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
     if (!file || !activeCompany?.id) return;
     if (file.size > 5 * 1024 * 1024) { alert('File must be under 5 MB.'); return; }
     try {
-      await createDocumentRecord(activeCompany.id, type, file.name, file.size, file.type);
+      await createDocumentRecord(activeCompany.id, type, file);
       listCompanyDocuments(activeCompany.id).then(setDocs).catch(() => null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Upload failed.');
@@ -776,7 +776,7 @@ function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { emp
     if (file.size > 5 * 1024 * 1024) { alert('File must be under 5 MB.'); return; }
     if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) { alert('Only PDF, PNG and JPG files are allowed.'); return; }
     try {
-      await createDocumentRecord(company.id, type, file.name, file.size, file.type);
+      await createDocumentRecord(company.id, type, file);
       listCompanyDocuments(company.id).then(setDocs).catch(console.error);
       onChanged();
     } catch (err) {

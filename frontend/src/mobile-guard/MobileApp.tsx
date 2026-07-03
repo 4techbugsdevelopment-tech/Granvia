@@ -29,12 +29,12 @@ const NAV_ITEMS = [
 
 export default function MobileApp({ onLogout }: MobileAppProps) {
   const [screen, setScreen] = useState<Screen>('dashboard');
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const guard: Guard = {
-    id: user?.id || '',
-    fullName: profile?.full_name || user?.email || 'Guard',
+    id: profile?.id || '',
+    fullName: profile?.full_name || 'Guard',
     mobile: profile?.mobile || '',
-    email: profile?.email || user?.email || '',
+    email: profile?.email || '',
     password: '',
     gender: '',
     dob: '',
