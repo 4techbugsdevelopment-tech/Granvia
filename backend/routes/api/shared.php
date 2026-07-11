@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\FileDownloadController;
-use App\Http\Controllers\GeocodeController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -10,9 +9,6 @@ use Illuminate\Support\Facades\Route;
 
 // Public.
 Route::get('jobs', [JobController::class, 'active']);
-
-// Address → lat/lng lookup (Mappls proxy). Any signed-in staff user may call it.
-Route::middleware(['auth:sanctum'])->get('geocode', GeocodeController::class);
 
 // Routes reachable by any authenticated role, or public, go here.
 Route::middleware(['auth:sanctum'])->prefix('me')->group(function () {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2 } from 'lucide-react';
 import { createGuard } from '../../services/adminGuardService';
-import { geocode, buildAddressQuery } from '../../services/geocodeService';
+import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
 
 interface AddGuardProps {
   onSuccess: () => void;
@@ -116,7 +116,7 @@ function MultiSelect({ label, selected, options, onChange }: {
 export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [form, setForm] = useState({
     fullName: '', mobile: '', email: '', password: '',
-    gender: '', dob: '', address: '', city: '', state: '',
+    gender: '', dob: '', address: '', city: '', state: '', pincode: '',
     latitude: '', longitude: '', experience: '',
     skills: [] as string[], languages: [] as string[], status: 'Active',
   });
@@ -134,12 +134,14 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
 
   const set = (key: string) => (v: string) => setForm(f => ({ ...f, [key]: v }));
 
-  // Auto-verify the address/city/state combination and fill lat/lng (read-only).
+  // Auto-fill lat/lng from address + city + state + pincode using the free
+  // Nominatim (OpenStreetMap) geocoder — the same one the employer site form uses.
   // Debounced to respect Nominatim's rate limit; stale responses are ignored.
   useEffect(() => {
     const address = form.address.trim();
     const city = form.city.trim();
     const state = form.state.trim();
+    const pincode = form.pincode.trim();
 
     // Need at least city + state before a lookup makes sense
     if (!city || !state) {
@@ -148,36 +150,27 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
       return;
     }
 
-    setGeo({ status: 'loading', message: 'Verifying location from address…' });
+    setGeo({ status: 'loading', message: 'Locating from address…' });
     const reqId = ++geoReqId.current;
     if (geoTimer.current) clearTimeout(geoTimer.current);
     geoTimer.current = setTimeout(async () => {
-      const query = buildAddressQuery({ address, city, state });
-      try {
-        const result = await geocode(query);
-        if (reqId !== geoReqId.current) return; // a newer edit superseded this lookup
-        if (result) {
-          setForm(f => ({ ...f, latitude: result.lat.toFixed(6), longitude: result.lng.toFixed(6) }));
-          setGeo({ status: 'ok', message: 'Location verified from the address, city and state.' });
-        } else {
-          setForm(f => ({ ...f, latitude: '', longitude: '' }));
-          setGeo({
-            status: 'error',
-            message: 'We could not locate this address. Please correct the address, city and state.',
-          });
-        }
-      } catch {
-        if (reqId !== geoReqId.current) return;
+      const query = buildSiteAddress({ address, city, state, pincode });
+      const result = await geocodeAddress(query);
+      if (reqId !== geoReqId.current) return; // a newer edit superseded this lookup
+      if (result) {
+        setForm(f => ({ ...f, latitude: result.lat.toFixed(6), longitude: result.lng.toFixed(6) }));
+        setGeo({ status: 'ok', message: 'Location found from the address, city, state and pincode.' });
+      } else {
         setForm(f => ({ ...f, latitude: '', longitude: '' }));
         setGeo({
           status: 'error',
-          message: 'Location service is unavailable right now. Please try again in a moment.',
+          message: 'We could not locate this address. Please check the address, city, state and pincode.',
         });
       }
-    }, 800);
+    }, 900);
 
     return () => { if (geoTimer.current) clearTimeout(geoTimer.current); };
-  }, [form.address, form.city, form.state]);
+  }, [form.address, form.city, form.state, form.pincode]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -194,8 +187,8 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
       e.location = geo.status === 'error'
         ? geo.message
         : geo.status === 'loading'
-          ? 'Please wait for the location to finish verifying.'
-          : 'Enter a valid address, city and state so the location can be verified.';
+          ? 'Please wait for the location to finish loading.'
+          : 'Enter a valid address, city, state and pincode so the location can be found.';
     }
     return e;
   };
@@ -219,6 +212,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         address: form.address.trim() || undefined,
         city: form.city.trim() || undefined,
         state: form.state || undefined,
+        pincode: form.pincode.trim() || undefined,
         latitude: form.latitude ? Number(form.latitude) : undefined,
         longitude: form.longitude ? Number(form.longitude) : undefined,
         skills: form.skills,
@@ -278,6 +272,15 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           </div>
           <FloatingInput label="City" value={form.city} onChange={set('city')} required error={errors.city} placeholder="City" />
           <SelectInput label="State" value={form.state} onChange={set('state')} options={STATES} required />
+          <div className="sm:col-span-2">
+            <FloatingInput
+              label="Pincode"
+              value={form.pincode}
+              onChange={v => set('pincode')(v.replace(/\D/g, '').slice(0, 6))}
+              error={errors.pincode}
+              placeholder="6-digit pincode (improves location accuracy)"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-2 sm:col-span-2">
             <FloatingInput label="Latitude" value={form.latitude} onChange={set('latitude')} placeholder="Auto-filled" readOnly />
             <FloatingInput label="Longitude" value={form.longitude} onChange={set('longitude')} placeholder="Auto-filled" readOnly />
@@ -303,7 +306,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
             )}
             {geo.status === 'idle' && !errors.location && (
               <p className="text-xs text-gray-400">
-                Latitude and longitude are filled automatically from the address, city and state.
+                Latitude and longitude are filled automatically from the address, city, state and pincode.
               </p>
             )}
           </div>

@@ -35,9 +35,4 @@ return [
         ],
     ],
 
-    'mappls' => [
-        'client_id' => env('MAPPLS_CLIENT_ID'),
-        'client_secret' => env('MAPPLS_CLIENT_SECRET'),
-    ],
-
 ];
