@@ -25,6 +25,9 @@ import {
 import { listCompanyDocuments, createDocumentRecord } from '../services/documentService';
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
 import { getAadhaarStatus, sendAadhaarOtp, verifyAadhaarOtp } from '../services/aadhaarVerificationService';
+import FeedbackPage from './FeedbackPage';
+import AvailableGuardsPage from './AvailableGuardsPage';
+import CashPaymentPage from './CashPaymentPage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,8 +46,8 @@ interface EmployerInfo {
 
 type EmployerPage =
   | 'dashboard' | 'profile' | 'aadhaar' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
-  | 'shortlisted' | 'selected' | 'interviews' | 'agreements' | 'attendance'
-  | 'payments' | 'wallet' | 'invoices' | 'reports' | 'support' | 'settings';
+  | 'shortlisted' | 'selected' | 'available-guards' | 'interviews' | 'agreements' | 'attendance'
+  | 'payments' | 'cash-payments' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -59,12 +62,15 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode }[] = [
   { id: 'applicants',  label: 'Applicants',               icon: <ClipboardList size={18} /> },
   { id: 'shortlisted', label: 'Shortlisted Guards',       icon: <ShieldCheck size={18} /> },
   { id: 'selected',    label: 'Selected / Hired',         icon: <UserCheck size={18} /> },
+  { id: 'available-guards', label: 'Available Guards',    icon: <Search size={18} /> },
   { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} /> },
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} /> },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} /> },
   { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} /> },
+  { id: 'cash-payments', label: 'Cash Payments (OTP)',    icon: <CreditCard size={18} /> },
   { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} /> },
   { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} /> },
+  { id: 'feedback',    label: 'Feedback',                 icon: <MessageSquare size={18} /> },
   { id: 'support',     label: 'Support / Help',           icon: <MessageSquare size={18} /> },
   { id: 'settings',    label: 'Settings',                 icon: <Settings size={18} /> },
 ];
@@ -158,6 +164,9 @@ export default function EmployerApp({ onLogout }: EmployerAppProps) {
       case 'wallet':      return <WalletPage key={refresh} />;
       case 'invoices':    return activeCompany ? <InvoicesPage company={activeCompany} /> : <CompanyRequired onNavigate={setPage} />;
       case 'reports':     return activeCompany ? <ReportsPage employer={employer} company={activeCompany} companies={companies} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'available-guards': return <AvailableGuardsPage />;
+      case 'cash-payments':    return <CashPaymentPage />;
+      case 'feedback':    return <FeedbackPage />;
       default:            return <StaticInfoPage title={pageTitles[page]} />;
     }
   };
@@ -1230,7 +1239,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   const [saving, setSaving] = useState(false);
   const [job, setJob] = useState({
     title: '', site_id: '', guards_required: '1', category: 'Service Partner', guard_type: 'Service Partner',
-    gender_preference: 'Any', experience_required: '0-1 years', salary_amount: '', payment_type: 'Monthly',
+    gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
     duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '', duration_type: 'Monthly',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
     police_verification_required: true, uniform_required: true, food_facility: false, accommodation_facility: false,
@@ -1258,6 +1267,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
         guards_required: Number(job.guards_required) || 1,
         gender_preference: job.gender_preference,
         experience_required: job.experience_required,
+        qualification_required: job.qualification_required,
         salary_amount: Number(job.salary_amount),
         payment_type: job.payment_type,
         duty_hours: job.duty_hours,
@@ -1295,6 +1305,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
           <Input label="Service Partner Type" value={job.guard_type} onChange={v => setJob({ ...job, guard_type: v })} />
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
+          <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
           <Input label="Salary / Payment" value={job.salary_amount} onChange={v => setJob({ ...job, salary_amount: v })} />
           <Sel label="Payment Type" value={job.payment_type} options={['Daily', 'Monthly', 'Contract', 'Shift-based']} onChange={v => setJob({ ...job, payment_type: v })} />
           <Input label="Duty Hours" value={job.duty_hours} onChange={v => setJob({ ...job, duty_hours: v })} />

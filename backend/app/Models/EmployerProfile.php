@@ -15,6 +15,7 @@ class EmployerProfile extends Model
         'is_aadhaar_verified', 'aadhaar_verification_status', 'aadhaar_verified_at',
         'aadhaar_last_four', 'profile_status', 'verification_status',
         'admin_remarks', 'rejection_reason', 'created_from',
+        'sales_executive_id', 'sub_admin_id', 'billing_status', 'base_hourly_rate',
     ];
 
     protected function casts(): array

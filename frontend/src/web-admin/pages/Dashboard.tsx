@@ -1,3 +1,4 @@
+// Admin Dashboard — platform stats backed by the Laravel API
 import { useEffect, useState } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import {
@@ -6,13 +7,16 @@ import {
 } from 'lucide-react';
 import FlipCard from '../../components/FlipCard';
 import AdminOverviewMap from '../../components/map/AdminOverviewMap';
-import { storage } from '../../lib/storage';
+import { Guard } from '../../lib/storage';
+import { listGuards } from '../../services/adminGuardService';
+import { listAllJobsForAdmin } from '../../services/jobService';
+import { getAdminReportCounts, AdminReportCounts } from '../../services/reportService';
 
 function AnimatedCounter({ target, prefix = '', suffix = '' }: { target: number; prefix?: string; suffix?: string }) {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let start = 0;
-    const step = target / 60;
+    const step = Math.max(target / 60, 1);
     const timer = setInterval(() => {
       start += step;
       if (start >= target) { setCount(target); clearInterval(timer); }
@@ -33,44 +37,65 @@ const itemVariants: Variants = {
 };
 
 export default function Dashboard() {
-  const guards = storage.getGuards();
-  const jobs = storage.getJobs();
-  const attendance = storage.getAttendance();
-  const applications = storage.getApplications();
+  const [counts, setCounts] = useState<AdminReportCounts | null>(null);
+  const [guards, setGuards] = useState<Guard[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayAttendance = attendance.filter(a => a.date === today);
+  useEffect(() => {
+    getAdminReportCounts().then(setCounts).catch(e => setError(e?.response?.data?.message || e.message));
+    listGuards().then(setGuards).catch(() => {});
+    listAllJobsForAdmin().then(data => setJobs(data ?? [])).catch(() => {});
+  }, []);
+
   const activeGuards = guards.filter(g => g.status === 'Active').length;
   const verifiedGuards = guards.filter(g => g.aadhaarStatus === 'Verified' && g.policeVerification === 'Verified').length;
-  const openPositions = jobs
-    .filter(j => j.status === 'Active')
-    .reduce((sum, job) => sum + job.openings, 0);
+  const activeJobs = jobs.filter(j => j.status === 'active');
+  const openPositions = activeJobs.reduce((sum, job) => sum + (job.guards_required ?? 0), 0);
 
   const kpis = [
-    { label: 'Total Guards', value: guards.length, icon: <Users size={20} />, color: '#0f1e3c', change: '+12%' },
-    { label: 'Active Guards', value: activeGuards, icon: <Shield size={20} />, color: '#166534', change: '+5%' },
-    { label: 'Verified Guards', value: verifiedGuards, icon: <UserCheck size={20} />, color: '#0f766e', change: '+4%' },
-    { label: 'Jobs Posted', value: jobs.length, icon: <Briefcase size={20} />, color: '#7c2d12', change: '+8%' },
-    { label: 'Open Positions', value: openPositions, icon: <MapPin size={20} />, color: '#1d4ed8', change: '+10%' },
-    { label: 'Today Attendance', value: todayAttendance.length, icon: <Clock size={20} />, color: '#1e3a5f', change: '+3%' },
-    { label: 'Applications', value: applications.length, icon: <FileText size={20} />, color: '#5b21b6', change: '+15%' },
-    { label: 'Revenue (Est.)', value: 0, icon: <TrendingUp size={20} />, color: '#065f46', change: 'N/A', prefix: '₹', suffix: 'K', displayValue: '4.2K' },
+    { label: 'Total Guards', value: counts?.guards ?? guards.length, icon: <Users size={20} />, color: '#0f1e3c' },
+    { label: 'Active Guards', value: activeGuards, icon: <Shield size={20} />, color: '#166534' },
+    { label: 'Employers', value: counts?.employers ?? 0, icon: <UserCheck size={20} />, color: '#0f766e' },
+    { label: 'Jobs Posted', value: counts?.jobs ?? jobs.length, icon: <Briefcase size={20} />, color: '#7c2d12' },
+    { label: 'Open Positions', value: openPositions, icon: <MapPin size={20} />, color: '#1d4ed8' },
+    { label: 'Today Attendance', value: counts?.attendance_today ?? 0, icon: <Clock size={20} />, color: '#1e3a5f' },
+    { label: 'Applications', value: counts?.applications ?? 0, icon: <FileText size={20} />, color: '#5b21b6' },
+    { label: 'Pending Approvals', value: counts?.pending_jobs ?? 0, icon: <TrendingUp size={20} />, color: '#854d0e' },
   ];
+
+  // Top cities by guard count, with job counts from the same city.
+  const cityMap = new Map<string, { guards: number; jobs: number }>();
+  for (const g of guards) {
+    const city = g.city || 'Unknown';
+    const entry = cityMap.get(city) ?? { guards: 0, jobs: 0 };
+    entry.guards += 1;
+    cityMap.set(city, entry);
+  }
+  for (const j of jobs) {
+    const city = j.company_sites?.city || 'Unknown';
+    const entry = cityMap.get(city) ?? { guards: 0, jobs: 0 };
+    entry.jobs += 1;
+    cityMap.set(city, entry);
+  }
+  const areaStats = [...cityMap.entries()]
+    .map(([city, stats]) => ({ city, ...stats }))
+    .sort((a, b) => b.guards + b.jobs - (a.guards + a.jobs))
+    .slice(0, 5);
+  const maxGuards = Math.max(1, ...areaStats.map(a => a.guards));
+  const maxJobs = Math.max(1, ...areaStats.map(a => a.jobs));
 
   const recentActivity = [
-    { type: 'guard', text: 'New service partner Rajesh Kumar registered', time: '2 min ago', icon: <UserCheck size={14} />, color: '#166534' },
-    { type: 'job', text: 'Job posted: Service Partner – Reliance Mall', time: '15 min ago', icon: <Briefcase size={14} />, color: '#7c2d12' },
-    { type: 'attendance', text: 'Attendance marked: 8 service partners checked in', time: '1 hr ago', icon: <Clock size={14} />, color: '#1e3a5f' },
-    { type: 'alert', text: 'Document verification pending: 3 service partners', time: '2 hr ago', icon: <AlertCircle size={14} />, color: '#854d0e' },
-    { type: 'application', text: 'New application: Suresh Patil → Tech Park', time: '3 hr ago', icon: <FileText size={14} />, color: '#5b21b6' },
-  ];
-
-  const areaStats = [
-    { city: 'Mumbai', guards: 8, jobs: 12, attendance: 85 },
-    { city: 'Pune', guards: 5, jobs: 7, attendance: 78 },
-    { city: 'Delhi', guards: 6, jobs: 9, attendance: 92 },
-    { city: 'Bangalore', guards: 3, jobs: 5, attendance: 65 },
-    { city: 'Hyderabad', guards: 4, jobs: 6, attendance: 88 },
+    ...guards.slice(0, 3).map(g => ({
+      text: `Service partner registered: ${g.fullName}`,
+      time: new Date(g.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+      icon: <UserCheck size={14} />, color: '#166534',
+    })),
+    ...jobs.slice(0, 2).map(j => ({
+      text: `Job posted: ${j.title}${j.employer_companies?.company_name ? ` – ${j.employer_companies.company_name}` : ''}`,
+      time: j.created_at ? new Date(j.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '',
+      icon: <Briefcase size={14} />, color: '#7c2d12',
+    })),
   ];
 
   return (
@@ -97,6 +122,12 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
+      {error && (
+        <motion.div variants={itemVariants} className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 text-red-600 text-sm">
+          <AlertCircle size={15} className="flex-shrink-0" />{error}
+        </motion.div>
+      )}
+
       {/* KPI Cards with Flip */}
       <motion.div variants={containerVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
@@ -104,11 +135,7 @@ export default function Dashboard() {
             <FlipCard
               icon={kpi.icon}
               label={kpi.label}
-              value={
-                'displayValue' in kpi && kpi.displayValue
-                  ? `₹${kpi.displayValue}`
-                  : <AnimatedCounter target={kpi.value} prefix={kpi.prefix} suffix={kpi.suffix} />
-              }
+              value={<AnimatedCounter target={kpi.value} />}
               color={kpi.color}
             />
           </motion.div>
@@ -127,48 +154,49 @@ export default function Dashboard() {
               <MapPin size={16} style={{ color: '#8b1a1a' }} />
               Area-wise Stats
             </h2>
-            <span className="text-xs text-gray-400">Top 5 Cities</span>
+            <span className="text-xs text-gray-400">Top {areaStats.length} Cities</span>
           </div>
-          <div className="space-y-4">
-            {areaStats.map(area => (
-              <div key={area.city} className="flex items-center gap-4">
-                <div className="w-20 text-sm font-medium text-gray-700">{area.city}</div>
-                <div className="flex-1 flex gap-2">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
-                      <span>Guards</span><span>{area.guards}</span>
+          {areaStats.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No location data yet</p>
+          ) : (
+            <div className="space-y-4">
+              {areaStats.map(area => (
+                <div key={area.city} className="flex items-center gap-4">
+                  <div className="w-24 text-sm font-medium text-gray-700 truncate">{area.city}</div>
+                  <div className="flex-1 flex gap-2">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Guards</span><span>{area.guards}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: '#0f1e3c' }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(area.guards / maxGuards) * 100}%` }}
+                          transition={{ duration: 0.8, delay: 0.3 }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ background: '#0f1e3c' }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(area.guards / 10) * 100}%` }}
-                        transition={{ duration: 0.8, delay: 0.3 }}
-                      />
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Jobs</span><span>{area.jobs}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: '#8b1a1a' }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(area.jobs / maxJobs) * 100}%` }}
+                          transition={{ duration: 0.8, delay: 0.4 }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
-                      <span>Jobs</span><span>{area.jobs}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ background: '#8b1a1a' }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(area.jobs / 15) * 100}%` }}
-                        transition={{ duration: 0.8, delay: 0.4 }}
-                      />
-                    </div>
-                  </div>
-                  <div className="w-16 text-right text-xs font-semibold" style={{ color: area.attendance > 80 ? '#166534' : '#7c2d12' }}>
-                    {area.attendance}% att.
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Recent Activity */}
@@ -181,28 +209,32 @@ export default function Dashboard() {
             <Activity size={16} style={{ color: '#8b1a1a' }} />
             Recent Activity
           </h2>
-          <div className="space-y-4">
-            {recentActivity.map((act, i) => (
-              <motion.div
-                key={i}
-                className="flex gap-3 items-start"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: `${act.color}15`, color: act.color }}
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No recent activity</p>
+          ) : (
+            <div className="space-y-4">
+              {recentActivity.map((act, i) => (
+                <motion.div
+                  key={i}
+                  className="flex gap-3 items-start"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
                 >
-                  {act.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-700 leading-snug">{act.text}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{act.time}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: `${act.color}15`, color: act.color }}
+                  >
+                    {act.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-700 leading-snug">{act.text}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{act.time}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -226,17 +258,17 @@ export default function Dashboard() {
         <AdminOverviewMap
           guards={guards.map(g => ({
             id: g.id,
-            name: g.name,
+            name: g.fullName,
             city: g.city,
-            latitude: (g as any).latitude,
-            longitude: (g as any).longitude,
+            latitude: g.latitude ? Number(g.latitude) : null,
+            longitude: g.longitude ? Number(g.longitude) : null,
           }))}
-          jobs={jobs.map(j => ({
+          jobs={activeJobs.map(j => ({
             id: j.id,
             title: j.title,
-            company: j.company,
-            latitude: (j as any).latitude,
-            longitude: (j as any).longitude,
+            company: j.employer_companies?.company_name ?? '',
+            latitude: j.company_sites?.latitude ?? null,
+            longitude: j.company_sites?.longitude ?? null,
           }))}
           mapHeight={380}
         />
@@ -258,8 +290,8 @@ export default function Dashboard() {
           {[
             { label: 'Active', value: activeGuards, color: '#22c55e' },
             { label: 'Blocked', value: guards.filter(g => g.status === 'Blocked').length, color: '#ef4444' },
-            { label: 'Pending Aadhaar', value: guards.filter(g => g.aadhaarStatus === 'Pending').length, color: '#f59e0b' },
-            { label: 'Pending Police', value: guards.filter(g => g.policeVerification === 'Pending').length, color: '#f59e0b' },
+            { label: 'Fully Verified', value: verifiedGuards, color: '#38bdf8' },
+            { label: 'Pending Verification', value: guards.length - verifiedGuards, color: '#f59e0b' },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <motion.div

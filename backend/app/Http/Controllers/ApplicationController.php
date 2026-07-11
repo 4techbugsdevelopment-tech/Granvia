@@ -40,6 +40,11 @@ class ApplicationController extends Controller
     {
         return response()->json(
             JobApplication::where('guard_user_id', $request->user()->id)
+                ->with([
+                    'job:id,title,salary_amount,payment_type,shift_type,duty_hours,company_id,site_id',
+                    'job.company:id,company_name',
+                    'job.site:id,site_name,city',
+                ])
                 ->orderByDesc('applied_at')
                 ->get()
         );

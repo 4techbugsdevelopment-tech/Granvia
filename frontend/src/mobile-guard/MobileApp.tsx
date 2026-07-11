@@ -6,9 +6,11 @@ import JobSearch from './screens/JobSearch';
 import AttendanceScreen from './screens/AttendanceScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
+import WalletScreen from './screens/WalletScreen';
+import AvailabilityScreen from './screens/AvailabilityScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import SupportScreen from './screens/SupportScreen';
 import MobilePlaceholder from './screens/MobilePlaceholder';
-import { Guard } from '../lib/storage';
-import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
 
 interface MobileAppProps {
@@ -17,7 +19,7 @@ interface MobileAppProps {
 
 type Screen =
   | 'dashboard' | 'jobs' | 'attendance' | 'profile' | 'applications'
-  | 'wallet' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions';
+  | 'wallet' | 'availability' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions';
 
 const NAV_ITEMS = [
   { id: 'dashboard' as Screen, icon: <LayoutDashboard size={20} />, label: 'Home' },
@@ -29,31 +31,6 @@ const NAV_ITEMS = [
 
 export default function MobileApp({ onLogout }: MobileAppProps) {
   const [screen, setScreen] = useState<Screen>('dashboard');
-  const { profile } = useAuth();
-  const guard: Guard = {
-    id: profile?.id || '',
-    fullName: profile?.full_name || 'Guard',
-    mobile: profile?.mobile || '',
-    email: profile?.email || '',
-    password: '',
-    gender: '',
-    dob: '',
-    address: '',
-    city: '',
-    state: '',
-    currentLocation: '',
-    latitude: '',
-    longitude: '',
-    skills: [],
-    languages: [],
-    experience: '',
-    aadhaarStatus: 'Pending',
-    policeVerification: 'Pending',
-    bankDetails: null,
-    status: profile?.account_status === 'active' ? 'Active' : 'Blocked',
-    avatar: profile?.avatar_url || null,
-    createdAt: profile?.created_at || new Date().toISOString(),
-  };
 
   const handleLogout = () => {
     signOut().finally(onLogout);
@@ -61,11 +38,15 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
 
   const renderScreen = () => {
     switch (screen) {
-      case 'dashboard': return <MobileDashboard guard={guard} onNavigate={s => setScreen(s as Screen)} />;
+      case 'dashboard': return <MobileDashboard onNavigate={s => setScreen(s as Screen)} />;
       case 'jobs': return <JobSearch />;
-      case 'attendance': return <AttendanceScreen guard={guard} />;
-      case 'profile': return <ProfileScreen guard={guard} />;
-      case 'applications': return <ApplicationsScreen guard={guard} />;
+      case 'attendance': return <AttendanceScreen />;
+      case 'profile': return <ProfileScreen />;
+      case 'applications': return <ApplicationsScreen />;
+      case 'wallet': return <WalletScreen />;
+      case 'availability': return <AvailabilityScreen />;
+      case 'notifications': return <NotificationsScreen />;
+      case 'support': return <SupportScreen />;
       default: return <MobilePlaceholder screen={screen} />;
     }
   };

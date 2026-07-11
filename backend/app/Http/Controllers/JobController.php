@@ -124,6 +124,7 @@ class JobController extends Controller
             'guards_required' => ['nullable', 'integer', 'min:1'],
             'gender_preference' => ['nullable', 'string'],
             'experience_required' => ['nullable', 'string'],
+            'qualification_required' => ['nullable', 'string'],
             'salary_amount' => ['nullable', 'numeric'],
             'payment_type' => ['nullable', 'string'],
             'duty_hours' => ['nullable', 'string'],

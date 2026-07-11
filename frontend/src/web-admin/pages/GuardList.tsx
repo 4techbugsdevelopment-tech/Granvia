@@ -1,20 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Eye, Shield, ShieldOff,
-  Phone, Mail, MapPin, XCircle, User
+  Phone, Mail, MapPin, XCircle, User, AlertCircle
 } from 'lucide-react';
-import { storage, Guard } from '../../lib/storage';
+import { Guard } from '../../lib/storage';
+import { listGuards, setGuardAccountStatus } from '../../services/adminGuardService';
+import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 
 interface GuardListProps {
   onAddGuard: () => void;
 }
 
 export default function GuardList({ onAddGuard }: GuardListProps) {
-  const [guards, setGuards] = useState(storage.getGuards());
+  const [guards, setGuards] = useState<Guard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'All' | 'Active' | 'Blocked'>('All');
   const [selectedGuard, setSelectedGuard] = useState<Guard | null>(null);
+  const [docs, setDocs] = useState<any[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+
+  useEffect(() => {
+    listGuards()
+      .then(setGuards)
+      .catch(e => setError(e?.response?.data?.message || e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedGuard) { setDocs([]); return; }
+    setDocsLoading(true);
+    listGuardDocuments(selectedGuard.id)
+      .then(setDocs)
+      .catch(() => setDocs([]))
+      .finally(() => setDocsLoading(false));
+  }, [selectedGuard]);
+
+  const reviewDoc = async (docId: string, status: 'verified' | 'rejected') => {
+    try {
+      const updated = await reviewGuardDocument(docId, status);
+      setDocs(prev => prev.map(d => (d.id === docId ? updated : d)));
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    }
+  };
 
   const filtered = guards.filter(g => {
     const matchSearch = g.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -24,13 +55,17 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     return matchSearch && matchFilter;
   });
 
-  const toggleBlock = (id: string) => {
+  const toggleBlock = async (id: string) => {
     const guard = guards.find(g => g.id === id);
     if (!guard) return;
-    const newStatus = guard.status === 'Active' ? 'Blocked' : 'Active';
-    storage.updateGuard(id, { status: newStatus });
-    setGuards(storage.getGuards());
-    if (selectedGuard?.id === id) setSelectedGuard({ ...selectedGuard, status: newStatus });
+    const newStatus = guard.status === 'Active' ? 'blocked' : 'active';
+    try {
+      const updated = await setGuardAccountStatus(id, newStatus);
+      setGuards(prev => prev.map(g => (g.id === id ? updated : g)));
+      if (selectedGuard?.id === id) setSelectedGuard(updated);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    }
   };
 
   const statusColor = (status: string) => status === 'Active' ? '#166534' : '#7c2d12';
@@ -61,6 +96,12 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           Add Service Partner
         </motion.button>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 text-red-600 text-sm">
+          <AlertCircle size={15} className="flex-shrink-0" />{error}
+        </div>
+      )}
 
       {/* Search & Filter */}
       <div className="flex gap-3 flex-wrap">
@@ -212,7 +253,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           {filtered.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <User size={36} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No guards found</p>
+              <p className="text-sm">{loading ? 'Loading service partners…' : 'No guards found'}</p>
             </div>
           )}
         </div>
@@ -308,6 +349,41 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Document review */}
+              <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+                <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Documents</div>
+                {docsLoading ? (
+                  <p className="text-sm text-gray-400">Loading documents…</p>
+                ) : docs.length === 0 ? (
+                  <p className="text-sm text-gray-400">No documents uploaded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {docs.map(doc => (
+                      <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: '#f8fafc' }}>
+                        <div className="min-w-0">
+                          <a href={doc.download_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline truncate block">
+                            {GUARD_DOCUMENT_LABELS[doc.document_type as GuardDocumentType] ?? doc.document_type}
+                          </a>
+                          <span className="text-xs text-gray-400 truncate">{doc.file_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{
+                            background: doc.status === 'verified' ? '#dcfce7' : doc.status === 'rejected' ? '#fee2e2' : '#fef9c3',
+                            color: doc.status === 'verified' ? '#166534' : doc.status === 'rejected' ? '#7c2d12' : '#854d0e',
+                          }}>{doc.status}</span>
+                          {doc.status !== 'verified' && (
+                            <button onClick={() => reviewDoc(doc.id, 'verified')} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ background: '#dcfce7', color: '#166534' }}>Verify</button>
+                          )}
+                          {doc.status !== 'rejected' && (
+                            <button onClick={() => reviewDoc(doc.id, 'rejected')} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ background: '#fee2e2', color: '#7c2d12' }}>Reject</button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

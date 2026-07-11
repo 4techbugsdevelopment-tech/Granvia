@@ -9,7 +9,9 @@ return [
         env('FRONTEND_URL', 'http://localhost:5173'),
     ]),
 
-    'allowed_origins_patterns' => [],
+    // Any localhost port is allowed in addition to FRONTEND_URL, so local dev
+    // servers on non-default ports (Vite auto-increment, previews) still work.
+    'allowed_origins_patterns' => ['#^https?://(localhost|127\.0\.0\.1)(:\d+)?$#'],
 
     'allowed_headers' => ['*'],
 

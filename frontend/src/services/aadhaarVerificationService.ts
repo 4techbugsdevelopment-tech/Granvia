@@ -12,6 +12,15 @@ export async function getAadhaarStatus() {
   }
 }
 
+/** Mock instant Aadhaar verification — enter number, approved immediately. */
+export async function verifyAadhaarInstant(aadhaarNumber: string) {
+  if (!AADHAAR_FORMAT.test(aadhaarNumber.trim())) {
+    throw new Error('Enter a valid 12-digit Aadhaar number.');
+  }
+  const { data } = await apiClient.post('/employer/aadhaar/verify-instant', { aadhaar_number: aadhaarNumber.trim() });
+  return data;
+}
+
 export async function sendAadhaarOtp(aadhaarNumber: string): Promise<{ sentTo: string; devOtp?: string }> {
   if (!AADHAAR_FORMAT.test(aadhaarNumber.trim())) {
     throw new Error('Enter a valid 12-digit Aadhaar number.');

@@ -16,7 +16,7 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
-            'role' => ['required', 'in:super_admin,employer,guard'],
+            'role' => ['required', 'in:super_admin,employer,guard,sub_admin,sales_executive'],
         ];
     }
 }

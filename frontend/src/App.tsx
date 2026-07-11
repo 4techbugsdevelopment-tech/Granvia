@@ -8,13 +8,18 @@ import MobileLogin from './mobile-guard/MobileLogin';
 import MobileApp from './mobile-guard/MobileApp';
 import EmployerAuth from './employer/EmployerAuth';
 import EmployerApp from './employer/EmployerApp';
+import SalesAuth from './sales/SalesAuth';
+import SalesApp from './sales/SalesApp';
+import SubAdminAuth from './subadmin/SubAdminAuth';
+import SubAdminApp from './subadmin/SubAdminApp';
 import GranviaLogo from './components/GranviaLogo';
 import { useAuth } from './hooks/useAuth';
 
-type AppMode = 'landing' | 'admin' | 'mobile' | 'employer';
+type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin';
 type AdminState = 'splash' | 'login' | 'dashboard';
 type MobileState = 'splash' | 'login' | 'app';
 type EmployerState = 'login' | 'app';
+type DemoPanelState = 'login' | 'app';
 
 type GranviaWindow = Window & {
   __GRANVIA_APK__?: boolean;
@@ -24,6 +29,8 @@ function getModeFromPath(pathname: string): AppMode {
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/guard' || pathname.startsWith('/guard/')) return 'mobile';
   if (pathname === '/employer' || pathname.startsWith('/employer/')) return 'employer';
+  if (pathname === '/sales' || pathname.startsWith('/sales/')) return 'sales';
+  if (pathname === '/sub-admin' || pathname.startsWith('/sub-admin/')) return 'subadmin';
   return 'landing';
 }
 
@@ -31,6 +38,8 @@ function getPathForMode(mode: AppMode): string {
   if (mode === 'admin') return '/admin';
   if (mode === 'mobile') return '/guard';
   if (mode === 'employer') return '/employer';
+  if (mode === 'sales') return '/sales';
+  if (mode === 'subadmin') return '/sub-admin';
   return '/';
 }
 
@@ -95,7 +104,7 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
           Choose your login portal to continue
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-5xl">
           <motion.button
             onClick={() => onSelect('admin')}
             className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
@@ -130,6 +139,30 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
             <h3 className="text-white font-bold text-lg">Employer Portal</h3>
             <p className="text-gray-400 text-xs mt-1">Company Hiring Workspace</p>
             <p className="mt-3 text-xs text-gray-500">Post jobs, review applicants & manage payments</p>
+          </motion.button>
+
+          <motion.button
+            onClick={() => onSelect('sales')}
+            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
+            style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', backdropFilter: 'blur(10px)' }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <div className="text-3xl mb-3">📈</div>
+            <h3 className="text-white font-bold text-lg">Sales Executive</h3>
+            <p className="text-gray-400 text-xs mt-1">Client & Discount Management</p>
+            <p className="mt-3 text-xs text-gray-500">Manage clients, post jobs & apply discounts</p>
+          </motion.button>
+
+          <motion.button
+            onClick={() => onSelect('subadmin')}
+            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
+            style={{ background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.25)', backdropFilter: 'blur(10px)' }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <div className="text-3xl mb-3">🗂️</div>
+            <h3 className="text-white font-bold text-lg">Sub Admin</h3>
+            <p className="text-gray-400 text-xs mt-1">Regional Operations</p>
+            <p className="mt-3 text-xs text-gray-500">Manage company, staff, clients & guards</p>
           </motion.button>
         </div>
 
@@ -196,6 +229,8 @@ function App() {
   const [adminState, setAdminState] = useState<AdminState>('splash');
   const [mobileState, setMobileState] = useState<MobileState>('splash');
   const [employerState, setEmployerState] = useState<EmployerState>('login');
+  const [salesState, setSalesState] = useState<DemoPanelState>('login');
+  const [subAdminState, setSubAdminState] = useState<DemoPanelState>('login');
 
   const setPathForMode = (nextMode: AppMode, replace = false) => {
     const nextPath = getPathForMode(nextMode);
@@ -215,6 +250,12 @@ function App() {
     }
     if (nextMode === 'employer') {
       setEmployerState(profile?.role === 'employer' ? 'app' : 'login');
+    }
+    if (nextMode === 'sales') {
+      setSalesState(profile?.role === 'sales_executive' ? 'app' : 'login');
+    }
+    if (nextMode === 'subadmin') {
+      setSubAdminState(profile?.role === 'sub_admin' ? 'app' : 'login');
     }
   };
 
@@ -237,6 +278,18 @@ function App() {
       if (routeMode === 'employer') {
         setMode('employer');
         setEmployerState(profile?.role === 'employer' ? 'app' : 'login');
+        return;
+      }
+
+      if (routeMode === 'sales') {
+        setMode('sales');
+        setSalesState(profile?.role === 'sales_executive' ? 'app' : 'login');
+        return;
+      }
+
+      if (routeMode === 'subadmin') {
+        setMode('subadmin');
+        setSubAdminState(profile?.role === 'sub_admin' ? 'app' : 'login');
         return;
       }
 
@@ -307,6 +360,40 @@ function App() {
         {employerState === 'app' && (
           <motion.div key="emp-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <EmployerApp onLogout={() => { setEmployerState('login'); setMode('employer'); setPathForMode('employer', true); }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  if (mode === 'sales') {
+    return (
+      <AnimatePresence mode="wait">
+        {salesState === 'login' && (
+          <motion.div key="sales-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <SalesAuth onLogin={() => setSalesState('app')} onBackToLanding={() => openPortal('landing')} />
+          </motion.div>
+        )}
+        {salesState === 'app' && (
+          <motion.div key="sales-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <SalesApp onLogout={() => { setSalesState('login'); setMode('sales'); setPathForMode('sales', true); }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  if (mode === 'subadmin') {
+    return (
+      <AnimatePresence mode="wait">
+        {subAdminState === 'login' && (
+          <motion.div key="sub-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <SubAdminAuth onLogin={() => setSubAdminState('app')} onBackToLanding={() => openPortal('landing')} />
+          </motion.div>
+        )}
+        {subAdminState === 'app' && (
+          <motion.div key="sub-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <SubAdminApp onLogout={() => { setSubAdminState('login'); setMode('subadmin'); setPathForMode('subadmin', true); }} />
           </motion.div>
         )}
       </AnimatePresence>

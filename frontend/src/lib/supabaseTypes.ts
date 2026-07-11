@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'employer' | 'guard';
+export type UserRole = 'super_admin' | 'employer' | 'guard' | 'sub_admin' | 'sales_executive';
 
 export interface ProfileRow {
   id: string;
@@ -38,10 +38,24 @@ export interface GuardProfileRow {
   full_name: string | null;
   mobile: string | null;
   gender: string | null;
+  dob: string | null;
+  address: string | null;
   city: string | null;
   state: string | null;
   pincode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  search_radius_km: number | null;
+  qualification: string | null;
   skills: string[] | null;
   languages: string[] | null;
+  experience: string | null;
+  aadhaar_status: string;
+  police_verification_status: string;
   verification_status: string;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_name: string | null;
+  account_holder_name: string | null;
+  avatar_url: string | null;
 }

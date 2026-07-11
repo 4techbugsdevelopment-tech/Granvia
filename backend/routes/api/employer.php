@@ -61,6 +61,7 @@ Route::middleware(['auth:sanctum', 'role:employer'])->prefix('employer')->group(
     Route::get('wallet/transactions', [WalletController::class, 'transactions']);
 
     Route::get('aadhaar', [AadhaarVerificationController::class, 'status']);
+    Route::post('aadhaar/verify-instant', [AadhaarVerificationController::class, 'instantVerify']);
     Route::post('aadhaar/send-otp', [AadhaarVerificationController::class, 'sendOtp']);
     Route::post('aadhaar/verify-otp', [AadhaarVerificationController::class, 'verifyOtp']);
 

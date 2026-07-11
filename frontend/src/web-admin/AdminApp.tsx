@@ -7,6 +7,11 @@ import GuardList from './pages/GuardList';
 import AddGuard from './pages/AddGuard';
 import EmployerManagement from './pages/EmployerManagement';
 import JobApprovals from './pages/JobApprovals';
+import AttendanceAdmin from './pages/AttendanceAdmin';
+import HiringWorkflow from './pages/HiringWorkflow';
+import WalletPayments from './pages/WalletPayments';
+import Reports from './pages/Reports';
+import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
@@ -46,6 +51,11 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'add-guard': return <AddGuard onSuccess={() => setPage('guards')} />;
       case 'employers': return <EmployerManagement />;
       case 'jobs': return <JobApprovals />;
+      case 'attendance': return <AttendanceAdmin />;
+      case 'hiring': return <HiringWorkflow />;
+      case 'wallet': return <WalletPayments />;
+      case 'reports': return <Reports />;
+      case 'settings': return <SettingsPage />;
       default: return <PlaceholderPage page={page} />;
     }
   };

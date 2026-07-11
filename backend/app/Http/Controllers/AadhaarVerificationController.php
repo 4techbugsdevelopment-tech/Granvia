@@ -27,6 +27,41 @@ class AadhaarVerificationController extends Controller
         ]);
     }
 
+    /**
+     * Mock instant verification: entering a valid 12-digit Aadhaar number
+     * approves immediately (no external provider yet). Swap for the real
+     * Aadhaar API when credentials arrive — the route contract stays the same.
+     */
+    public function instantVerify(Request $request)
+    {
+        $data = $request->validate([
+            'aadhaar_number' => ['required', 'regex:/^\d{12}$/'],
+        ]);
+
+        $user = $request->user();
+        $lastFour = substr($data['aadhaar_number'], -4);
+
+        DB::transaction(function () use ($user, $data, $lastFour) {
+            EmployerAadhaarVerification::create([
+                'employer_user_id' => $user->id,
+                'aadhaar_number_hash' => hash('sha256', $data['aadhaar_number']),
+                'aadhaar_last_four' => $lastFour,
+                'verification_status' => 'verified',
+                'otp_verified_at' => now(),
+                'provider_name' => 'mock_instant',
+            ]);
+
+            $user->employerProfile()->update([
+                'is_aadhaar_verified' => true,
+                'aadhaar_verification_status' => 'verified',
+                'aadhaar_verified_at' => now(),
+                'aadhaar_last_four' => $lastFour,
+            ]);
+        });
+
+        return response()->json($user->employerProfile()->first());
+    }
+
     public function sendOtp(Request $request)
     {
         $data = $request->validate([

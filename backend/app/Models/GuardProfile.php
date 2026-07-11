@@ -11,8 +11,9 @@ class GuardProfile extends Model
     use HasUuids;
 
     protected $fillable = [
-        'user_id', 'full_name', 'mobile', 'gender', 'dob', 'address', 'city', 'state', 'pincode',
-        'latitude', 'longitude', 'skills', 'languages', 'experience', 'aadhaar_status',
+        'user_id', 'sub_admin_id', 'full_name', 'mobile', 'gender', 'dob', 'address', 'city', 'state', 'pincode',
+        'latitude', 'longitude', 'search_radius_km', 'skills', 'languages', 'experience',
+        'qualification', 'aadhaar_status',
         'police_verification_status', 'verification_status', 'bank_account_number',
         'bank_ifsc', 'bank_name', 'account_holder_name', 'avatar_url',
     ];

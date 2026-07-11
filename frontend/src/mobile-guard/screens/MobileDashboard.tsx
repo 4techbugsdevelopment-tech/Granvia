@@ -1,19 +1,22 @@
+// MobileDashboard — guard home screen backed by the Laravel API
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin, Clock, FileText, ChevronRight, Bell, TrendingUp } from 'lucide-react';
 import FlipCard from '../../components/FlipCard';
-import { storage, Guard } from '../../lib/storage';
+import { useAuth } from '../../hooks/useAuth';
+import { listMyAttendance } from '../../services/attendanceService';
+import { listMyApplications } from '../../services/applicationService';
+import { listActiveJobs } from '../../services/jobService';
 
 interface MobileDashboardProps {
-  guard: Guard;
   onNavigate: (screen: string) => void;
 }
 
 function AnimatedNum({ val }: { val: number }) {
   const [n, setN] = useState(0);
   useEffect(() => {
-    let s = 0; const step = val / 30;
+    let s = 0; const step = Math.max(val / 30, 1);
     const t = setInterval(() => {
       s += step; if (s >= val) { setN(val); clearInterval(t); } else setN(Math.floor(s));
     }, 20);
@@ -87,24 +90,38 @@ function DashboardFlipCard({
   );
 }
 
-export default function MobileDashboard({ guard, onNavigate }: MobileDashboardProps) {
-  const today = new Date().toISOString().split('T')[0];
-  const attendance = storage.getAttendance().filter(a => a.guardId === guard.id);
-  const todayAtt = attendance.find(a => a.date === today);
-  const jobs = storage.getJobs().filter(j => j.status === 'Active');
-  const myApps = storage.getApplications().filter(a => a.guardId === guard.id);
-  const totalHours = attendance.reduce((sum, a) => {
-    if (!a.hours) return sum;
-    const m = a.hours.match(/(\d+)h\s*(\d+)m/);
-    return sum + (m ? parseInt(m[1]) + parseInt(m[2]) / 60 : 0);
-  }, 0);
+function formatTime(value: string | null | undefined) {
+  if (!value) return null;
+  return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
+  const { profile, guardProfile } = useAuth();
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
+
+  useEffect(() => {
+    listMyAttendance().then(setAttendance).catch(() => {});
+    listMyApplications().then(data => setApplications(data ?? [])).catch(() => {});
+    listActiveJobs().then(data => setJobs(data ?? [])).catch(() => {});
+  }, []);
+
+  const fullName = guardProfile?.full_name || profile?.full_name || 'Guard';
+  const city = guardProfile?.city || '—';
+  const active = profile?.account_status === 'active';
+
+  const todayAtt = attendance.find(a => new Date(a.attendance_date).toDateString() === new Date().toDateString());
+  const totalHours = attendance.reduce((sum, a) => sum + (Number(a.total_hours) || 0), 0);
 
   const quickLinks = [
     { label: 'Find Jobs', icon: '🔍', screen: 'jobs', color: '#0f1e3c' },
     { label: 'Attendance', icon: '📍', screen: 'attendance', color: '#8b1a1a' },
     { label: 'Applications', icon: '📋', screen: 'applications', color: '#166534' },
-    { label: 'My Profile', icon: '👤', screen: 'profile', color: '#7c2d12' },
+    { label: 'Availability', icon: '🗓️', screen: 'availability', color: '#5b21b6' },
     { label: 'Wallet', icon: '💰', screen: 'wallet', color: '#854d0e' },
+    { label: 'My Profile', icon: '👤', screen: 'profile', color: '#7c2d12' },
+    { label: 'Notifications', icon: '🔔', screen: 'notifications', color: '#1d4ed8' },
     { label: 'Support', icon: '🎧', screen: 'support', color: '#1e3a5f' },
   ];
 
@@ -134,23 +151,22 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-blue-200 text-xs mb-0.5">{greeting()},</p>
-            <h1 className="text-white font-bold text-xl">{guard.fullName.split(' ')[0]}</h1>
-            <p className="text-blue-300 text-xs mt-0.5 font-mono">{guard.id}</p>
+            <h1 className="text-white font-bold text-xl">{fullName.split(' ')[0]}</h1>
           </div>
           <div className="flex items-center gap-2.5">
             <motion.button
               className="relative w-9 h-9 rounded-full flex items-center justify-center mobile-touch-interactive"
               style={{ background: 'rgba(255,255,255,0.1)' }}
               whileTap={{ scale: 0.9 }}
+              onClick={() => onNavigate('notifications')}
             >
               <Bell size={16} className="text-white" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
             </motion.button>
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-lg"
               style={{ background: 'rgba(139,26,26,0.5)' }}
             >
-              {guard.fullName.charAt(0)}
+              {fullName.charAt(0)}
             </div>
           </div>
         </div>
@@ -171,31 +187,31 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
                 <div className="flex items-center gap-2">
                   <motion.div
                     className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: guard.status === 'Active' ? '#22c55e' : '#ef4444' }}
+                    style={{ background: active ? '#22c55e' : '#ef4444' }}
                     animate={{ scale: [1, 1.4, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   />
-                  <span className="text-white text-sm font-medium">{guard.status}</span>
+                  <span className="text-white text-sm font-medium">{active ? 'Active' : 'Blocked'}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-blue-200 text-xs">
                   <MapPin size={11} />
-                  <span>{guard.city}</span>
+                  <span>{city}</span>
                 </div>
                 <div className="text-white text-xs">
                   <span className="opacity-60">Today: </span>
-                  <span className="font-semibold">{todayAtt ? (todayAtt.outTime ? 'Complete' : 'Checked In') : 'Not Marked'}</span>
+                  <span className="font-semibold">{todayAtt ? (todayAtt.out_time ? 'Complete' : 'Checked In') : 'Not Marked'}</span>
                 </div>
               </div>
             )}
             back={(
               <div className="h-full px-4 flex items-center justify-between text-white">
                 <div>
-                  <p className="text-xs text-blue-200">Partner ID</p>
-                  <p className="text-sm font-bold">{guard.id}</p>
+                  <p className="text-xs text-blue-200">Verification</p>
+                  <p className="text-sm font-bold capitalize">{guardProfile?.verification_status ?? 'pending'}</p>
                 </div>
                 <div className="text-right min-w-0">
                   <p className="text-xs text-blue-200">Location</p>
-                  <p className="text-sm font-bold truncate">{guard.currentLocation}</p>
+                  <p className="text-sm font-bold truncate">{city}</p>
                 </div>
               </div>
             )}
@@ -207,7 +223,7 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
       <div className="grid grid-cols-3 gap-2.5 px-4 -mt-4 relative z-10">
         {[
           { label: 'Days Present', value: attendance.length, icon: <Clock size={14} />, color: '#0f1e3c' },
-          { label: 'Applied Jobs', value: myApps.length, icon: <FileText size={14} />, color: '#8b1a1a' },
+          { label: 'Applied Jobs', value: applications.length, icon: <FileText size={14} />, color: '#8b1a1a' },
           { label: 'Hrs Logged', value: Math.round(totalHours), icon: <TrendingUp size={14} />, color: '#166534' },
         ].map((stat, i) => (
           <motion.div
@@ -290,14 +306,16 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
                 </div>
                 <div>
                   <p className="text-sm font-bold text-gray-800">
-                    {todayAtt.outTime ? 'Shift Complete' : 'Checked In'}
+                    {todayAtt.out_time ? 'Shift Complete' : 'Checked In'}
                   </p>
                   <p className="text-xs text-gray-400">
-                    In: {todayAtt.inTime} {todayAtt.outTime ? `· Out: ${todayAtt.outTime}` : ''}
+                    In: {formatTime(todayAtt.in_time) ?? '--'} {todayAtt.out_time ? `· Out: ${formatTime(todayAtt.out_time)}` : ''}
                   </p>
                 </div>
               </div>
-              <span className="text-sm font-bold" style={{ color: '#166534' }}>{todayAtt.hours || '–'}</span>
+              <span className="text-sm font-bold" style={{ color: '#166534' }}>
+                {todayAtt.total_hours ? `${Number(todayAtt.total_hours).toFixed(1)}h` : '–'}
+              </span>
             </div>
           ) : (
             <div className="flex items-center justify-between">
@@ -326,7 +344,7 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
               <div className="h-full p-4 flex items-center justify-between text-white">
                 <div>
                   <p className="text-xs text-blue-200">Attendance</p>
-                  <p className="text-sm font-bold">{todayAtt ? todayAtt.status : 'Pending'}</p>
+                  <p className="text-sm font-bold capitalize">{todayAtt ? String(todayAtt.status ?? 'pending').replace(/_/g, ' ') : 'Pending'}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-blue-200">Action</p>
@@ -341,7 +359,7 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
       {/* Nearby jobs preview */}
       <div className="px-4 mt-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-gray-700">Nearby Jobs</h3>
+          <h3 className="text-sm font-bold text-gray-700">Latest Jobs</h3>
           <motion.button
             className="text-xs font-semibold flex items-center gap-1 mobile-touch-interactive"
             style={{ color: '#0f1e3c' }}
@@ -367,19 +385,21 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate">{job.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{job.company}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{job.employer_companies?.company_name ?? '—'}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-xs flex items-center gap-1 text-gray-400">
-                      <MapPin size={10} />{job.city}
+                      <MapPin size={10} />{job.company_sites?.city ?? '—'}
                     </span>
-                    <span className="text-xs font-bold" style={{ color: '#166534' }}>₹{job.salary}/mo</span>
+                    <span className="text-xs font-bold" style={{ color: '#166534' }}>
+                      ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo' : 'day'}
+                    </span>
                   </div>
                 </div>
                 <div
                   className="text-xs font-bold px-2 py-1 rounded-lg ml-2 flex-shrink-0"
-                  style={{ background: '#dcfce7', color: '#166534' }}
+                  style={{ background: '#dbeafe', color: '#1d4ed8' }}
                 >
-                  {job.matchScore}%
+                  {job.shift_type ?? 'Day'}
                 </div>
               </div>
             </div>
@@ -387,13 +407,13 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
                 back={(
                   <div className="h-full p-4 flex items-center justify-between text-white">
                     <div className="min-w-0">
-                      <p className="text-xs text-blue-200">{job.shift} Shift</p>
-                      <p className="text-sm font-bold truncate">{job.openings} openings</p>
-                      <p className="text-xs text-blue-200 mt-1 truncate">{job.duration}</p>
+                      <p className="text-xs text-blue-200">{job.shift_type ?? 'Day'} Shift</p>
+                      <p className="text-sm font-bold truncate">{job.guards_required ?? 1} opening{(job.guards_required ?? 1) !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-blue-200 mt-1 truncate">{job.duration_type ?? ''}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-blue-200">Match</p>
-                      <p className="text-lg font-bold">{job.matchScore}%</p>
+                      <p className="text-xs text-blue-200">Salary</p>
+                      <p className="text-lg font-bold">₹{job.salary_amount}</p>
                       <p className="text-xs text-blue-200 flex items-center gap-0.5">View <ChevronRight size={10} /></p>
                     </div>
                   </div>
@@ -401,6 +421,11 @@ export default function MobileDashboard({ guard, onNavigate }: MobileDashboardPr
               />
             </motion.div>
           ))}
+          {jobs.length === 0 && (
+            <div className="rounded-2xl p-4 text-center text-xs text-gray-400" style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              No active jobs right now — check back soon
+            </div>
+          )}
         </div>
       </div>
     </div>

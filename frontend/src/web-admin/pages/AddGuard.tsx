@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard } from 'lucide-react';
-import { storage, Guard } from '../../lib/storage';
+import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2 } from 'lucide-react';
+import { createGuard } from '../../services/adminGuardService';
+import { geocode, buildAddressQuery } from '../../services/geocodeService';
 
 interface AddGuardProps {
   onSuccess: () => void;
@@ -13,10 +14,10 @@ const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'R
 
 function FloatingInput({
   label, value, onChange, type = 'text', required = false,
-  placeholder = '', error = '',
+  placeholder = '', error = '', readOnly = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; required?: boolean; placeholder?: string; error?: string;
+  type?: string; required?: boolean; placeholder?: string; error?: string; readOnly?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -31,14 +32,17 @@ function FloatingInput({
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
+        onFocus={() => { if (!readOnly) setFocused(true); }}
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
+        readOnly={readOnly}
+        tabIndex={readOnly ? -1 : undefined}
         className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none transition-all"
         style={{
           border: `1.5px solid ${error ? '#ef4444' : focused ? '#0f1e3c' : '#e2e8f0'}`,
-          background: focused ? 'white' : '#f8fafc',
-          color: '#0f1e3c',
+          background: readOnly ? '#f1f5f9' : focused ? 'white' : '#f8fafc',
+          color: readOnly ? '#94a3b8' : '#0f1e3c',
+          cursor: readOnly ? 'not-allowed' : 'text',
         }}
       />
       <AnimatePresence>
@@ -113,26 +117,86 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [form, setForm] = useState({
     fullName: '', mobile: '', email: '', password: '',
     gender: '', dob: '', address: '', city: '', state: '',
-    currentLocation: '', latitude: '', longitude: '', experience: '',
-    aadhaarStatus: 'Pending', policeVerification: 'Pending',
+    latitude: '', longitude: '', experience: '',
     skills: [] as string[], languages: [] as string[], status: 'Active',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  // Geocoding status for the address → lat/lng auto-fill
+  const [geo, setGeo] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
+  const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const geoReqId = useRef(0);
 
   const set = (key: string) => (v: string) => setForm(f => ({ ...f, [key]: v }));
+
+  // Auto-verify the address/city/state combination and fill lat/lng (read-only).
+  // Debounced to respect Nominatim's rate limit; stale responses are ignored.
+  useEffect(() => {
+    const address = form.address.trim();
+    const city = form.city.trim();
+    const state = form.state.trim();
+
+    // Need at least city + state before a lookup makes sense
+    if (!city || !state) {
+      setGeo({ status: 'idle', message: '' });
+      setForm(f => (f.latitude || f.longitude ? { ...f, latitude: '', longitude: '' } : f));
+      return;
+    }
+
+    setGeo({ status: 'loading', message: 'Verifying location from address…' });
+    const reqId = ++geoReqId.current;
+    if (geoTimer.current) clearTimeout(geoTimer.current);
+    geoTimer.current = setTimeout(async () => {
+      const query = buildAddressQuery({ address, city, state });
+      try {
+        const result = await geocode(query);
+        if (reqId !== geoReqId.current) return; // a newer edit superseded this lookup
+        if (result) {
+          setForm(f => ({ ...f, latitude: result.lat.toFixed(6), longitude: result.lng.toFixed(6) }));
+          setGeo({ status: 'ok', message: 'Location verified from the address, city and state.' });
+        } else {
+          setForm(f => ({ ...f, latitude: '', longitude: '' }));
+          setGeo({
+            status: 'error',
+            message: 'We could not locate this address. Please correct the address, city and state.',
+          });
+        }
+      } catch {
+        if (reqId !== geoReqId.current) return;
+        setForm(f => ({ ...f, latitude: '', longitude: '' }));
+        setGeo({
+          status: 'error',
+          message: 'Location service is unavailable right now. Please try again in a moment.',
+        });
+      }
+    }, 800);
+
+    return () => { if (geoTimer.current) clearTimeout(geoTimer.current); };
+  }, [form.address, form.city, form.state]);
 
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.fullName.trim()) e.fullName = 'Full name is required';
     if (!form.mobile.match(/^[6-9]\d{9}$/)) e.mobile = 'Enter valid 10-digit mobile number';
     if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = 'Enter valid email';
-    if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
+    if (!form.password || form.password.length < 8) e.password = 'Password must be at least 8 characters';
     if (!form.gender) e.gender = 'Please select gender';
     if (!form.dob) e.dob = 'Date of birth is required';
     if (!form.city.trim()) e.city = 'City is required';
     if (!form.state) e.state = 'State is required';
+    // Location must be verified — lat/lng are derived, not typed
+    if (geo.status !== 'ok' || !form.latitude || !form.longitude) {
+      e.location = geo.status === 'error'
+        ? geo.message
+        : geo.status === 'loading'
+          ? 'Please wait for the location to finish verifying.'
+          : 'Enter a valid address, city and state so the location can be verified.';
+    }
     return e;
   };
 
@@ -141,24 +205,43 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setErrors({});
+    setApiError(null);
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 800));
 
-    const newGuard: Guard = {
-      id: storage.generateId('GRD'),
-      ...form,
-      bankDetails: null,
-      avatar: null,
-      createdAt: new Date().toISOString(),
-      aadhaarStatus: form.aadhaarStatus as Guard['aadhaarStatus'],
-      policeVerification: form.policeVerification as Guard['policeVerification'],
-      status: form.status as Guard['status'],
-    };
-
-    storage.addGuard(newGuard);
-    setSubmitting(false);
-    setSuccess(true);
-    setTimeout(onSuccess, 1500);
+    try {
+      await createGuard({
+        full_name: form.fullName.trim(),
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        password: form.password,
+        gender: form.gender || undefined,
+        dob: form.dob || undefined,
+        address: form.address.trim() || undefined,
+        city: form.city.trim() || undefined,
+        state: form.state || undefined,
+        latitude: form.latitude ? Number(form.latitude) : undefined,
+        longitude: form.longitude ? Number(form.longitude) : undefined,
+        skills: form.skills,
+        languages: form.languages,
+        experience: form.experience.trim() || undefined,
+        account_status: form.status === 'Blocked' ? 'blocked' : 'active',
+      });
+      setSuccess(true);
+      setTimeout(onSuccess, 1500);
+    } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.errors) {
+        const fieldMap: Record<string, string> = { full_name: 'fullName' };
+        const mapped: Record<string, string> = {};
+        for (const [field, messages] of Object.entries(data.errors)) {
+          mapped[fieldMap[field] ?? field] = (messages as string[])[0];
+        }
+        setErrors(mapped);
+      }
+      setApiError(data?.message || 'Could not create service partner.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sections = [
@@ -195,10 +278,34 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           </div>
           <FloatingInput label="City" value={form.city} onChange={set('city')} required error={errors.city} placeholder="City" />
           <SelectInput label="State" value={form.state} onChange={set('state')} options={STATES} required />
-          <FloatingInput label="Current Location" value={form.currentLocation} onChange={set('currentLocation')} placeholder="Area name" />
-          <div className="grid grid-cols-2 gap-2">
-            <FloatingInput label="Latitude" value={form.latitude} onChange={set('latitude')} placeholder="18.9000" />
-            <FloatingInput label="Longitude" value={form.longitude} onChange={set('longitude')} placeholder="72.8000" />
+          <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+            <FloatingInput label="Latitude" value={form.latitude} onChange={set('latitude')} placeholder="Auto-filled" readOnly />
+            <FloatingInput label="Longitude" value={form.longitude} onChange={set('longitude')} placeholder="Auto-filled" readOnly />
+          </div>
+          <div className="sm:col-span-2">
+            {geo.status === 'loading' && (
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#64748b' }}>
+                <Loader2 size={14} className="animate-spin" />
+                {geo.message}
+              </div>
+            )}
+            {geo.status === 'ok' && (
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#166534' }}>
+                <CheckCircle size={14} />
+                {geo.message}
+              </div>
+            )}
+            {(geo.status === 'error' || (errors.location && geo.status === 'idle')) && (
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#ef4444' }}>
+                <AlertCircle size={14} />
+                {geo.status === 'error' ? geo.message : errors.location}
+              </div>
+            )}
+            {geo.status === 'idle' && !errors.location && (
+              <p className="text-xs text-gray-400">
+                Latitude and longitude are filled automatically from the address, city and state.
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -218,13 +325,11 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
       icon: <CreditCard size={16} />,
       content: (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SelectInput label="Aadhaar Status" value={form.aadhaarStatus} onChange={set('aadhaarStatus')} options={['Pending', 'Verified', 'Rejected']} />
-          <SelectInput label="Police Verification" value={form.policeVerification} onChange={set('policeVerification')} options={['Pending', 'Verified', 'Rejected']} />
           <SelectInput label="Account Status" value={form.status} onChange={set('status')} options={['Active', 'Blocked']} />
           <div className="sm:col-span-3">
             <div className="rounded-xl p-4 text-sm text-gray-500 flex items-start gap-2" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
               <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-blue-500" />
-              Bank details and document uploads are available in the service partner profile after creation.
+              Aadhaar and police verification are completed by the service partner in the mobile app. Bank details and document uploads are available in the profile after creation.
             </div>
           </div>
         </div>
@@ -258,6 +363,12 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         )}
       </AnimatePresence>
 
+      {apiError && !success && (
+        <div className="mb-6 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 text-red-600 text-sm">
+          <AlertCircle size={15} className="flex-shrink-0" />{apiError}
+        </div>
+      )}
+
       {!success && (
         <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
           {sections.map((section, i) => (
@@ -287,11 +398,11 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           <div className="xl:col-span-2 flex justify-start gap-3 pt-2">
             <motion.button
               type="submit"
-              disabled={submitting}
-              className="min-w-56 px-6 py-3.5 rounded-2xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2"
+              disabled={submitting || geo.status !== 'ok'}
+              className="min-w-56 px-6 py-3.5 rounded-2xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
-              whileHover={{ scale: 1.02, boxShadow: '0 8px 24px rgba(15,30,60,0.3)' }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={geo.status === 'ok' ? { scale: 1.02, boxShadow: '0 8px 24px rgba(15,30,60,0.3)' } : {}}
+              whileTap={geo.status === 'ok' ? { scale: 0.98 } : {}}
             >
               {submitting ? (
                 <motion.div

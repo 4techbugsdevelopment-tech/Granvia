@@ -13,7 +13,7 @@ class JobPost extends Model
 
     protected $fillable = [
         'employer_user_id', 'company_id', 'site_id', 'title', 'category', 'guard_type',
-        'guards_required', 'gender_preference', 'experience_required', 'salary_amount',
+        'guards_required', 'gender_preference', 'experience_required', 'qualification_required', 'salary_amount',
         'payment_type', 'duty_hours', 'shift_type', 'start_date', 'end_date', 'duration_type',
         'required_skills', 'language_requirements', 'police_verification_required',
         'uniform_required', 'food_facility', 'accommodation_facility', 'description',

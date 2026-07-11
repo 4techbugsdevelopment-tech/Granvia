@@ -6,4 +6,6 @@ require __DIR__.'/api/auth.php';
 require __DIR__.'/api/employer.php';
 require __DIR__.'/api/guard.php';
 require __DIR__.'/api/admin.php';
+require __DIR__.'/api/sales.php';
+require __DIR__.'/api/subadmin.php';
 require __DIR__.'/api/shared.php';

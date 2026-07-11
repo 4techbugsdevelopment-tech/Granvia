@@ -35,6 +35,48 @@ class ProfileController extends Controller
         return response()->json($request->user()->fresh());
     }
 
+    public function showGuardProfile(Request $request)
+    {
+        return response()->json($request->user()->guardProfile);
+    }
+
+    public function updateGuardProfile(Request $request)
+    {
+        $data = $request->validate([
+            'full_name' => ['sometimes', 'string', 'min:2'],
+            'mobile' => ['sometimes', 'regex:/^[6-9]\d{9}$/'],
+            'gender' => ['sometimes', 'nullable', 'string'],
+            'dob' => ['sometimes', 'nullable', 'date'],
+            'address' => ['sometimes', 'nullable', 'string'],
+            'city' => ['sometimes', 'nullable', 'string'],
+            'state' => ['sometimes', 'nullable', 'string'],
+            'pincode' => ['sometimes', 'nullable', 'regex:/^\d{6}$/'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+            'search_radius_km' => ['sometimes', 'integer', 'between:1,100'],
+            'qualification' => ['sometimes', 'nullable', 'string'],
+            'skills' => ['sometimes', 'array'],
+            'skills.*' => ['string'],
+            'languages' => ['sometimes', 'array'],
+            'languages.*' => ['string'],
+            'experience' => ['sometimes', 'nullable', 'string'],
+            'bank_account_number' => ['sometimes', 'nullable', 'regex:/^\d{9,18}$/'],
+            'bank_ifsc' => ['sometimes', 'nullable', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'bank_name' => ['sometimes', 'nullable', 'string'],
+            'account_holder_name' => ['sometimes', 'nullable', 'string'],
+        ]);
+
+        $profile = $request->user()->guardProfile;
+
+        if (! $profile) {
+            return response()->json(['message' => 'Guard profile not found.'], 404);
+        }
+
+        $profile->update($data);
+
+        return response()->json($profile->fresh());
+    }
+
     public function showEmployerProfile(Request $request)
     {
         return response()->json($request->user()->employerProfile);

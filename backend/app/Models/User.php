@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -42,5 +43,20 @@ class User extends Authenticatable implements MustVerifyEmailContract
     public function employerWallet(): HasOne
     {
         return $this->hasOne(EmployerWallet::class, 'employer_user_id');
+    }
+
+    public function subAdminProfile(): HasOne
+    {
+        return $this->hasOne(SubAdminProfile::class, 'user_id');
+    }
+
+    public function staffMembers(): HasMany
+    {
+        return $this->hasMany(StaffMember::class, 'sub_admin_user_id');
+    }
+
+    public function discounts(): HasMany
+    {
+        return $this->hasMany(Discount::class, 'sales_executive_user_id');
     }
 }
