@@ -2,7 +2,7 @@ import { createContext, useEffect, useMemo, useState } from 'react';
 import { onAuthChange } from '../lib/authBus';
 import { getStoredToken } from '../lib/apiClient';
 import { getCurrentAppSession } from '../services/authService';
-import { EmployerProfileRow, GuardProfileRow, ProfileRow } from '../lib/supabaseTypes';
+import { EmployerProfileRow, GuardProfileRow, ProfileRow } from '../lib/apiTypes';
 
 type AuthContextValue = {
   profile: ProfileRow | null;

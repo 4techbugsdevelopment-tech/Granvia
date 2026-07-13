@@ -1,5 +1,5 @@
-// Type definitions used by admin and mobile screens not yet migrated to Supabase.
-// The storage object returns empty arrays/stubs — all real data now comes from Supabase services.
+// Type definitions used by admin and mobile screens not yet migrated to the API backend.
+// The storage object returns empty arrays/stubs — all real data now comes from the API services.
 
 export type VerificationStatus = 'Pending' | 'Verified' | 'Rejected';
 export type AccountStatus = 'Pending' | 'Active' | 'Blocked';
@@ -127,7 +127,7 @@ export type CompanySite = {
   status: 'Active' | 'Inactive';
 };
 
-// Stub storage object — returns empty data. Screens still using this should be migrated to Supabase services.
+// Stub storage object — returns empty data. Screens still using this should be migrated to the API services.
 export const storage = {
   generateId: () => Math.random().toString(36).slice(2, 11),
 

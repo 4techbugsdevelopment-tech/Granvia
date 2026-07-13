@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../GranviaLogo';
 import { signInWithRole } from '../../services/authService';
-import { getErrorMessage } from '../../services/supabaseErrors';
-import { UserRole } from '../../lib/supabaseTypes';
+import { getErrorMessage } from '../../services/apiErrors';
+import { UserRole } from '../../lib/apiTypes';
 
 interface PortalLoginScreenProps {
   onLogin: () => void;

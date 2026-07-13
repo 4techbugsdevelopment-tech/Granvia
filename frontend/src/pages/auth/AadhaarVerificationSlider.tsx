@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BadgeCheck, CheckCircle, Mail } from 'lucide-react';
 import { sendAadhaarOtp, verifyAadhaarOtp } from '../../services/aadhaarVerificationService';
-import { getErrorMessage } from '../../services/supabaseErrors';
+import { getErrorMessage } from '../../services/apiErrors';
 
 type Step = 'aadhaar' | 'otp' | 'success';
 

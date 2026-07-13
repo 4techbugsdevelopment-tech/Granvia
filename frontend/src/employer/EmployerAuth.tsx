@@ -5,7 +5,7 @@ import GranviaLogo from '../components/GranviaLogo';
 import { EmployerFieldKind, getInputMode, sanitizeEmployerInput } from '../lib/inputSanitizers';
 import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
 import { registerEmployer, signInWithRole } from '../services/authService';
-import { getErrorMessage } from '../services/supabaseErrors';
+import { getErrorMessage } from '../services/apiErrors';
 
 interface EmployerAuthProps {
   onLogin: () => void;

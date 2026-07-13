@@ -1,4 +1,4 @@
-import { UserRole } from '../../lib/supabaseTypes';
+import { UserRole } from '../../lib/apiTypes';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function RoleGuard({ allowedRoles, children, fallback = null }: { allowedRoles: UserRole[]; children: React.ReactNode; fallback?: React.ReactNode }) {

@@ -11,7 +11,7 @@ import {
   listEmployerManagementData,
   updateEmployerFromAdmin,
 } from '../../services/adminEmployerService';
-import { getErrorMessage } from '../../services/supabaseErrors';
+import { getErrorMessage } from '../../services/apiErrors';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],

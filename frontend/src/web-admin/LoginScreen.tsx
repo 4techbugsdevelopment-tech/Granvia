@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signInWithRole } from '../services/authService';
-import { getErrorMessage } from '../services/supabaseErrors';
+import { getErrorMessage } from '../services/apiErrors';
 
 interface LoginScreenProps {
   onLogin: () => void;

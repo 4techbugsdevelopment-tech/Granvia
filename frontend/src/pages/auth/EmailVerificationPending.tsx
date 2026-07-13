@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MailCheck } from 'lucide-react';
 import { resendEmailVerification } from '../../services/authService';
-import { getErrorMessage } from '../../services/supabaseErrors';
+import { getErrorMessage } from '../../services/apiErrors';
 
 export default function EmailVerificationPending({ email, onBackToLogin }: { email: string; onBackToLogin: () => void }) {
   const [message, setMessage] = useState('');

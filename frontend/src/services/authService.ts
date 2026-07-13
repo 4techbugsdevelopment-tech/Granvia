@@ -1,6 +1,6 @@
 import { apiClient, setStoredToken } from '../lib/apiClient';
 import { notifyAuthChange } from '../lib/authBus';
-import { EmployerProfileRow, GuardProfileRow, ProfileRow, UserRole } from '../lib/supabaseTypes';
+import { EmployerProfileRow, GuardProfileRow, ProfileRow, UserRole } from '../lib/apiTypes';
 
 export type AppSession = {
   profile: ProfileRow;
