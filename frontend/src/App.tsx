@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SplashScreen from './web-admin/SplashScreen';
 import LoginScreen from './web-admin/LoginScreen';
@@ -13,7 +13,19 @@ import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
 import SubAdminApp from './subadmin/SubAdminApp';
 import GranviaLogo from './components/GranviaLogo';
+import { Tilt } from './components/fx';
 import { useAuth } from './hooks/useAuth';
+
+const Globe = lazy(() => import('./components/fx/Globe'));
+const ThreeScene = lazy(() => import('./components/fx/ThreeScene'));
+
+const PORTALS = [
+  { mode: 'admin', emoji: '🛡️', title: 'Admin Panel', subtitle: 'Super Admin Control Center', desc: 'Manage guards, jobs, attendance & reports', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
+  { mode: 'mobile', emoji: '📱', title: 'Service Partner App', subtitle: 'Mobile Service Partner Portal', desc: 'Find jobs, mark attendance & manage profile', bg: 'rgba(139,26,26,0.12)', border: 'rgba(139,26,26,0.3)' },
+  { mode: 'employer', emoji: '🏢', title: 'Employer Portal', subtitle: 'Company Hiring Workspace', desc: 'Post jobs, review applicants & manage payments', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
+  { mode: 'sales', emoji: '📈', title: 'Sales Executive', subtitle: 'Client & Discount Management', desc: 'Manage clients, post jobs & apply discounts', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.3)' },
+  { mode: 'subadmin', emoji: '🗂️', title: 'Sub Admin', subtitle: 'Regional Operations', desc: 'Manage company, staff, clients & guards', bg: 'rgba(13,148,136,0.12)', border: 'rgba(13,148,136,0.3)' },
+] as const;
 
 type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin';
 type AdminState = 'splash' | 'login' | 'dashboard';
@@ -89,6 +101,33 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
         />
       ))}
 
+      {/* Immersive WebGL hero background (desktop). */}
+      <motion.div
+        aria-hidden
+        className="hidden md:block absolute inset-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.9 }}
+        transition={{ duration: 1.8, ease: 'easeOut' }}
+      >
+        <Suspense fallback={null}>
+          <ThreeScene />
+        </Suspense>
+      </motion.div>
+
+      {/* Ambient globe accent behind the cards. */}
+      <motion.div
+        aria-hidden
+        className="hidden lg:block absolute pointer-events-none"
+        style={{ bottom: '-160px', right: '-120px' }}
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 0.4, scale: 1 }}
+        transition={{ duration: 1.6, ease: 'easeOut', delay: 0.4 }}
+      >
+        <Suspense fallback={null}>
+          <Globe size={420} />
+        </Suspense>
+      </motion.div>
+
       <motion.div
         className="relative z-10 flex flex-col items-center px-4"
         initial={{ opacity: 0, y: 30 }}
@@ -105,65 +144,27 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-5xl">
-          <motion.button
-            onClick={() => onSelect('admin')}
-            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="text-3xl mb-3">🛡️</div>
-            <h3 className="text-white font-bold text-lg">Admin Panel</h3>
-            <p className="text-gray-400 text-xs mt-1">Super Admin Control Center</p>
-            <p className="mt-3 text-xs text-gray-500">Manage guards, jobs, attendance & reports</p>
-          </motion.button>
-
-          <motion.button
-            onClick={() => onSelect('mobile')}
-            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
-            style={{ background: 'rgba(139,26,26,0.1)', border: '1px solid rgba(139,26,26,0.25)', backdropFilter: 'blur(10px)' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="text-3xl mb-3">📱</div>
-            <h3 className="text-white font-bold text-lg">Service Partner App</h3>
-            <p className="text-gray-400 text-xs mt-1">Mobile Service Partner Portal</p>
-            <p className="mt-3 text-xs text-gray-500">Find jobs, mark attendance & manage profile</p>
-          </motion.button>
-
-          <motion.button
-            onClick={() => onSelect('employer')}
-            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="text-3xl mb-3">🏢</div>
-            <h3 className="text-white font-bold text-lg">Employer Portal</h3>
-            <p className="text-gray-400 text-xs mt-1">Company Hiring Workspace</p>
-            <p className="mt-3 text-xs text-gray-500">Post jobs, review applicants & manage payments</p>
-          </motion.button>
-
-          <motion.button
-            onClick={() => onSelect('sales')}
-            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
-            style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', backdropFilter: 'blur(10px)' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="text-3xl mb-3">📈</div>
-            <h3 className="text-white font-bold text-lg">Sales Executive</h3>
-            <p className="text-gray-400 text-xs mt-1">Client & Discount Management</p>
-            <p className="mt-3 text-xs text-gray-500">Manage clients, post jobs & apply discounts</p>
-          </motion.button>
-
-          <motion.button
-            onClick={() => onSelect('subadmin')}
-            className="flex-1 rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
-            style={{ background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.25)', backdropFilter: 'blur(10px)' }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="text-3xl mb-3">🗂️</div>
-            <h3 className="text-white font-bold text-lg">Sub Admin</h3>
-            <p className="text-gray-400 text-xs mt-1">Regional Operations</p>
-            <p className="mt-3 text-xs text-gray-500">Manage company, staff, clients & guards</p>
-          </motion.button>
+          {PORTALS.map((p, i) => (
+            <motion.div
+              key={p.mode}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.35 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Tilt className="rounded-3xl" style={{ position: 'relative' }} max={22} lift={12}>
+                <button
+                  onClick={() => onSelect(p.mode)}
+                  className="w-full h-full rounded-3xl p-6 text-left relative overflow-hidden mobile-touch-interactive"
+                  style={{ background: p.bg, border: `1px solid ${p.border}`, backdropFilter: 'blur(10px)', transformStyle: 'preserve-3d' }}
+                >
+                  <div className="text-3xl mb-3" style={{ transform: 'translateZ(45px)' }}>{p.emoji}</div>
+                  <h3 className="text-white font-bold text-lg" style={{ transform: 'translateZ(30px)' }}>{p.title}</h3>
+                  <p className="text-gray-400 text-xs mt-1" style={{ transform: 'translateZ(20px)' }}>{p.subtitle}</p>
+                  <p className="mt-3 text-xs text-gray-500" style={{ transform: 'translateZ(12px)' }}>{p.desc}</p>
+                </button>
+              </Tilt>
+            </motion.div>
+          ))}
         </div>
 
         <div className="mt-8 text-center space-y-1">
