@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { notifyAuthChange } from './authBus';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+// Relative by default so the same build works on localhost and production:
+// - dev: Vite proxies /api -> backend (see vite.config.ts server.proxy)
+// - prod: the host proxies /api -> backend (netlify.toml redirect / nginx)
+// Set VITE_API_URL to a full URL only for a cross-origin backend (requires CORS).
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const TOKEN_STORAGE_KEY = 'granvia_api_token';
 

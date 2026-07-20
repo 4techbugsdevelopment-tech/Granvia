@@ -1,4 +1,4 @@
-// ProfileScreen — guard profile view/edit backed by the Laravel API
+// ProfileScreen — guard profile view/edit backed by the API
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {

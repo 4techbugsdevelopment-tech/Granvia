@@ -1,4 +1,4 @@
-// Sales Executive panel — live data from the Laravel API (scoped by sales_executive_id).
+// Sales Executive panel — live data from the API (scoped by sales_executive_id).
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {

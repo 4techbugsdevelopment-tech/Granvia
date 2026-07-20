@@ -1,4 +1,4 @@
-// Staff Management — live CRUD against the Laravel API.
+// Staff Management — live CRUD against the API.
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react';

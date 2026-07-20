@@ -1,4 +1,4 @@
-// MobileDashboard — guard home screen backed by the Laravel API
+// MobileDashboard — guard home screen backed by the API
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';

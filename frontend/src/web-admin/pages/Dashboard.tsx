@@ -1,4 +1,4 @@
-// Admin Dashboard — platform stats backed by the Laravel API
+// Admin Dashboard — platform stats backed by the API
 import { useEffect, useState } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import {

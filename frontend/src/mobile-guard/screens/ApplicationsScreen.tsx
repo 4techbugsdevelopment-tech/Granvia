@@ -1,4 +1,4 @@
-// ApplicationsScreen — guard's job applications backed by the Laravel API
+// ApplicationsScreen — guard's job applications backed by the API
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, MapPin, Clock, CheckCircle, XCircle, Loader, AlertCircle } from 'lucide-react';

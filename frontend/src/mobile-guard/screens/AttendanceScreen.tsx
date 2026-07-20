@@ -1,4 +1,4 @@
-// AttendanceScreen — guard check-in/check-out backed by the Laravel API
+// AttendanceScreen — guard check-in/check-out backed by the API
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, CheckCircle, LogIn, LogOut, Calendar, AlertCircle } from 'lucide-react';
