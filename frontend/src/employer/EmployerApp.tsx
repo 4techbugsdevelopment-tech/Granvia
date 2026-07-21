@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
+import MobileChrome from '../universal-mobile/MobileChrome';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
 import { getMyEmployerProfile, updateMyEmployerProfile, updateMyProfile } from '../services/profileService';
@@ -51,28 +52,30 @@ type EmployerPage =
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
-const navItems: { id: EmployerPage; label: string; icon: React.ReactNode }[] = [
+// `master: true` → setup / master-data / secondary entries shown in the top-left
+// drawer on mobile. The non-master items (core daily views) form the bottom nav.
+const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard',   label: 'Dashboard',                icon: <LayoutDashboard size={18} /> },
   { id: 'profile',     label: 'Profile',                  icon: <UserCheck size={18} /> },
-  { id: 'companies',   label: 'Companies',                icon: <Building2 size={18} /> },
-  { id: 'documents',   label: 'Company Documents',        icon: <FileText size={18} /> },
-  { id: 'sites',       label: 'Sites / Locations',        icon: <MapPin size={18} /> },
-  { id: 'post-job',    label: 'Post New Job',             icon: <Plus size={18} /> },
+  { id: 'companies',   label: 'Companies',                icon: <Building2 size={18} />,     master: true },
+  { id: 'documents',   label: 'Company Documents',        icon: <FileText size={18} />,      master: true },
+  { id: 'sites',       label: 'Sites / Locations',        icon: <MapPin size={18} />,        master: true },
+  { id: 'post-job',    label: 'Post New Job',             icon: <Plus size={18} />,          master: true },
   { id: 'jobs',        label: 'Manage Jobs',              icon: <Briefcase size={18} /> },
   { id: 'applicants',  label: 'Applicants',               icon: <ClipboardList size={18} /> },
-  { id: 'shortlisted', label: 'Shortlisted Guards',       icon: <ShieldCheck size={18} /> },
-  { id: 'selected',    label: 'Selected / Hired',         icon: <UserCheck size={18} /> },
-  { id: 'available-guards', label: 'Available Guards',    icon: <Search size={18} /> },
-  { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} /> },
-  { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} /> },
-  { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} /> },
+  { id: 'shortlisted', label: 'Shortlisted Guards',       icon: <ShieldCheck size={18} />,   master: true },
+  { id: 'selected',    label: 'Selected / Hired',         icon: <UserCheck size={18} />,     master: true },
+  { id: 'available-guards', label: 'Available Guards',    icon: <Search size={18} />,        master: true },
+  { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} />, master: true },
+  { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
+  { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
   { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} /> },
-  { id: 'cash-payments', label: 'Cash Payments (OTP)',    icon: <CreditCard size={18} /> },
-  { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} /> },
-  { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} /> },
-  { id: 'feedback',    label: 'Feedback',                 icon: <MessageSquare size={18} /> },
-  { id: 'support',     label: 'Support / Help',           icon: <MessageSquare size={18} /> },
-  { id: 'settings',    label: 'Settings',                 icon: <Settings size={18} /> },
+  { id: 'cash-payments', label: 'Cash Payments (OTP)',    icon: <CreditCard size={18} />,    master: true },
+  { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} />,      master: true },
+  { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} />,     master: true },
+  { id: 'feedback',    label: 'Feedback',                 icon: <MessageSquare size={18} />, master: true },
+  { id: 'support',     label: 'Support / Help',           icon: <MessageSquare size={18} />, master: true },
+  { id: 'settings',    label: 'Settings',                 icon: <Settings size={18} />,      master: true },
 ];
 
 const pageTitles: Record<EmployerPage, string> = Object.fromEntries(
@@ -81,9 +84,9 @@ const pageTitles: Record<EmployerPage, string> = Object.fromEntries(
 
 // ── Root component ────────────────────────────────────────────────────────────
 
-interface EmployerAppProps { onLogout: () => void }
+interface EmployerAppProps { onLogout: () => void; layout?: 'desktop' | 'mobile' }
 
-export default function EmployerApp({ onLogout }: EmployerAppProps) {
+export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAppProps) {
   const { profile } = useAuth();
   const [page, setPage] = useState<EmployerPage>('dashboard');
   const [collapsed, setCollapsed] = useState(false);
@@ -170,6 +173,33 @@ export default function EmployerApp({ onLogout }: EmployerAppProps) {
       default:            return <StaticInfoPage title={pageTitles[page]} />;
     }
   };
+
+  if (layout === 'mobile') {
+    return (
+      <MobileChrome
+        brandLabel={`${activeCompany?.company_name ?? 'Employer'} · Aadhaar ${employer.aadhaarVerificationStatus}`}
+        title={pageTitles[currentPage]}
+        subtitle={activeCompany?.company_name ?? 'No company'}
+        navItems={visibleNavItems}
+        activeId={currentPage}
+        onNavigate={id => setPage(id as EmployerPage)}
+        onLogout={handleLogout}
+        accent="#8b1a1a"
+        headerRight={aadhaarVerified && companies.length > 1 ? (
+          <select
+            value={activeCompany?.id ?? ''}
+            onChange={e => switchCompany(e.target.value)}
+            className="text-xs rounded-lg px-2 py-1.5 max-w-[7.5rem] outline-none"
+            style={{ border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f1e3c' }}
+          >
+            {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+          </select>
+        ) : undefined}
+      >
+        {renderPage()}
+      </MobileChrome>
+    );
+  }
 
   return (
     <div className="min-h-screen flex" style={{ background: '#f1f5f9' }}>

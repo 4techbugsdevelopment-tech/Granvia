@@ -58,6 +58,22 @@ export async function signInWithRole(email: string, password: string, role: User
   return toAppSession(data);
 }
 
+/**
+ * Role-agnostic sign-in used by the universal mobile app. The backend returns
+ * the account's own role, which the caller uses to pick the right shell.
+ */
+export async function signIn(email: string, password: string): Promise<AppSession> {
+  const { data } = await apiClient.post('/auth/login', {
+    email: email.trim().toLowerCase(),
+    password,
+  });
+
+  setStoredToken(data.token);
+  notifyAuthChange();
+
+  return toAppSession(data);
+}
+
 export async function registerEmployer(input: EmployerRegistrationInput) {
   const { data } = await apiClient.post('/auth/register/employer', {
     contact_person_name: input.contactPersonName.trim(),

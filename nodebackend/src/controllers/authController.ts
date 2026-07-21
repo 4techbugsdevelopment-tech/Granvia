@@ -45,7 +45,9 @@ const registerGuardSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
-  role: z.enum(ROLES),
+  // Optional: when omitted (e.g. the universal mobile app) the account's own
+  // role is used. When provided (portal logins) it is enforced as a guard.
+  role: z.enum(ROLES).optional(),
 });
 
 // --- helpers ---------------------------------------------------------------
@@ -182,7 +184,7 @@ export async function login(req: Request, res: Response) {
     throw new HttpError(422, 'Invalid credentials.');
   }
 
-  if (user.role !== data.role) {
+  if (data.role && user.role !== data.role) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
 

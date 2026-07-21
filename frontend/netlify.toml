@@ -15,6 +15,6 @@
 # URL as a Netlify build env var (requires CORS enabled on the backend).
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR-BACKEND-ORIGIN/api/:splat"
+  to = "https://aip.granvia.llc/api/:splat"
   status = 200
   force = true

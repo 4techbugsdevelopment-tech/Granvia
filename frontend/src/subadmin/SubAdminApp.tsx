@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signOut } from '../services/authService';
-import { NAVY_GRADIENT, PAGE_BG } from './theme';
+import { NAVY_GRADIENT, PAGE_BG, BURGUNDY } from './theme';
+import MobileChrome from '../universal-mobile/MobileChrome';
 import DashboardPage from './pages/DashboardPage';
 import CompanyPage from './pages/CompanyPage';
 import StaffPage from './pages/StaffPage';
@@ -18,17 +19,18 @@ import ReportsPage from './pages/ReportsPage';
 
 type SubPage = 'dashboard' | 'company' | 'staff' | 'verification' | 'clients' | 'guards' | 'reports';
 
-const NAV: { id: SubPage; label: string; icon: React.ReactNode }[] = [
+// `master: true` → setup / master-data entries shown in the top-left drawer on mobile.
+const NAV: { id: SubPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  { id: 'company', label: 'Company Details', icon: <Building2 size={18} /> },
-  { id: 'staff', label: 'Staff', icon: <UsersRound size={18} /> },
-  { id: 'verification', label: 'Verification Desk', icon: <BadgeCheck size={18} /> },
+  { id: 'company', label: 'Company Details', icon: <Building2 size={18} />, master: true },
+  { id: 'staff', label: 'Staff', icon: <UsersRound size={18} />, master: true },
+  { id: 'verification', label: 'Verification Desk', icon: <BadgeCheck size={18} />, master: true },
   { id: 'clients', label: 'My Clients', icon: <Briefcase size={18} /> },
   { id: 'guards', label: 'Service Partners', icon: <Shield size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
 ];
 
-export default function SubAdminApp({ onLogout }: { onLogout: () => void }) {
+export default function SubAdminApp({ onLogout, layout = 'desktop' }: { onLogout: () => void; layout?: 'desktop' | 'mobile' }) {
   const [page, setPage] = useState<SubPage>('dashboard');
   const handleLogout = () => { signOut().finally(onLogout); };
 
@@ -43,6 +45,22 @@ export default function SubAdminApp({ onLogout }: { onLogout: () => void }) {
       case 'reports': return <ReportsPage />;
     }
   };
+
+  if (layout === 'mobile') {
+    return (
+      <MobileChrome
+        brandLabel="Sub Admin · West Branch"
+        title={NAV.find(n => n.id === page)?.label ?? 'Sub Admin'}
+        navItems={NAV}
+        activeId={page}
+        onNavigate={id => setPage(id as SubPage)}
+        onLogout={handleLogout}
+        accent={BURGUNDY}
+      >
+        {render()}
+      </MobileChrome>
+    );
+  }
 
   return (
     <div className="min-h-screen flex" style={{ background: PAGE_BG }}>

@@ -100,6 +100,15 @@ body {
   overscroll-behavior-y: contain;
 }
 
+/* Hide the scrollbar (used by the horizontal bottom nav) while keeping scroll */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Prevent text selection on interactive elements in mobile */
 .granvia-mobile button,
 .granvia-mobile a,

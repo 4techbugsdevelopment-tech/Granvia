@@ -12,6 +12,7 @@ import SalesAuth from './sales/SalesAuth';
 import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
 import SubAdminApp from './subadmin/SubAdminApp';
+import UniversalMobileApp from './universal-mobile/UniversalMobileApp';
 import GranviaLogo from './components/GranviaLogo';
 import { Tilt } from './components/fx';
 import { useAuth } from './hooks/useAuth';
@@ -25,9 +26,10 @@ const PORTALS = [
   { mode: 'employer', emoji: '🏢', title: 'Employer Portal', subtitle: 'Company Hiring Workspace', desc: 'Post jobs, review applicants & manage payments', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
   { mode: 'sales', emoji: '📈', title: 'Sales Executive', subtitle: 'Client & Discount Management', desc: 'Manage clients, post jobs & apply discounts', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.3)' },
   { mode: 'subadmin', emoji: '🗂️', title: 'Sub Admin', subtitle: 'Regional Operations', desc: 'Manage company, staff, clients & guards', bg: 'rgba(13,148,136,0.12)', border: 'rgba(13,148,136,0.3)' },
+  { mode: 'app', emoji: '🚀', title: 'Universal Mobile App', subtitle: 'One app · every role', desc: 'Single login for Partners, Employers, Sales & Sub Admins (APK)', bg: 'rgba(37,99,235,0.12)', border: 'rgba(37,99,235,0.3)' },
 ] as const;
 
-type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin';
+type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin' | 'app';
 type AdminState = 'splash' | 'login' | 'dashboard';
 type MobileState = 'splash' | 'login' | 'app';
 type EmployerState = 'login' | 'app';
@@ -38,6 +40,7 @@ type GranviaWindow = Window & {
 };
 
 function getModeFromPath(pathname: string): AppMode {
+  if (pathname === '/app' || pathname.startsWith('/app/')) return 'app';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/guard' || pathname.startsWith('/guard/')) return 'mobile';
   if (pathname === '/employer' || pathname.startsWith('/employer/')) return 'employer';
@@ -47,6 +50,7 @@ function getModeFromPath(pathname: string): AppMode {
 }
 
 function getPathForMode(mode: AppMode): string {
+  if (mode === 'app') return '/app';
   if (mode === 'admin') return '/admin';
   if (mode === 'mobile') return '/guard';
   if (mode === 'employer') return '/employer';
@@ -226,7 +230,12 @@ function MobileFrame({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { profile, loading: authLoading } = useAuth();
-  const [mode, setMode] = useState<AppMode>(() => getModeFromPath(window.location.pathname));
+  const [mode, setMode] = useState<AppMode>(() => {
+    const routeMode = getModeFromPath(window.location.pathname);
+    // Packaged APK (Android WebView) always boots straight into the universal app.
+    if (routeMode === 'landing' && isApkMode()) return 'app';
+    return routeMode;
+  });
   const [adminState, setAdminState] = useState<AdminState>('splash');
   const [mobileState, setMobileState] = useState<MobileState>('splash');
   const [employerState, setEmployerState] = useState<EmployerState>('login');
@@ -264,6 +273,10 @@ function App() {
     if (authLoading) return;
     const applyRoute = () => {
       const routeMode = getModeFromPath(window.location.pathname);
+      if (routeMode === 'app') {
+        setMode('app');
+        return;
+      }
       if (routeMode === 'admin') {
         setMode('admin');
         setAdminState(profile?.role === 'super_admin' ? 'dashboard' : 'splash');
@@ -311,6 +324,14 @@ function App() {
   };
 
   if (mode === 'landing') return <LandingPage onSelect={handleModeSelect} />;
+
+  if (mode === 'app') {
+    return (
+      <MobileFrame>
+        <UniversalMobileApp onExit={() => openPortal('landing')} />
+      </MobileFrame>
+    );
+  }
 
   if (mode === 'admin') {
     return (

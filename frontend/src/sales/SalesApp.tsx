@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signOut } from '../services/authService';
+import MobileChrome from '../universal-mobile/MobileChrome';
 import { NAVY, NAVY_GRADIENT, BURGUNDY, BROWN, PAGE_BG } from '../subadmin/theme';
 import { GlassStat, Card, Table, Pill, PageHeader, SlideOver, TapButton, Field } from '../subadmin/ui';
 import {
@@ -18,11 +19,12 @@ import {
 type SalesPage = 'dashboard' | 'clients' | 'post-job' | 'discounts' | 'manpower';
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
-const NAV: { id: SalesPage; label: string; icon: React.ReactNode }[] = [
+// `master: true` → entry / creation actions shown in the top-left drawer on mobile.
+const NAV: { id: SalesPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'clients', label: 'Clients', icon: <Users size={18} /> },
-  { id: 'post-job', label: 'Post Job (on behalf)', icon: <Briefcase size={18} /> },
-  { id: 'discounts', label: 'Discounts', icon: <BadgePercent size={18} /> },
+  { id: 'post-job', label: 'Post Job (on behalf)', icon: <Briefcase size={18} />, master: true },
+  { id: 'discounts', label: 'Discounts', icon: <BadgePercent size={18} />, master: true },
   { id: 'manpower', label: 'Manpower Map', icon: <MapPinned size={18} /> },
 ];
 
@@ -482,7 +484,7 @@ function ManpowerPage() {
 
 // ── Shell ────────────────────────────────────────────────────────────────────
 
-export default function SalesApp({ onLogout }: { onLogout: () => void }) {
+export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: () => void; layout?: 'desktop' | 'mobile' }) {
   const [page, setPage] = useState<SalesPage>('dashboard');
   const handleLogout = () => { signOut().finally(onLogout); };
 
@@ -495,6 +497,22 @@ export default function SalesApp({ onLogout }: { onLogout: () => void }) {
       case 'manpower': return <ManpowerPage />;
     }
   };
+
+  if (layout === 'mobile') {
+    return (
+      <MobileChrome
+        brandLabel="Sales Executive"
+        title={NAV.find(n => n.id === page)?.label ?? 'Sales'}
+        navItems={NAV}
+        activeId={page}
+        onNavigate={id => setPage(id as SalesPage)}
+        onLogout={handleLogout}
+        accent={BURGUNDY}
+      >
+        {render()}
+      </MobileChrome>
+    );
+  }
 
   return (
     <div className="min-h-screen flex" style={{ background: PAGE_BG }}>
