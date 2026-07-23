@@ -1,17 +1,24 @@
-// Single shared login for the universal mobile app.
-// Role-agnostic: the backend returns the account's own role, which the shell
-// uses to pick the right portal. No portal/role picker needed.
+// Single shared login for the universal mobile app. The production API requires
+// the selected account role, then the shell opens that account's mobile portal.
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
-import { signIn } from '../services/authService';
+import { signInWithRole } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import type { UserRole } from '../lib/apiTypes';
 
 interface UniversalLoginProps {
   onLogin: () => void;
   onBack?: () => void;
 }
+
+const ACCOUNT_TYPES: Array<{ value: Exclude<UserRole, 'super_admin'>; label: string }> = [
+  { value: 'guard', label: 'Service Partner' },
+  { value: 'employer', label: 'Employer' },
+  { value: 'sales_executive', label: 'Sales Executive' },
+  { value: 'sub_admin', label: 'Sub Admin' },
+];
 
 function generateCaptcha() {
   const a = Math.floor(Math.random() * 12) + 2;
@@ -27,6 +34,7 @@ function generateCaptcha() {
 export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Exclude<UserRole, 'super_admin'>>('guard');
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(generateCaptcha);
   const [captchaInput, setCaptchaInput] = useState('');
@@ -61,7 +69,7 @@ export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps)
     }
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signInWithRole(email, password, role);
     } catch (err) {
       setLoading(false);
       setError(getErrorMessage(err, 'Invalid credentials or account blocked.'));
@@ -155,6 +163,25 @@ export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps)
                 transition={{ duration: 0.5 }}
                 className="space-y-4"
               >
+                <div>
+                  <label htmlFor="universal-account-type" className="text-xs font-semibold text-gray-400 mb-1.5 block tracking-wide">
+                    ACCOUNT TYPE
+                  </label>
+                  <select
+                    id="universal-account-type"
+                    value={role}
+                    onChange={e => setRole(e.target.value as Exclude<UserRole, 'super_admin'>)}
+                    className="w-full px-4 py-3.5 rounded-2xl text-sm outline-none"
+                    style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+                  >
+                    {ACCOUNT_TYPES.map(accountType => (
+                      <option key={accountType.value} value={accountType.value}>
+                        {accountType.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="text-xs font-semibold text-gray-400 mb-1.5 block tracking-wide">EMAIL ADDRESS</label>
                   <div className="relative">
