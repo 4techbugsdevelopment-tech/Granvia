@@ -5,26 +5,44 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "androidStatusBar": {
+      "backgroundColor": "#0f1e3c",
+      "barStyle": "light-content",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#f1f5f9",
+      "barStyle": "dark-content"
+    },
     "scheme": "granvia",
     "splash": {
       "backgroundColor": "#0f1e3c",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "package": "com.granvia.partner",
       "versionCode": 1,
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0f1e3c"
       },
-      "permissions": ["INTERNET", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ]
     },
     "extra": {
       "//": "The deployed universal-app URL the WebView loads. Override per build.",
       "appUrl": "https://granvia.llc/app",
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "2d65ed62-b6f8-43cc-9871-0c298b7dd703"
       }
-    }
+    },
+    "owner": "jsmithjj"
   }
 }

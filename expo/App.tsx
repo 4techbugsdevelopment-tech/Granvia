@@ -19,6 +19,7 @@ import Constants from 'expo-constants';
 // For device testing against a local dev server use your machine's LAN IP,
 // e.g. http://192.168.1.20:5199/app
 const APP_URL: string =
+  process.env.EXPO_PUBLIC_APP_URL ??
   (Constants.expoConfig?.extra as { appUrl?: string } | undefined)?.appUrl ??
   'https://granvia.netlify.app/app';
 
@@ -65,6 +66,8 @@ export default function App() {
         geolocationEnabled
         allowsBackForwardNavigationGestures
         setSupportMultipleWindows={false}
+        overScrollMode="never"
+        bounces={false}
         style={styles.webview}
       />
       {loading && (

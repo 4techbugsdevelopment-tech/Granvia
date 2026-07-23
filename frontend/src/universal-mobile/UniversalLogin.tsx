@@ -3,7 +3,7 @@
 // uses to pick the right portal. No portal/role picker needed.
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, Lock, Mail, Shield, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signIn } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
@@ -13,27 +13,60 @@ interface UniversalLoginProps {
   onBack?: () => void;
 }
 
+function generateCaptcha() {
+  const a = Math.floor(Math.random() * 12) + 2;
+  const b = Math.floor(Math.random() * 10) + 1;
+  const ops = ['+', '-', '*'] as const;
+  const op = ops[Math.floor(Math.random() * ops.length)];
+  const left = op === '-' ? Math.max(a, b) : a;
+  const right = op === '-' ? Math.min(a, b) : b;
+  const answer = op === '+' ? left + right : op === '-' ? left - right : left * right;
+  return { question: `${left} ${op} ${right} = ?`, answer: String(answer) };
+}
+
 export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [captcha, setCaptcha] = useState(generateCaptcha);
+  const [captchaInput, setCaptchaInput] = useState('');
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const refreshCaptcha = () => {
+    setCaptcha(generateCaptcha());
+    setCaptchaInput('');
+  };
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 600);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email || !password) { setError('Please enter your credentials.'); return; }
+    if (!email || !password) {
+      setError('Please enter your credentials.');
+      triggerShake();
+      return;
+    }
+    if (captchaInput.trim() !== captcha.answer) {
+      setError('Incorrect security answer. Please try again.');
+      triggerShake();
+      refreshCaptcha();
+      return;
+    }
     setLoading(true);
     try {
       await signIn(email, password);
     } catch (err) {
       setLoading(false);
       setError(getErrorMessage(err, 'Invalid credentials or account blocked.'));
-      setShake(true);
-      setTimeout(() => setShake(false), 600);
+      triggerShake();
+      refreshCaptcha();
       return;
     }
     setLoading(false);
@@ -157,6 +190,37 @@ export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps)
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1.5 block tracking-wide">SECURITY CHECK</label>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="flex-1 flex items-center justify-center rounded-2xl py-3.5 font-bold text-sm select-none"
+                      style={{ background: '#0f1e3c', color: 'white', fontFamily: 'monospace', letterSpacing: '0.1em' }}
+                    >
+                      {captcha.question}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={refreshCaptcha}
+                      aria-label="Refresh security question"
+                      className="flex items-center justify-center rounded-2xl text-gray-400 active:text-gray-600"
+                      style={{ width: 48, height: 48, background: 'white', border: '1.5px solid #e2e8f0' }}
+                    >
+                      <RefreshCw size={17} />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={captchaInput}
+                    onChange={e => setCaptchaInput(e.target.value)}
+                    placeholder="Enter answer"
+                    autoComplete="off"
+                    className="w-full mt-2 px-4 py-3.5 rounded-2xl text-sm outline-none"
+                    style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+                  />
                 </div>
 
                 <AnimatePresence>

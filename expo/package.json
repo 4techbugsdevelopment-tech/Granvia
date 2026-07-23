@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android --clean",
     "build:apk": "eas build -p android --profile preview",
-    "build:apk:local": "eas build -p android --profile preview --local"
+    "build:apk:local": "eas build -p android --profile preview --local",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "expo": "^51.0.0",

@@ -180,7 +180,13 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
   );
 }
 
-function MobileFrame({ children }: { children: React.ReactNode }) {
+function MobileFrame({
+  children,
+  desktopPreview = true,
+}: {
+  children: React.ReactNode;
+  desktopPreview?: boolean;
+}) {
   const [apk, setApk] = useState(isApkMode());
   const [mobile, setMobile] = useState(isMobileViewport());
 
@@ -193,8 +199,10 @@ function MobileFrame({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Full-screen mode: APK or mobile viewport
-  if (apk || mobile) {
+  // The universal /app route is the actual Android UI, so it must also stay
+  // full-screen when opened on desktop. Other mobile portals can still opt in
+  // to the framed desktop preview.
+  if (!desktopPreview || apk || mobile) {
     return (
       <div className="granvia-mobile fixed inset-0 w-full h-full overflow-hidden" style={{ background: '#f1f5f9' }}>
         {children}
@@ -327,7 +335,7 @@ function App() {
 
   if (mode === 'app') {
     return (
-      <MobileFrame>
+      <MobileFrame desktopPreview={false}>
         <UniversalMobileApp onExit={() => openPortal('landing')} />
       </MobileFrame>
     );

@@ -30,6 +30,18 @@ Set the URL the APK loads in `app.json` → `expo.extra.appUrl`:
 - Local device testing: `http://<your-LAN-IP>:5199/app` (run `npm run dev` in
   `frontend/` first; phone and PC must be on the same network — never `localhost`)
 
+You can override the configured URL without editing `app.json`:
+
+```powershell
+$env:EXPO_PUBLIC_APP_URL='http://localhost:5173/app'
+npm start
+```
+
+`localhost` works in a desktop Expo/WebView preview. For an Android emulator,
+use `http://10.0.2.2:5173/app`, or run `adb reverse tcp:5173 tcp:5173` first.
+For a physical phone, use the PC's LAN IP. A release APK should use a deployed
+HTTPS URL because a local Vite server is not bundled into this thin WebView APK.
+
 The API endpoint is NOT set here — it is baked into the web build via
 `frontend/.env.production` (`VITE_API_URL=https://aip.granvia.llc/api`). The
 WebView page (`granvia.llc`) calls that API directly (cross-origin), so the
