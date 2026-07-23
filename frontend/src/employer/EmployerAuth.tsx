@@ -146,7 +146,7 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
           <GranviaLogo size={48} textColor="white" accentColor="#8b1a1a" />
           <div>
             <p className="text-blue-200 text-sm mb-2">Employer Portal</p>
-            <h1 className="text-3xl font-bold leading-tight">Hire verified service partners across your company sites.</h1>
+            <h1 className="text-3xl font-bold leading-tight">Hire verified associates across your company sites.</h1>
             <p className="text-blue-100 text-sm mt-4 max-w-md">Post jobs, manage applicants, verify attendance, and track payments from one role-protected company workspace.</p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">

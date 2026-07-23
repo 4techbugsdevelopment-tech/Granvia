@@ -9,12 +9,12 @@ const PAGE_INFO: Record<string, { title: string; description: string; features: 
   },
   jobs: {
     title: 'Job Management',
-    description: 'Post, review, and manage service partner job listings across locations.',
+    description: 'Post, review, and manage associate job listings across locations.',
     features: ['Job List & Filters', 'Create New Job', 'Approve/Reject Jobs', 'Radius & Location Setup'],
   },
   attendance: {
     title: 'Attendance Management',
-    description: 'Monitor service partner attendance, in/out logs, and generate reports.',
+    description: 'Monitor associate attendance, in/out logs, and generate reports.',
     features: ['Daily Attendance Logs', 'In-Time/Out-Time Reports', 'Employer Verification', 'Monthly Summary'],
   },
   hiring: {

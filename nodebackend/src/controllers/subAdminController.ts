@@ -197,7 +197,7 @@ export async function updateDocument(req: Request, res: Response) {
     where: { userId: document.guardUserId, subAdminId: req.user!.id },
     select: { id: true },
   });
-  if (!scoped) throw new HttpError(403, 'This service partner is not in your branch.');
+  if (!scoped) throw new HttpError(403, 'This associate is not in your branch.');
 
   const data = z
     .object({ status: z.enum(['verified', 'rejected', 'pending']), admin_remarks: z.string().nullish() })

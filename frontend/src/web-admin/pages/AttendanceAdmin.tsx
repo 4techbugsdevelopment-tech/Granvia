@@ -24,7 +24,7 @@ export default function AttendanceAdmin() {
         <StatTile label="Pending Verification" value="12" color="#854d0e" />
       </div>
 
-      <Table headers={['Service Partner', 'Site', 'Date', 'In', 'Out', 'Hours', 'Status']}>
+      <Table headers={['Associate', 'Site', 'Date', 'In', 'Out', 'Hours', 'Status']}>
         {rows.map((r, i) => (
           <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/60">
             <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard}</td>

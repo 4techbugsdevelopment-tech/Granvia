@@ -207,7 +207,7 @@ export default function JobApprovals() {
                     <Clock size={11} />
                     {job.shift_type} · {job.duty_hours}
                   </span>
-                  <span>{job.guards_required} service partner{job.guards_required !== 1 ? 's' : ''}</span>
+                  <span>{job.guards_required} associate{job.guards_required !== 1 ? 's' : ''}</span>
                   {job.start_date && (
                     <span>Start: {new Date(job.start_date).toLocaleDateString('en-IN')}</span>
                   )}
@@ -237,7 +237,7 @@ export default function JobApprovals() {
                       <div className="pt-2 pb-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600 border-t border-gray-50 mt-2">
                         {[
                           ['Category', job.category],
-                          ['Service Partner Type', job.guard_type],
+                          ['Associate Type', job.guard_type],
                           ['Gender Pref', job.gender_preference],
                           ['Experience', job.experience_required],
                           ['Duration', job.duration_type],

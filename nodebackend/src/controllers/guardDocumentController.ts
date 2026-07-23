@@ -88,7 +88,7 @@ const adminStatusSchema = z.object({
 /** GET /admin/guards/:guard/documents */
 export async function adminIndex(req: Request, res: Response) {
   const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
-  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not a guard account.');
+  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
 
   const docs = await prisma.guardDocument.findMany({
     where: { guardUserId: guard.id },

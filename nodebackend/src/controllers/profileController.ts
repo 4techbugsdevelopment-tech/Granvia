@@ -92,7 +92,7 @@ export async function showGuardProfile(req: Request, res: Response) {
 export async function updateGuardProfile(req: Request, res: Response) {
   const data = guardProfileSchema.parse(req.body);
   const profile = await prisma.guardProfile.findUnique({ where: { userId: req.user!.id } });
-  if (!profile) throw new HttpError(404, 'Guard profile not found.');
+  if (!profile) throw new HttpError(404, 'Associate profile not found.');
 
   const updated = await prisma.guardProfile.update({
     where: { userId: req.user!.id },

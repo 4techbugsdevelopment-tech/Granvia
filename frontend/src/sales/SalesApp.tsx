@@ -265,7 +265,7 @@ function PostJobPage() {
                   {JOB_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </div>
-              <Field label="Service Partners Required" value={form.guards} onChange={v => setForm(f => ({ ...f, guards: v }))} />
+              <Field label="Associates Required" value={form.guards} onChange={v => setForm(f => ({ ...f, guards: v }))} />
               <Field label="Experience" value={form.experience} onChange={v => setForm(f => ({ ...f, experience: v }))} placeholder="e.g. 2 years" />
               <Field label="Education" value={form.education} onChange={v => setForm(f => ({ ...f, education: v }))} placeholder="e.g. 12th Pass" />
             </div>
@@ -429,7 +429,7 @@ function ManpowerPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Manpower Availability" subtitle="Live service-partner coverage around your search area" />
+      <PageHeader title="Manpower Availability" subtitle="Live associate coverage around your search area" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Card className="lg:col-span-2 !p-0 overflow-hidden">
           {/* Mock map skin */}
@@ -458,14 +458,14 @@ function ManpowerPage() {
         </Card>
 
         <div className="space-y-4">
-          <GlassStat label="Available in Radius" value={String(result?.available_count ?? '…')} icon={<Users size={18} />} accent={BURGUNDY} sub={`of ${result?.total_count ?? 0} total partners`} />
+          <GlassStat label="Available in Radius" value={String(result?.available_count ?? '…')} icon={<Users size={18} />} accent={BURGUNDY} sub={`of ${result?.total_count ?? 0} total associates`} />
           <Card>
             <label className="block text-sm font-semibold mb-2" style={{ color: NAVY }}>Search Radius — {radius} km</label>
             <input type="range" min={1} max={15} value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full" style={{ accentColor: BURGUNDY }} />
             <div className="flex justify-between text-xs mt-1" style={{ color: 'rgba(75,46,42,0.5)' }}><span>1 km</span><span>15 km</span></div>
           </Card>
           <Card>
-            <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'rgba(75,46,42,0.55)' }}>Partners in range</div>
+            <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'rgba(75,46,42,0.55)' }}>Associates in range</div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {(result?.partners ?? []).map(p => (
                 <div key={p.id} className="flex items-center justify-between text-sm">
@@ -473,7 +473,7 @@ function ManpowerPage() {
                   <span className="text-xs opacity-60" style={{ color: BROWN }}>{p.distance_km ?? '—'} km</span>
                 </div>
               ))}
-              {result && result.partners.length === 0 && <p className="text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No partners in this radius.</p>}
+              {result && result.partners.length === 0 && <p className="text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates in this radius.</p>}
             </div>
           </Card>
         </div>

@@ -6,7 +6,7 @@ import { getStaff, createStaff, updateStaff, deleteStaff, StaffMember } from '..
 import { PageHeader, Table, Pill, SlideOver, Field, TapButton } from '../ui';
 import { BROWN, NAVY, BURGUNDY } from '../theme';
 
-const STAFF_PERMISSIONS = ['Manage Staff', 'Verify Documents', 'Manage Clients', 'Manage Service Partners', 'View Reports', 'Post Jobs'];
+const STAFF_PERMISSIONS = ['Manage Staff', 'Verify Documents', 'Manage Clients', 'Manage Associates', 'View Reports', 'Post Jobs'];
 type Draft = { name: string; role: string; email: string; mobile: string; status: 'Active' | 'Inactive'; permissions: string[] };
 const EMPTY: Draft = { name: '', role: '', email: '', mobile: '', status: 'Active', permissions: [] };
 

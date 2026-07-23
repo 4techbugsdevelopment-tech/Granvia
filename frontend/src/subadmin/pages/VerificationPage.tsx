@@ -72,7 +72,7 @@ export default function VerificationPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Manual Verification Desk" subtitle="Review uploaded documents and approve or reject each service partner" />
+      <PageHeader title="Manual Verification Desk" subtitle="Review uploaded documents and approve or reject each associate" />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <GlassStat label="Pending Review" value={String(counts.pending)} icon={<Clock size={18} />} accent="#854d0e" />
@@ -81,7 +81,7 @@ export default function VerificationPage() {
       </div>
 
       {loading ? <div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div> : (
-        <Table headers={['Service Partner', 'City', 'Qualification', 'Documents', 'Status', '']}>
+        <Table headers={['Associate', 'City', 'Qualification', 'Documents', 'Status', '']}>
           {queue.map(c => {
             const approved = c.documents.filter(d => d.status === 'verified').length;
             return (
@@ -100,7 +100,7 @@ export default function VerificationPage() {
               </tr>
             );
           })}
-          {queue.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No service partners in your branch yet.</td></tr>}
+          {queue.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates in your branch yet.</td></tr>}
         </Table>
       )}
 
@@ -123,7 +123,7 @@ export default function VerificationPage() {
             </div>
 
             <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'rgba(75,46,42,0.55)' }}>Uploaded Documents</div>
-            {active.documents.length === 0 && <p className="text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No documents uploaded by this partner yet.</p>}
+            {active.documents.length === 0 && <p className="text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No documents uploaded by this associate yet.</p>}
             <div className="space-y-3">
               {active.documents.map(doc => {
                 const t = doc.status === 'verified' ? { c: NAVY, bg: 'rgba(26,43,86,0.08)' }
@@ -161,7 +161,7 @@ export default function VerificationPage() {
                     {rejecting?.docId === doc.id ? (
                       <div className="mt-3">
                         <textarea autoFocus value={rejecting.reason} onChange={e => setRejecting({ docId: doc.id, reason: e.target.value })}
-                          placeholder="Reason for rejection (shared with the partner)…"
+                          placeholder="Reason for rejection (shared with the associate)…"
                           className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none" rows={2}
                           style={{ border: `1.5px solid ${BURGUNDY}`, background: '#fff', color: BROWN }} />
                         <div className="flex gap-2 mt-2">

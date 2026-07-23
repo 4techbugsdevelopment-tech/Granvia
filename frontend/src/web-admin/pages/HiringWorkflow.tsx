@@ -34,7 +34,7 @@ export default function HiringWorkflow() {
       </Card>
 
       <h2 className="font-bold text-gray-900 mb-3">Recent Hires</h2>
-      <Table headers={['Service Partner', 'Employer', 'Site', 'Date', 'Status']}>
+      <Table headers={['Associate', 'Employer', 'Site', 'Date', 'Status']}>
         {demoRecentHires.map((h, i) => (
           <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/60">
             <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{h.guard}</td>

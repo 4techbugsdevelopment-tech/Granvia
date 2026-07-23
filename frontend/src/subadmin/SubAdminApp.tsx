@@ -26,7 +26,7 @@ const NAV: { id: SubPage; label: string; icon: React.ReactNode; master?: boolean
   { id: 'staff', label: 'Staff', icon: <UsersRound size={18} />, master: true },
   { id: 'verification', label: 'Verification Desk', icon: <BadgeCheck size={18} />, master: true },
   { id: 'clients', label: 'My Clients', icon: <Briefcase size={18} /> },
-  { id: 'guards', label: 'Service Partners', icon: <Shield size={18} /> },
+  { id: 'guards', label: 'Associates', icon: <Shield size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
 ];
 

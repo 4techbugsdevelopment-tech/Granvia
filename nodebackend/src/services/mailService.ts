@@ -41,7 +41,7 @@ async function sendMail(to: string, subject: string, html: string): Promise<void
 const wrap = (title: string, body: string) =>
   `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
      <h2 style="color:#166534">${title}</h2>${body}
-     <p style="color:#888;font-size:12px;margin-top:32px">Granvia Security Guard Management</p>
+     <p style="color:#888;font-size:12px;margin-top:32px">Granvia Associate Management</p>
    </div>`;
 
 export function sendAadhaarOtp(to: string, otp: string): Promise<void> {

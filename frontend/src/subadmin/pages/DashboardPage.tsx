@@ -45,7 +45,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <GlassStat label="Active Jobs" value={loading ? '…' : String(counts?.active_jobs ?? 0)} icon={<Briefcase size={18} />} accent={NAVY} />
-          <GlassStat label="Service Partners" value={loading ? '…' : String(counts?.service_partners ?? 0)} sub="Manpower in branch" icon={<Users size={18} />} accent={BURGUNDY} />
+          <GlassStat label="Associates" value={loading ? '…' : String(counts?.service_partners ?? 0)} sub="Manpower in branch" icon={<Users size={18} />} accent={BURGUNDY} />
           <GlassStat label="Commission" value={loading ? '…' : inr(counts?.commission ?? 0)} sub="From settlements" icon={<IndianRupee size={18} />} accent={BROWN} />
           <GlassStat label="Clients" value={loading ? '…' : String(counts?.clients ?? 0)} sub={`${counts?.staff ?? 0} staff`} icon={<MapPinned size={18} />} accent={NAVY} />
         </div>
@@ -57,7 +57,7 @@ export default function DashboardPage() {
               <h2 className="font-bold" style={{ color: NAVY }}>Area-wise Manpower Availability</h2>
             </div>
             {byArea.length === 0 ? (
-              <p className="text-sm py-16 text-center" style={{ color: 'rgba(75,46,42,0.5)' }}>No service partners in your branch yet.</p>
+              <p className="text-sm py-16 text-center" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates in your branch yet.</p>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={byArea} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -66,7 +66,7 @@ export default function DashboardPage() {
                   <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: BROWN }} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: 'rgba(26,43,86,0.05)' }} contentStyle={{ borderRadius: 12, border: '1px solid #ece7e3', fontSize: 12 }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="partners" name="Service Partners" fill={NAVY} radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="partners" name="Associates" fill={NAVY} radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

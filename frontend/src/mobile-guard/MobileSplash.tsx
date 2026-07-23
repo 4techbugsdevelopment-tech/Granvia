@@ -104,7 +104,7 @@ export default function MobileSplash({ onComplete }: MobileSplashProps) {
         animate={phase >= 3 ? { opacity: 1 } : {}}
         transition={{ duration: 0.4 }}
       >
-        GUARD APP
+        ASSOCIATE APP
       </motion.p>
 
       {/* Bottom loading */}

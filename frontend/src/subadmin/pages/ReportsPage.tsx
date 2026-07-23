@@ -35,7 +35,7 @@ export default function ReportsPage() {
         <GlassStat label="Total Commission" value={inr(commission.total_earned)} icon={<IndianRupee size={18} />} accent={NAVY} />
         <GlassStat label="Commission Rate" value={`${Math.round(commission.commission_rate * 100)}%`} accent={BURGUNDY} />
         <GlassStat label="Settlements" value={String(commission.settlements_count)} accent="#854d0e" />
-        <GlassStat label="Partners Reported" value={String(skills.length)} accent={BROWN} />
+        <GlassStat label="Associates Reported" value={String(skills.length)} accent={BROWN} />
       </div>
 
       <Card className="mb-6">
@@ -80,7 +80,7 @@ export default function ReportsPage() {
             {quals.map(q => <option key={q} value={q}>{q}</option>)}
           </select>
         </div>
-        <span className="text-xs ml-auto" style={{ color: 'rgba(75,46,42,0.55)' }}>{rows.length} of {skills.length} partners</span>
+        <span className="text-xs ml-auto" style={{ color: 'rgba(75,46,42,0.55)' }}>{rows.length} of {skills.length} associates</span>
       </div>
 
       <Table headers={['Name', 'English', 'Qualification', 'Specialization', 'Experience']}>
@@ -93,7 +93,7 @@ export default function ReportsPage() {
             <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{m.experience ?? '—'}</td>
           </tr>
         ))}
-        {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No partners match these filters.</td></tr>}
+        {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates match these filters.</td></tr>}
       </Table>
     </div>
   );

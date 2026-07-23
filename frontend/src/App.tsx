@@ -21,12 +21,12 @@ const Globe = lazy(() => import('./components/fx/Globe'));
 const ThreeScene = lazy(() => import('./components/fx/ThreeScene'));
 
 const PORTALS = [
-  { mode: 'admin', emoji: '🛡️', title: 'Admin Panel', subtitle: 'Super Admin Control Center', desc: 'Manage guards, jobs, attendance & reports', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
-  { mode: 'mobile', emoji: '📱', title: 'Service Partner App', subtitle: 'Mobile Service Partner Portal', desc: 'Find jobs, mark attendance & manage profile', bg: 'rgba(139,26,26,0.12)', border: 'rgba(139,26,26,0.3)' },
+  { mode: 'admin', emoji: '🛡️', title: 'Admin Panel', subtitle: 'Super Admin Control Center', desc: 'Manage associates, jobs, attendance & reports', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
+  { mode: 'mobile', emoji: '📱', title: 'Associate App', subtitle: 'Mobile Associate Portal', desc: 'Find jobs, mark attendance & manage profile', bg: 'rgba(139,26,26,0.12)', border: 'rgba(139,26,26,0.3)' },
   { mode: 'employer', emoji: '🏢', title: 'Employer Portal', subtitle: 'Company Hiring Workspace', desc: 'Post jobs, review applicants & manage payments', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
   { mode: 'sales', emoji: '📈', title: 'Sales Executive', subtitle: 'Client & Discount Management', desc: 'Manage clients, post jobs & apply discounts', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.3)' },
-  { mode: 'subadmin', emoji: '🗂️', title: 'Sub Admin', subtitle: 'Regional Operations', desc: 'Manage company, staff, clients & guards', bg: 'rgba(13,148,136,0.12)', border: 'rgba(13,148,136,0.3)' },
-  { mode: 'app', emoji: '🚀', title: 'Universal Mobile App', subtitle: 'One app · every role', desc: 'Single login for Partners, Employers, Sales & Sub Admins (APK)', bg: 'rgba(37,99,235,0.12)', border: 'rgba(37,99,235,0.3)' },
+  { mode: 'subadmin', emoji: '🗂️', title: 'Sub Admin', subtitle: 'Regional Operations', desc: 'Manage company, staff, clients & associates', bg: 'rgba(13,148,136,0.12)', border: 'rgba(13,148,136,0.3)' },
+  { mode: 'app', emoji: '🚀', title: 'Universal Mobile App', subtitle: 'One app · every role', desc: 'Single login for Associates, Employers, Sales & Sub Admins (APK)', bg: 'rgba(37,99,235,0.12)', border: 'rgba(37,99,235,0.3)' },
 ] as const;
 
 type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin' | 'app';
@@ -40,23 +40,25 @@ type GranviaWindow = Window & {
 };
 
 function getModeFromPath(pathname: string): AppMode {
+  if (pathname === '/home-1' || pathname.startsWith('/home-1/')) return 'landing';
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'app';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/guard' || pathname.startsWith('/guard/')) return 'mobile';
   if (pathname === '/employer' || pathname.startsWith('/employer/')) return 'employer';
   if (pathname === '/sales' || pathname.startsWith('/sales/')) return 'sales';
   if (pathname === '/sub-admin' || pathname.startsWith('/sub-admin/')) return 'subadmin';
-  return 'landing';
+  return 'admin';
 }
 
 function getPathForMode(mode: AppMode): string {
+  if (mode === 'landing') return '/home-1';
   if (mode === 'app') return '/app';
-  if (mode === 'admin') return '/admin';
+  if (mode === 'admin') return '/';
   if (mode === 'mobile') return '/guard';
   if (mode === 'employer') return '/employer';
   if (mode === 'sales') return '/sales';
   if (mode === 'subadmin') return '/sub-admin';
-  return '/';
+  return '/home-1';
 }
 
 function isApkMode(): boolean {
@@ -173,7 +175,7 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
 
         <div className="mt-8 text-center space-y-1">
           <p className="text-gray-500 text-xs">Admin: admin@granvia.com / admin123</p>
-          <p className="text-gray-500 text-xs">Service Partner: rajesh@example.com / guard123</p>
+          <p className="text-gray-500 text-xs">Associate: rajesh@example.com / guard123</p>
         </div>
       </motion.div>
     </div>
@@ -241,10 +243,12 @@ function App() {
   const [mode, setMode] = useState<AppMode>(() => {
     const routeMode = getModeFromPath(window.location.pathname);
     // Packaged APK (Android WebView) always boots straight into the universal app.
-    if (routeMode === 'landing' && isApkMode()) return 'app';
+    if (window.location.pathname === '/' && isApkMode()) return 'app';
     return routeMode;
   });
-  const [adminState, setAdminState] = useState<AdminState>('splash');
+  const [adminState, setAdminState] = useState<AdminState>(
+    window.location.pathname === '/' ? 'login' : 'splash',
+  );
   const [mobileState, setMobileState] = useState<MobileState>('splash');
   const [employerState, setEmployerState] = useState<EmployerState>('login');
   const [salesState, setSalesState] = useState<DemoPanelState>('login');
@@ -261,7 +265,7 @@ function App() {
     setPathForMode(nextMode, replace);
     setMode(nextMode);
     if (nextMode === 'admin') {
-      setAdminState(profile?.role === 'super_admin' ? 'dashboard' : 'splash');
+      setAdminState(profile?.role === 'super_admin' ? 'dashboard' : 'login');
     }
     if (nextMode === 'mobile') {
       setMobileState(profile?.role === 'guard' ? 'app' : 'splash');
@@ -280,6 +284,10 @@ function App() {
   useEffect(() => {
     if (authLoading) return;
     const applyRoute = () => {
+      if (window.location.pathname === '/' && isApkMode()) {
+        setMode('app');
+        return;
+      }
       const routeMode = getModeFromPath(window.location.pathname);
       if (routeMode === 'app') {
         setMode('app');
@@ -287,7 +295,13 @@ function App() {
       }
       if (routeMode === 'admin') {
         setMode('admin');
-        setAdminState(profile?.role === 'super_admin' ? 'dashboard' : 'splash');
+        setAdminState(
+          profile?.role === 'super_admin'
+            ? 'dashboard'
+            : window.location.pathname === '/'
+              ? 'login'
+              : 'splash',
+        );
         return;
       }
 
@@ -336,7 +350,7 @@ function App() {
   if (mode === 'app') {
     return (
       <MobileFrame desktopPreview={false}>
-        <UniversalMobileApp onExit={() => openPortal('landing')} />
+        <UniversalMobileApp />
       </MobileFrame>
     );
   }
@@ -347,7 +361,7 @@ function App() {
         {adminState === 'splash' && <SplashScreen key="admin-splash" onComplete={() => setAdminState('login')} />}
         {adminState === 'login' && (
           <motion.div key="admin-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <LoginScreen onLogin={() => setAdminState('dashboard')} onBackToLanding={() => openPortal('landing')} />
+            <LoginScreen onLogin={() => setAdminState('dashboard')} />
           </motion.div>
         )}
         {adminState === 'dashboard' && (

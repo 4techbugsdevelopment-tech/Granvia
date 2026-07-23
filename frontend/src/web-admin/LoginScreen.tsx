@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
+import { Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signInWithRole } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 
 interface LoginScreenProps {
   onLogin: () => void;
-  onBackToLanding: () => void;
 }
 
 function generateCaptcha() {
@@ -29,7 +28,7 @@ const floatingIcons = [
 ];
 
 const stats = [
-  { label: 'Guards Deployed', value: 12400 },
+  { label: 'Associates Deployed', value: 12400 },
   { label: 'Sites Secured', value: 3800 },
   { label: 'Cities Covered', value: 186 },
 ];
@@ -49,7 +48,7 @@ function AnimatedCounter({ target }: { target: number }) {
   return <>{count.toLocaleString()}+</>;
 }
 
-export default function LoginScreen({ onLogin, onBackToLanding }: LoginScreenProps) {
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [email, setEmail] = useState(import.meta.env.VITE_DEMO_SUPERADMIN_EMAIL || '');
   const [password, setPassword] = useState(import.meta.env.VITE_DEMO_SUPERADMIN_PASSWORD || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -168,11 +167,11 @@ export default function LoginScreen({ onLogin, onBackToLanding }: LoginScreenPro
           <div>
             <h2 className="text-3xl font-bold text-gray-900 leading-tight">
               India's Premier<br />
-              <span style={{ color: '#8b1a1a' }}>Service Partner</span><br />
+              <span style={{ color: '#8b1a1a' }}>Associate</span><br />
               Management Platform
             </h2>
             <p className="mt-3 text-gray-500 text-sm leading-relaxed">
-              Deploy, monitor, and manage your entire service partner workforce from one unified admin center.
+              Deploy, monitor, and manage your entire associate workforce from one unified admin center.
             </p>
           </div>
 
@@ -389,14 +388,6 @@ export default function LoginScreen({ onLogin, onBackToLanding }: LoginScreenPro
             <p className="text-center text-xs text-gray-400 mt-4">
               © 2024 Granvia Solutions. All rights reserved.
             </p>
-            <button
-              type="button"
-              onClick={onBackToLanding}
-              className="mx-auto mt-3 flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800"
-            >
-              <ArrowLeft size={14} />
-              Main landing page
-            </button>
           </motion.div>
         </div>
       </div>

@@ -63,9 +63,9 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master
   { id: 'post-job',    label: 'Post New Job',             icon: <Plus size={18} />,          master: true },
   { id: 'jobs',        label: 'Manage Jobs',              icon: <Briefcase size={18} /> },
   { id: 'applicants',  label: 'Applicants',               icon: <ClipboardList size={18} /> },
-  { id: 'shortlisted', label: 'Shortlisted Guards',       icon: <ShieldCheck size={18} />,   master: true },
+  { id: 'shortlisted', label: 'Shortlisted Associates',   icon: <ShieldCheck size={18} />,   master: true },
   { id: 'selected',    label: 'Selected / Hired',         icon: <UserCheck size={18} />,     master: true },
-  { id: 'available-guards', label: 'Available Guards',    icon: <Search size={18} />,        master: true },
+  { id: 'available-guards', label: 'Available Associates', icon: <Search size={18} />,        master: true },
   { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} />, master: true },
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
@@ -465,7 +465,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
         <MetricCard label="Total Sites"         value={sites.length}         icon={<MapPin size={20} />}         color="#1d4ed8" />
         <MetricCard label="Active Jobs"         value={activeJobs.length}    icon={<CheckCircle size={20} />}    color="#166534" />
         <MetricCard label="Applicants"          value={apps.length}          icon={<ClipboardList size={20} />}  color="#1d4ed8" />
-        <MetricCard label="Selected Guards"     value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" />
+        <MetricCard label="Selected Associates" value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" />
         <MetricCard label="Pending Attendance"  value={pendingAttendance.length} icon={<CalendarCheck size={20} />} color="#854d0e" />
         <MetricCard label="Pending Payments"    value={pendingPayments.length}   icon={<CreditCard size={20} />}    color="#7c2d12" />
         <MetricCard label="Wallet Balance"      value={`Rs ${wallet?.balance ?? 0}`} icon={<Wallet size={20} />} color="#065f46" />
@@ -477,7 +477,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
           {apps.slice(0, 6).map((app: any) => (
             <div key={app.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
               <div>
-                <p className="text-sm font-semibold text-gray-800">{app.guard_profiles?.full_name ?? 'Guard'}</p>
+                <p className="text-sm font-semibold text-gray-800">{app.guard_profiles?.full_name ?? 'Associate'}</p>
                 <p className="text-xs text-gray-400">{app.job_posts?.title} · {new Date(app.applied_at).toLocaleDateString('en-IN')}</p>
               </div>
               {statusBadge(app.status)}
@@ -1268,7 +1268,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   const [sites, setSites] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [job, setJob] = useState({
-    title: '', site_id: '', guards_required: '1', category: 'Service Partner', guard_type: 'Service Partner',
+    title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: 'Associate',
     gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
     duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '', duration_type: 'Monthly',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
@@ -1330,9 +1330,9 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Job Title" value={job.title} onChange={v => setJob({ ...job, title: v })} />
           <Sel label="Site / Location" value={job.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={v => setJob({ ...job, site_id: v })} />
-          <Input label="Guards Required" value={job.guards_required} onChange={v => setJob({ ...job, guards_required: v })} />
+          <Input label="Associates Required" value={job.guards_required} onChange={v => setJob({ ...job, guards_required: v })} />
           <Input label="Category" value={job.category} onChange={v => setJob({ ...job, category: v })} />
-          <Input label="Service Partner Type" value={job.guard_type} onChange={v => setJob({ ...job, guard_type: v })} />
+          <Input label="Associate Type" value={job.guard_type} onChange={v => setJob({ ...job, guard_type: v })} />
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
@@ -1547,7 +1547,7 @@ function JobsPage({ employer: _employer, company, onChanged }: { employer: Emplo
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input label="Job Title"       value={ef.title}               onChange={set('title')} />
                 <Sel   label="Site"            value={ef.site_id}             options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
-                <Input label="Guards Required" value={ef.guards_required}     onChange={set('guards_required')} />
+                <Input label="Associates Required" value={ef.guards_required} onChange={set('guards_required')} />
                 <Input label="Salary"          value={ef.salary_amount}       onChange={set('salary_amount')} />
                 <Sel   label="Payment Type"    value={ef.payment_type}        options={['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
@@ -1650,10 +1650,10 @@ function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { e
     <div className="p-6">
       <Card className="p-5">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Applicants</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
           {apps.map((app: any) => (
             <tr key={app.id} className="border-b border-gray-50">
-              <Td><b>{app.guard_profiles?.full_name ?? 'Service Partner'}</b><div className="text-xs text-gray-400">{app.guard_profiles?.city} · {app.guard_profiles?.mobile}</div></Td>
+              <Td><b>{app.guard_profiles?.full_name ?? 'Associate'}</b><div className="text-xs text-gray-400">{app.guard_profiles?.city} · {app.guard_profiles?.mobile}</div></Td>
               <Td>{app.job_posts?.title}</Td>
               <Td>{app.guard_profiles?.skills?.join(', ') ?? '--'}</Td>
               <Td><div className="text-xs">Status: {app.guard_profiles?.verification_status ?? '--'}</div></Td>
@@ -1693,10 +1693,10 @@ function InterviewsPage({ employer: _employer, company, onChanged }: { employer:
     <div className="p-6">
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Call / Interview Requests</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Type', 'Preferred', 'Message', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Type', 'Preferred', 'Message', 'Status', 'Actions']}>
           {requests.map((r: any) => (
             <tr key={r.id} className="border-b border-gray-50">
-              <Td>{r.guard_profiles?.full_name ?? 'Service Partner'}<div className="text-xs text-gray-400">{r.guard_profiles?.mobile}</div></Td>
+              <Td>{r.guard_profiles?.full_name ?? 'Associate'}<div className="text-xs text-gray-400">{r.guard_profiles?.mobile}</div></Td>
               <Td>{r.job_posts?.title}</Td>
               <Td>{r.request_type}</Td>
               <Td>{r.preferred_date} {r.preferred_time}</Td>
@@ -1759,10 +1759,10 @@ function AgreementsPage({ employer: _employer, company, onChanged }: { employer:
     <div className="p-6 space-y-5">
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Job Offers</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Salary', 'Shift', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Salary', 'Shift', 'Status', 'Actions']}>
           {offers.map((offer: any) => (
             <tr key={offer.id} className="border-b border-gray-50">
-              <Td>{offer.guard_profiles?.full_name ?? 'Service Partner'}</Td>
+              <Td>{offer.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{offer.job_posts?.title}</Td>
               <Td>Rs {offer.offered_salary}</Td>
               <Td>{offer.shift_type}</Td>
@@ -1778,10 +1778,10 @@ function AgreementsPage({ employer: _employer, company, onChanged }: { employer:
       </Card>
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Agreements / Onboarding</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Terms', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Terms', 'Status', 'Actions']}>
           {agreements.map((ag: any) => (
             <tr key={ag.id} className="border-b border-gray-50">
-              <Td>{ag.guard_profiles?.full_name ?? 'Service Partner'}</Td>
+              <Td>{ag.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{ag.job_posts?.title}</Td>
               <Td>{(ag.terms as any)?.summary ?? '--'}</Td>
               <Td>{statusBadge(ag.status)}</Td>
@@ -1816,10 +1816,10 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     <div className="p-6">
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Attendance Verification</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Date', 'In / Out', 'Hours', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Hours', 'Status', 'Actions']}>
           {records.map((r: any) => (
             <tr key={r.id} className="border-b border-gray-50">
-              <Td>{r.guard_profiles?.full_name ?? 'Service Partner'}</Td>
+              <Td>{r.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{r.job_posts?.title}</Td>
               <Td>{r.attendance_date}</Td>
               <Td>{r.in_time ? new Date(r.in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'} / {r.out_time ? new Date(r.out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</Td>
@@ -1855,7 +1855,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
 
   const handlePay = (appId: string, guardName: string) => {
     setPaid(prev => new Set([...prev, appId]));
-    setSuccessMsg(`Payment done for ${guardName}. Service Partner will be notified.`);
+    setSuccessMsg(`Payment done for ${guardName}. Associate will be notified.`);
   };
 
   return (
@@ -1863,29 +1863,29 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
       {successMsg && <SuccessBanner message={successMsg} onClose={() => setSuccessMsg('')} />}
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Process Payments</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Amount', 'Action']}>
+        <DataTable headers={['Associate', 'Job', 'Amount', 'Action']}>
           {apps.map((app: any) => {
             const alreadyPaid = paid.has(app.id);
             return (
               <tr key={app.id} className="border-b border-gray-50">
-                <Td>{app.guard_profiles?.full_name ?? 'Service Partner'}</Td>
+                <Td>{app.guard_profiles?.full_name ?? 'Associate'}</Td>
                 <Td>{app.job_posts?.title}</Td>
                 <Td>Rs {app.job_posts?.salary_amount ?? '--'}</Td>
                 <Td>
                   {alreadyPaid
                     ? <span className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">Payment Done</span>
-                    : <button onClick={() => handlePay(app.id, app.guard_profiles?.full_name ?? 'Service Partner')} className="table-action tone-green">Pay Now</button>}
+                    : <button onClick={() => handlePay(app.id, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay Now</button>}
                 </Td>
               </tr>
             );
           })}
         </DataTable>
-        {apps.length === 0 && <EmptyState text="No selected service partners awaiting payment" />}
+        {apps.length === 0 && <EmptyState text="No selected associates awaiting payment" />}
       </Card>
 
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Payment History</h2>
-        <DataTable headers={['Service Partner', 'Job', 'Amount', 'Method', 'Status']}>
+        <DataTable headers={['Associate', 'Job', 'Amount', 'Method', 'Status']}>
           {payments.map((p: any) => (
             <tr key={p.id} className="border-b border-gray-50">
               <Td>{p.guard_profiles?.full_name ?? '--'}</Td>

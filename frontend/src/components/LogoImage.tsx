@@ -26,7 +26,7 @@ export default function LogoImage({ size = 'md', showText = false }: LogoImagePr
             GRANVIA
           </span>
           <span className="text-xs" style={{ color: '#8b1a1a', letterSpacing: '0.05em' }}>
-            Service Partners
+            Associates
           </span>
         </div>
       )}

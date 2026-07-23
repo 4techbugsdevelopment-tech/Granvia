@@ -21,12 +21,7 @@ type ShellState = 'splash' | 'login' | 'app';
 
 const KNOWN_ROLES = ['guard', 'employer', 'sales_executive', 'sub_admin'];
 
-interface UniversalMobileAppProps {
-  /** Return to the landing page (desktop preview only). */
-  onExit?: () => void;
-}
-
-export default function UniversalMobileApp({ onExit }: UniversalMobileAppProps) {
+export default function UniversalMobileApp() {
   const { profile } = useAuth();
   // If already authenticated as a supported role, skip splash/login.
   const initial: ShellState = profile && KNOWN_ROLES.includes(profile.role) ? 'app' : 'splash';
@@ -42,7 +37,7 @@ export default function UniversalMobileApp({ onExit }: UniversalMobileAppProps) 
   if (state === 'login') {
     return (
       <motion.div className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <UniversalLogin onLogin={() => setState('app')} onBack={onExit} />
+        <UniversalLogin onLogin={() => setState('app')} />
       </motion.div>
     );
   }

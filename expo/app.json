@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Granvia Partner",
+    "name": "Granvia Associate",
     "slug": "granvia-partner-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "androidStatusBar": {
@@ -24,7 +24,7 @@
     ],
     "android": {
       "package": "com.granvia.partner",
-      "versionCode": 2,
+      "versionCode": 3,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0f1e3c"

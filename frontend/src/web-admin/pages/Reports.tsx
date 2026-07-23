@@ -17,7 +17,7 @@ export default function Reports() {
       {/* Area-wise availability */}
       <Card className="mb-6">
         <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <MapPin size={16} style={{ color: '#8b1a1a' }} /> Area-wise Guard Availability
+          <MapPin size={16} style={{ color: '#8b1a1a' }} /> Area-wise Associate Availability
         </h2>
         <Table headers={['Area', 'Available', 'Deployed', 'English', 'Total']}>
           {demoAreaAvailability.map(a => (
@@ -45,7 +45,7 @@ export default function Reports() {
               return (
                 <div key={a.area}>
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>{a.area}</span><span>{a.languages.English ?? 0} guards · {pct}%</span>
+                    <span>{a.area}</span><span>{a.languages.English ?? 0} associates · {pct}%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <motion.div className="h-full rounded-full" style={{ background: '#1d4ed8' }}
@@ -54,7 +54,7 @@ export default function Reports() {
                 </div>
               );
             })}
-            <p className="text-xs text-gray-400 pt-1">Total English-proficient guards: <span className="font-bold text-gray-700">{totalEnglish}</span></p>
+            <p className="text-xs text-gray-400 pt-1">Total English-proficient associates: <span className="font-bold text-gray-700">{totalEnglish}</span></p>
           </div>
         </Card>
 

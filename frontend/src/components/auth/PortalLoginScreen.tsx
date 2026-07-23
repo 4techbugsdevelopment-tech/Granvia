@@ -38,7 +38,7 @@ const floatingIcons = [
 ];
 
 const stats = [
-  { label: 'Guards Deployed', value: 12400 },
+  { label: 'Associates Deployed', value: 12400 },
   { label: 'Sites Secured', value: 3800 },
   { label: 'Cities Covered', value: 186 },
 ];
@@ -176,11 +176,11 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
           <div>
             <h2 className="text-3xl font-bold text-gray-900 leading-tight">
               India's Premier<br />
-              <span style={{ color: '#8b1a1a' }}>Service Partner</span><br />
+              <span style={{ color: '#8b1a1a' }}>Associate</span><br />
               Management Platform
             </h2>
             <p className="mt-3 text-gray-500 text-sm leading-relaxed">
-              Deploy, monitor, and manage your entire service partner workforce from one unified admin center.
+              Deploy, monitor, and manage your entire associate workforce from one unified admin center.
             </p>
           </div>
 

@@ -123,7 +123,7 @@ export async function store(req: Request, res: Response) {
 /** PATCH /admin/guards/:guard */
 export async function update(req: Request, res: Response) {
   const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
-  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not a guard account.');
+  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
 
   const data = guardSchema.partial().parse(req.body);
   await assertUnique(data.email, data.mobile ?? undefined, guard.id);

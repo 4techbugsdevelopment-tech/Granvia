@@ -107,7 +107,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
     listActiveJobs().then(data => setJobs(data ?? [])).catch(() => {});
   }, []);
 
-  const fullName = guardProfile?.full_name || profile?.full_name || 'Guard';
+  const fullName = guardProfile?.full_name || profile?.full_name || 'Associate';
   const city = guardProfile?.city || '—';
   const active = profile?.account_status === 'active';
 

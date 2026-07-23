@@ -25,7 +25,7 @@ export default function CashPaymentPage() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Cash Payments</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pay guards in cash with OTP confirmation</p>
+          <p className="text-sm text-gray-500 mt-0.5">Pay associates in cash with OTP confirmation</p>
         </div>
         <button onClick={() => setPaying(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
           <Banknote size={15} /> New Cash Payment
@@ -35,7 +35,7 @@ export default function CashPaymentPage() {
       <div className="rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead><tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>{['Guard', 'Site', 'Amount', 'Date', 'Status'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>{['Associate', 'Site', 'Amount', 'Date', 'Status'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}</tr></thead>
             <tbody>
               {payments.map(p => (
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/60">
@@ -64,7 +64,7 @@ export default function CashPaymentPage() {
 
               {step === 'form' && (
                 <>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Guard</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Associate</label>
                   <select value={guard} onChange={e => setGuard(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none mb-3" style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }}>
                     {demoAvailableGuards.map(g => <option key={g.id}>{g.name}</option>)}
                   </select>
@@ -73,7 +73,7 @@ export default function CashPaymentPage() {
                     className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none mb-4" style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }} />
                   <button onClick={() => setStep('otp')} disabled={!amount || Number(amount) <= 0}
                     className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
-                    Send OTP to Guard
+                    Send OTP to Associate
                   </button>
                 </>
               )}
@@ -81,7 +81,7 @@ export default function CashPaymentPage() {
               {step === 'otp' && (
                 <div className="text-center">
                   <p className="text-sm text-gray-600 mb-1">OTP sent to <span className="font-semibold">{guard}</span></p>
-                  <p className="text-xs text-gray-400 mb-4">Ask the guard for the code to confirm they received {inr(Number(amount))} <span className="font-mono font-bold text-blue-600">(demo: 123456)</span></p>
+                  <p className="text-xs text-gray-400 mb-4">Ask the associate for the code to confirm they received {inr(Number(amount))} <span className="font-mono font-bold text-blue-600">(demo: 123456)</span></p>
                   <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit OTP"
                     className="w-48 px-3.5 py-2.5 rounded-xl text-sm outline-none text-center mx-auto block mb-4" style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }} />
                   <button onClick={confirm} disabled={otp.length !== 6}

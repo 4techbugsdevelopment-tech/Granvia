@@ -141,7 +141,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const fullName = guardProfile?.full_name || profile?.full_name || 'Guard';
+  const fullName = guardProfile?.full_name || profile?.full_name || 'Associate';
   const skills = guardProfile?.skills ?? [];
   const languages = guardProfile?.languages ?? [];
   const hasBank = Boolean(guardProfile?.bank_account_number);

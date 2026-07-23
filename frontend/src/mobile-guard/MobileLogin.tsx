@@ -83,7 +83,7 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
             GRANVIA
           </h1>
           <p className="text-xs tracking-widest mt-0.5" style={{ color: '#8b1a1a', letterSpacing: '0.2em' }}>
-            GUARD APP
+            ASSOCIATE APP
           </p>
         </motion.div>
       </div>
@@ -97,7 +97,7 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
           transition={{ delay: 0.3 }}
         >
           <h2 className="text-2xl font-bold mb-1" style={{ color: '#0f1e3c' }}>Welcome Back</h2>
-          <p className="text-sm text-gray-400 mb-6">Sign in to your service partner account</p>
+          <p className="text-sm text-gray-400 mb-6">Sign in to your associate account</p>
 
           <AnimatePresence mode="wait">
             {success ? (
@@ -195,7 +195,7 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
                 </motion.button>
 
                 <p className="text-center text-xs text-gray-400 pt-2">
-                  Only admin-registered guards can access this app.
+                  Only admin-registered associates can access this app.
                 </p>
                 <button
                   type="button"

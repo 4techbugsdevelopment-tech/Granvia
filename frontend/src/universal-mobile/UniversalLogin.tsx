@@ -2,7 +2,7 @@
 // the selected account role, then the shell opens that account's mobile portal.
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, RefreshCw, Shield, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signInWithRole } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
@@ -10,11 +10,10 @@ import type { UserRole } from '../lib/apiTypes';
 
 interface UniversalLoginProps {
   onLogin: () => void;
-  onBack?: () => void;
 }
 
 const ACCOUNT_TYPES: Array<{ value: Exclude<UserRole, 'super_admin'>; label: string }> = [
-  { value: 'guard', label: 'Service Partner' },
+  { value: 'guard', label: 'Associate' },
   { value: 'employer', label: 'Employer' },
   { value: 'sales_executive', label: 'Sales Executive' },
   { value: 'sub_admin', label: 'Sub Admin' },
@@ -31,7 +30,7 @@ function generateCaptcha() {
   return { question: `${left} ${op} ${right} = ?`, answer: String(answer) };
 }
 
-export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps) {
+export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Exclude<UserRole, 'super_admin'>>('guard');
@@ -127,7 +126,7 @@ export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps)
             GRANVIA
           </h1>
           <p className="text-xs tracking-widest mt-0.5" style={{ color: '#8b1a1a', letterSpacing: '0.2em' }}>
-            PARTNER APP
+            ASSOCIATE APP
           </p>
         </motion.div>
       </div>
@@ -285,18 +284,8 @@ export default function UniversalLogin({ onLogin, onBack }: UniversalLoginProps)
                 </motion.button>
 
                 <p className="text-center text-xs text-gray-400 pt-2">
-                  Service Partners, Employers, Sales &amp; Sub Admins can sign in here.
+                  Associates, Employers, Sales &amp; Sub Admins can sign in here.
                 </p>
-                {onBack && (
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    className="mx-auto flex items-center gap-1.5 text-xs font-semibold text-gray-500 active:text-gray-800"
-                  >
-                    <ArrowLeft size={14} />
-                    Main landing page
-                  </button>
-                )}
               </motion.form>
             )}
           </AnimatePresence>

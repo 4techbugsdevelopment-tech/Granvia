@@ -24,8 +24,8 @@ export default function AvailableGuardsPage() {
   return (
     <motion.div className="p-6 max-w-5xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="mb-5">
-        <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Available Guards</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Browse guards available for hire near your sites</p>
+        <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Available Associates</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Browse associates available for hire near your sites</p>
       </div>
 
       {/* Filters */}
@@ -74,7 +74,7 @@ export default function AvailableGuardsPage() {
             </div>
           </motion.div>
         ))}
-        {filtered.length === 0 && <p className="text-sm text-gray-400 col-span-2 text-center py-10">No guards match your filters.</p>}
+        {filtered.length === 0 && <p className="text-sm text-gray-400 col-span-2 text-center py-10">No associates match your filters.</p>}
       </div>
 
       <AnimatePresence>

@@ -54,8 +54,8 @@ export default function Dashboard() {
   const openPositions = activeJobs.reduce((sum, job) => sum + (job.guards_required ?? 0), 0);
 
   const kpis = [
-    { label: 'Total Guards', value: counts?.guards ?? guards.length, icon: <Users size={20} />, color: '#0f1e3c' },
-    { label: 'Active Guards', value: activeGuards, icon: <Shield size={20} />, color: '#166534' },
+    { label: 'Total Associates', value: counts?.guards ?? guards.length, icon: <Users size={20} />, color: '#0f1e3c' },
+    { label: 'Active Associates', value: activeGuards, icon: <Shield size={20} />, color: '#166534' },
     { label: 'Employers', value: counts?.employers ?? 0, icon: <UserCheck size={20} />, color: '#0f766e' },
     { label: 'Jobs Posted', value: counts?.jobs ?? jobs.length, icon: <Briefcase size={20} />, color: '#7c2d12' },
     { label: 'Open Positions', value: openPositions, icon: <MapPin size={20} />, color: '#1d4ed8' },
@@ -87,7 +87,7 @@ export default function Dashboard() {
 
   const recentActivity = [
     ...guards.slice(0, 3).map(g => ({
-      text: `Service partner registered: ${g.fullName}`,
+      text: `Associate registered: ${g.fullName}`,
       time: new Date(g.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
       icon: <UserCheck size={14} />, color: '#166534',
     })),
@@ -166,7 +166,7 @@ export default function Dashboard() {
                   <div className="flex-1 flex gap-2">
                     <div className="flex-1">
                       <div className="flex justify-between text-xs text-gray-400 mb-1">
-                        <span>Guards</span><span>{area.guards}</span>
+                        <span>Associates</span><span>{area.guards}</span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <motion.div
@@ -247,10 +247,10 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900 flex items-center gap-2">
             <MapPin size={16} style={{ color: '#8b1a1a' }} />
-            Service Partner & Site Map
+            Associate & Site Map
           </h2>
           <div className="flex gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-600 inline-block" /> Guards</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-600 inline-block" /> Associates</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-700 inline-block" /> Sites</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" /> Jobs</span>
           </div>
@@ -283,7 +283,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-white flex items-center gap-2">
             <Shield size={16} style={{ color: '#8b1a1a' }} />
-            Service Partner Status Overview
+            Associate Status Overview
           </h2>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

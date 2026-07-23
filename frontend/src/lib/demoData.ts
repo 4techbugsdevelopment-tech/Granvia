@@ -59,7 +59,7 @@ export interface DemoNotification {
 }
 
 export const demoNotifications: DemoNotification[] = [
-  { id: 'N-1', title: 'New job near you', body: 'Security guard needed at Phoenix Mall, 3.2 km away.', time: '10 min ago', read: false, kind: 'job' },
+  { id: 'N-1', title: 'New job near you', body: 'Security associate needed at Phoenix Mall, 3.2 km away.', time: '10 min ago', read: false, kind: 'job' },
   { id: 'N-2', title: 'Payment received', body: '₹960 credited for your shift at Reliance Mall.', time: '2 hr ago', read: false, kind: 'payment' },
   { id: 'N-3', title: 'Document verified', body: 'Your ID proof has been approved by admin.', time: '1 day ago', read: true, kind: 'verification' },
   { id: 'N-4', title: 'Shift reminder', body: 'Your shift at Tech Park starts at 8:00 AM tomorrow.', time: '1 day ago', read: true, kind: 'system' },
@@ -135,7 +135,7 @@ export interface DemoFeedback {
 }
 
 export const demoFeedback: DemoFeedback[] = [
-  { id: 'FB-1', target: 'Rajesh Kumar (Guard)', rating: 5, comment: 'Punctual and professional throughout the assignment.', date: '2026-07-07' },
+  { id: 'FB-1', target: 'Rajesh Kumar (Associate)', rating: 5, comment: 'Punctual and professional throughout the assignment.', date: '2026-07-07' },
   { id: 'FB-2', target: 'Platform / Service', rating: 4, comment: 'Hiring flow is smooth, would like faster payouts.', date: '2026-07-04' },
 ];
 
@@ -166,8 +166,8 @@ export const demoPlatformPayments = {
 
 export const demoPlatformTransactions: DemoWalletTxn[] = [
   { id: 'PT-5501', date: '2026-07-08', type: 'credit', purpose: 'Wallet top-up — Demo Security Services', amount: 50000, status: 'completed' },
-  { id: 'PT-5502', date: '2026-07-08', type: 'debit', purpose: 'Guard payout batch #418', amount: 38400, status: 'completed' },
-  { id: 'PT-5503', date: '2026-07-07', type: 'debit', purpose: 'Guard payout batch #417', amount: 29600, status: 'completed' },
+  { id: 'PT-5502', date: '2026-07-08', type: 'debit', purpose: 'Associate payout batch #418', amount: 38400, status: 'completed' },
+  { id: 'PT-5503', date: '2026-07-07', type: 'debit', purpose: 'Associate payout batch #417', amount: 29600, status: 'completed' },
   { id: 'PT-5504', date: '2026-07-07', type: 'credit', purpose: 'Wallet top-up — Metro Facilities', amount: 75000, status: 'pending' },
 ];
 
@@ -237,7 +237,7 @@ export const STAFF_PERMISSIONS = [
   'Manage Staff',
   'Verify Documents',
   'Manage Clients',
-  'Manage Service Partners',
+  'Manage Associates',
   'View Reports',
   'Post Jobs',
 ] as const;
@@ -256,7 +256,7 @@ export interface DemoStaff {
 
 export const demoStaff: DemoStaff[] = [
   { id: 'ST-1', branchId: SUB_ADMIN_BRANCH_ID, name: 'Neha Kulkarni', role: 'Operations Manager', email: 'neha@region.com', mobile: '9801234500', status: 'Active', permissions: ['Manage Staff', 'Manage Clients', 'View Reports', 'Post Jobs'] },
-  { id: 'ST-2', branchId: SUB_ADMIN_BRANCH_ID, name: 'Arjun Reddy', role: 'Field Supervisor', email: 'arjun@region.com', mobile: '9801234501', status: 'Active', permissions: ['Manage Service Partners', 'Verify Documents'] },
+  { id: 'ST-2', branchId: SUB_ADMIN_BRANCH_ID, name: 'Arjun Reddy', role: 'Field Supervisor', email: 'arjun@region.com', mobile: '9801234501', status: 'Active', permissions: ['Manage Associates', 'Verify Documents'] },
   { id: 'ST-3', branchId: SUB_ADMIN_BRANCH_ID, name: 'Sana Sheikh', role: 'HR Coordinator', email: 'sana@region.com', mobile: '9801234502', status: 'Inactive', permissions: ['Verify Documents'] },
 ];
 

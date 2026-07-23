@@ -14,7 +14,7 @@ export default function WalletPayments() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatTile label="Total Collected" value={inr(demoPlatformPayments.totalCollectedInr)} color="#0f1e3c" />
-        <StatTile label="Paid to Guards" value={inr(demoPlatformPayments.paidToGuardsInr)} color="#166534" />
+        <StatTile label="Paid to Associates" value={inr(demoPlatformPayments.paidToGuardsInr)} color="#166534" />
         <StatTile label="Commission Earned" value={inr(demoPlatformPayments.commissionInr)} color="#5b21b6" />
         <StatTile label="Pending Settlement" value={inr(demoPlatformPayments.pendingSettlementInr)} color="#854d0e" />
       </div>

@@ -40,7 +40,7 @@ export default function FeedbackPage() {
     <motion.div className="p-6 max-w-4xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="mb-5">
         <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Feedback</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rate guards or the Granvia service</p>
+        <p className="text-sm text-gray-500 mt-0.5">Rate associates or the Granvia service</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -55,7 +55,7 @@ export default function FeedbackPage() {
           )}
 
           <label className="block text-xs font-semibold text-gray-500 mb-1">Regarding</label>
-          <input value={target} onChange={e => setTarget(e.target.value)} placeholder="Guard name, or leave blank for Platform"
+          <input value={target} onChange={e => setTarget(e.target.value)} placeholder="Associate name, or leave blank for Platform"
             className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none mb-3" style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }} />
 
           <label className="block text-xs font-semibold text-gray-500 mb-2">Rating</label>

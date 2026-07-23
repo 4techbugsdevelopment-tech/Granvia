@@ -82,8 +82,8 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Service Partner Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{guards.length} total service partners registered</p>
+          <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Associate Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{guards.length} total associates registered</p>
         </div>
         <motion.button
           onClick={onAddGuard}
@@ -93,7 +93,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           whileTap={{ scale: 0.97 }}
         >
           <Plus size={16} />
-          Add Service Partner
+          Add Associate
         </motion.button>
       </div>
 
@@ -140,7 +140,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           <table className="w-full">
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                {['Partner ID', 'Name', 'Contact', 'Location', 'Skills', 'Verifications', 'Status', 'Actions'].map(h => (
+                {['Associate ID', 'Name', 'Contact', 'Location', 'Skills', 'Verifications', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -253,7 +253,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           {filtered.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <User size={36} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">{loading ? 'Loading service partners…' : 'No guards found'}</p>
+              <p className="text-sm">{loading ? 'Loading associates…' : 'No associates found'}</p>
             </div>
           )}
         </div>
@@ -395,7 +395,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     color: selectedGuard.status === 'Active' ? '#7c2d12' : '#166534',
                   }}
                 >
-                  {selectedGuard.status === 'Active' ? 'Block Service Partner' : 'Unblock Service Partner'}
+                  {selectedGuard.status === 'Active' ? 'Block Associate' : 'Unblock Associate'}
                 </button>
                 <button
                   onClick={() => setSelectedGuard(null)}

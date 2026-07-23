@@ -23,7 +23,7 @@ const otpSchema = z.object({
 async function guardProfileOrFail(userId: string) {
   const profile = await prisma.guardProfile.findUnique({ where: { userId } });
   if (!profile) {
-    throw new HttpError(404, 'Guard profile not found.');
+    throw new HttpError(404, 'Associate profile not found.');
   }
   return profile;
 }

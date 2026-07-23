@@ -1,7 +1,7 @@
 [
   {
     "id": "JOB-001",
-    "title": "Security Guard – Night Shift",
+    "title": "Security Associate – Night Shift",
     "company": "Reliance Mall",
     "city": "Mumbai",
     "state": "Maharashtra",
@@ -16,7 +16,7 @@
     "languages": ["Hindi", "Marathi"],
     "experience": "2+ years",
     "openings": 5,
-    "description": "Reliance Mall requires trained security guards for night shift duties. Candidates must be physically fit and alert.",
+    "description": "Reliance Mall requires trained security associates for night shift duties. Candidates must be physically fit and alert.",
     "status": "Active",
     "postedBy": "employer-001",
     "postedAt": "2024-05-01T10:00:00Z",
@@ -70,7 +70,7 @@
   },
   {
     "id": "JOB-004",
-    "title": "Bank Security Guard",
+    "title": "Bank Security Associate",
     "company": "Axis Bank Ltd",
     "city": "Mumbai",
     "state": "Maharashtra",
@@ -85,7 +85,7 @@
     "languages": ["Hindi", "English", "Marathi"],
     "experience": "3+ years",
     "openings": 8,
-    "description": "Axis Bank requires security guards for branch protection. Police verification mandatory.",
+    "description": "Axis Bank requires security associates for branch protection. Police verification mandatory.",
     "status": "Active",
     "postedBy": "employer-004",
     "postedAt": "2024-05-10T10:00:00Z",
@@ -93,7 +93,7 @@
   },
   {
     "id": "JOB-005",
-    "title": "Residential Complex Guard",
+    "title": "Residential Complex Associate",
     "company": "Lodha Group",
     "city": "Thane",
     "state": "Maharashtra",
@@ -108,7 +108,7 @@
     "languages": ["Hindi", "Marathi"],
     "experience": "1+ years",
     "openings": 10,
-    "description": "Lodha residential complexes require security guards for night patrolling and gate management.",
+    "description": "Lodha residential complexes require security associates for night patrolling and gate management.",
     "status": "Active",
     "postedBy": "employer-005",
     "postedAt": "2024-05-12T08:00:00Z",
