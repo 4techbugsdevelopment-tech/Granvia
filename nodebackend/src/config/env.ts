@@ -23,4 +23,9 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   tokenExpiryDays: Number(process.env.TOKEN_EXPIRY_DAYS ?? 0),
+  surepass: {
+    baseUrl: (process.env.SUREPASS_BASE_URL ?? 'https://sandbox.surepass.app').replace(/\/+$/, ''),
+    bearerToken: process.env.SUREPASS_BEARER_TOKEN?.trim() ?? '',
+    timeoutMs: Number(process.env.SUREPASS_TIMEOUT_MS ?? 15_000),
+  },
 };

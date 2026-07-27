@@ -7,6 +7,7 @@ import * as applications from '../controllers/applicationController';
 import * as attendance from '../controllers/attendanceController';
 import * as documents from '../controllers/guardDocumentController';
 import * as aadhaar from '../controllers/guardAadhaarController';
+import * as surepassTest from '../controllers/surepassTestController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -27,6 +28,7 @@ router.get('/guard/documents', asyncHandler(documents.index));
 router.post('/guard/documents', upload.single('file'), asyncHandler(documents.store));
 
 router.get('/guard/aadhaar', asyncHandler(aadhaar.status));
+router.post('/guard/aadhaar/mock-session', asyncHandler(surepassTest.createMockSession));
 router.post('/guard/aadhaar/verify-instant', asyncHandler(aadhaar.instantVerify));
 router.post('/guard/aadhaar/send-otp', asyncHandler(aadhaar.sendOtp));
 router.post('/guard/aadhaar/verify-otp', asyncHandler(aadhaar.verifyOtp));

@@ -11,6 +11,7 @@ import AvailabilityScreen from './screens/AvailabilityScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import SupportScreen from './screens/SupportScreen';
 import MobilePlaceholder from './screens/MobilePlaceholder';
+import AadhaarMockTestScreen from './screens/AadhaarMockTestScreen';
 import { signOut } from '../services/authService';
 
 interface MobileAppProps {
@@ -19,7 +20,12 @@ interface MobileAppProps {
 
 type Screen =
   | 'dashboard' | 'jobs' | 'attendance' | 'profile' | 'applications'
-  | 'wallet' | 'availability' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions';
+  | 'wallet' | 'availability' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions'
+  | 'aadhaar-mock-test';
+
+function initialScreen(): Screen {
+  return window.location.pathname === '/guard/aadhaar/mock-test' ? 'aadhaar-mock-test' : 'dashboard';
+}
 
 const NAV_ITEMS = [
   { id: 'dashboard' as Screen, icon: <LayoutDashboard size={20} />, label: 'Home' },
@@ -30,7 +36,7 @@ const NAV_ITEMS = [
 ];
 
 export default function MobileApp({ onLogout }: MobileAppProps) {
-  const [screen, setScreen] = useState<Screen>('dashboard');
+  const [screen, setScreen] = useState<Screen>(initialScreen);
 
   const handleLogout = () => {
     signOut().finally(onLogout);
@@ -47,6 +53,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       case 'availability': return <AvailabilityScreen />;
       case 'notifications': return <NotificationsScreen />;
       case 'support': return <SupportScreen />;
+      case 'aadhaar-mock-test': return <AadhaarMockTestScreen />;
       default: return <MobilePlaceholder screen={screen} />;
     }
   };
