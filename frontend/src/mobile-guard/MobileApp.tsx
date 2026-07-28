@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Search, Clock, User, MoreHorizontal, LogOut } from 'lucide-react';
 import MobileDashboard from './screens/MobileDashboard';
@@ -37,6 +37,11 @@ const NAV_ITEMS = [
 
 export default function MobileApp({ onLogout }: MobileAppProps) {
   const [screen, setScreen] = useState<Screen>(initialScreen);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [screen]);
 
   const handleLogout = () => {
     signOut().finally(onLogout);
@@ -62,6 +67,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
     <div className="granvia-mobile flex flex-col w-full h-full" style={{ background: '#f1f5f9' }}>
       {/* Scrollable content area */}
       <div
+        ref={scrollRef}
         className="flex-1 overflow-y-auto mobile-scroll"
         style={{ paddingBottom: 80 }}
       >

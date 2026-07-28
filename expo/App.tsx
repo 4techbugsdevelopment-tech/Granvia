@@ -52,8 +52,13 @@ export default function App() {
   const onNav = (nav: WebViewNavigation) => setCanGoBack(nav.canGoBack);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" backgroundColor="#0f1e3c" />
+    <SafeAreaView
+      style={[
+        styles.container,
+        Platform.OS === 'android' && { paddingTop: Constants.statusBarHeight },
+      ]}
+    >
+      <StatusBar style="light" backgroundColor="#0f1e3c" translucent />
       <WebView
         ref={webRef}
         source={{ uri: APP_URL }}
