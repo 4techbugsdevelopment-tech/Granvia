@@ -188,7 +188,7 @@ export async function login(req: Request, res: Response) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
 
-  if (user.accountStatus !== 'active') {
+  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive') {
     throw new HttpError(403, `Your account is ${user.accountStatus}. Contact support.`);
   }
 

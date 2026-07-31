@@ -21,7 +21,7 @@ import Constants from 'expo-constants';
 const APP_URL: string =
   process.env.EXPO_PUBLIC_APP_URL ??
   (Constants.expoConfig?.extra as { appUrl?: string } | undefined)?.appUrl ??
-  'https://granvia.netlify.app/app';
+  'https://granvia.netlify.app/universal-app';
 
 // Marks the WebView as the packaged APK so the web app switches to full-screen
 // mode and routes to the universal app.

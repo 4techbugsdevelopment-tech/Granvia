@@ -13,6 +13,10 @@ import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
 import SubAdminApp from './subadmin/SubAdminApp';
 import UniversalMobileApp from './universal-mobile/UniversalMobileApp';
+import {
+  UNIVERSAL_APP_BASE_PATH,
+  normalizeUniversalAppPath,
+} from './universal-mobile/roleRouting';
 import GranviaLogo from './components/GranviaLogo';
 import { Tilt } from './components/fx';
 import { useAuth } from './hooks/useAuth';
@@ -39,9 +43,20 @@ type GranviaWindow = Window & {
   __GRANVIA_APK__?: boolean;
 };
 
+function getModeForRole(role: string | undefined): AppMode | null {
+  if (!role) return null;
+  if (role === 'super_admin') return 'admin';
+  if (role === 'guard') return 'mobile';
+  if (role === 'employer') return 'employer';
+  if (role === 'sales_executive') return 'sales';
+  if (role === 'sub_admin') return 'subadmin';
+  return null;
+}
+
 function getModeFromPath(pathname: string): AppMode {
   if (pathname === '/home-1' || pathname.startsWith('/home-1/')) return 'landing';
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'app';
+  if (pathname === UNIVERSAL_APP_BASE_PATH || pathname.startsWith(`${UNIVERSAL_APP_BASE_PATH}/`)) return 'app';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/guard' || pathname.startsWith('/guard/')) return 'mobile';
   if (pathname === '/employer' || pathname.startsWith('/employer/')) return 'employer';
@@ -52,7 +67,7 @@ function getModeFromPath(pathname: string): AppMode {
 
 function getPathForMode(mode: AppMode): string {
   if (mode === 'landing') return '/home-1';
-  if (mode === 'app') return '/app';
+  if (mode === 'app') return UNIVERSAL_APP_BASE_PATH;
   if (mode === 'admin') return '/';
   if (mode === 'mobile') return '/guard';
   if (mode === 'employer') return '/employer';
@@ -241,7 +256,7 @@ function MobileFrame({
 function App() {
   const { profile, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<AppMode>(() => {
-    const routeMode = getModeFromPath(window.location.pathname);
+    const routeMode = getModeFromPath(normalizeUniversalAppPath(window.location.pathname));
     // Packaged APK (Android WebView) always boots straight into the universal app.
     if (window.location.pathname === '/' && isApkMode()) return 'app';
     return routeMode;
@@ -284,11 +299,31 @@ function App() {
   useEffect(() => {
     if (authLoading) return;
     const applyRoute = () => {
+      const authenticatedMode = getModeForRole(profile?.role);
+      if (authenticatedMode) {
+        setMode(authenticatedMode);
+        if (authenticatedMode === 'admin') {
+          setAdminState('dashboard');
+        } else if (authenticatedMode === 'mobile') {
+          setMobileState('app');
+        } else if (authenticatedMode === 'employer') {
+          setEmployerState('app');
+        } else if (authenticatedMode === 'sales') {
+          setSalesState('app');
+        } else if (authenticatedMode === 'subadmin') {
+          setSubAdminState('app');
+        }
+        if (window.location.pathname !== getPathForMode(authenticatedMode)) {
+          setPathForMode(authenticatedMode, true);
+        }
+        return;
+      }
+
       if (window.location.pathname === '/' && isApkMode()) {
         setMode('app');
         return;
       }
-      const routeMode = getModeFromPath(window.location.pathname);
+      const routeMode = getModeFromPath(normalizeUniversalAppPath(window.location.pathname));
       if (routeMode === 'app') {
         setMode('app');
         return;

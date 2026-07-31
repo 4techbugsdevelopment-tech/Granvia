@@ -52,6 +52,8 @@ VITE_API_URL=http://127.0.0.1:8000/api
   tables skipped). Verified: all 5 seed users log in with their original Laravel `$2y$`
   bcrypt passwords. Configure the source via `MYSQL_*` env vars.
 
+- **Demo auth seed** (`scripts/seed-demo-auth-users.ts`, `npm run seed:demo-users`) — idempotently creates/repairs the demo `@granvia.test` auth accounts in the current backend database. It runs in dry-run mode by default; add `-- --apply` to write changes.
+
 ## SQL Server notes
 - After every `prisma db push`, re-apply the filtered unique index so users without a
   mobile number don't collide (SQL Server UNIQUE permits only one NULL):

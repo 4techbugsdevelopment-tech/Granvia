@@ -49,7 +49,6 @@ export async function signInWithRole(email: string, password: string, role: User
   const { data } = await apiClient.post('/auth/login', {
     email: email.trim().toLowerCase(),
     password,
-    role,
   });
 
   setStoredToken(data.token);

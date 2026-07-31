@@ -3,6 +3,7 @@
     "name": "Granvia Associate",
     "slug": "granvia-partner-app",
     "version": "1.0.3",
+    "icon": "./assets/granvia-g-icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "androidStatusBar": {
@@ -27,6 +28,7 @@
       "versionCode": 4,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/granvia-g-icon.png",
         "backgroundColor": "#0f1e3c"
       },
       "permissions": [
@@ -38,7 +40,7 @@
     },
     "extra": {
       "//": "The deployed universal-app URL the WebView loads. Override per build.",
-      "appUrl": "https://granvia.llc/app",
+      "appUrl": "https://granvia.llc/universal-app",
       "eas": {
         "projectId": "2d65ed62-b6f8-43cc-9871-0c298b7dd703"
       }
