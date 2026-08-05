@@ -7,6 +7,7 @@ import { issueToken, revokeToken } from '../utils/token';
 import { HttpError } from '../utils/http';
 import { signedVerifyUrl, verifyEmailSignature, emailHash } from '../utils/signing';
 import { sendVerificationEmail, sendEmployerWelcome } from '../services/mailService';
+import { issueOtp, verifyOtp } from '../services/otpService';
 import { meResponse } from '../serializers/userSerializer';
 
 const frontend = () => env.frontendUrl.replace(/\/$/, '');
@@ -125,12 +126,12 @@ export async function registerEmployer(req: Request, res: Response) {
     return created;
   });
 
-  await sendVerificationEmail(user.email, data.contact_person_name, signedVerifyUrl(user.id, emailHash(user.email)));
+  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
 
   return res.status(201).json({
-    message:
-      'Registration submitted. Please verify your email address using the link sent to your inbox.',
+    message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
     user: { id: user.id, email: user.email },
+    ...(otp.dev_otp ? { dev_otp: otp.dev_otp } : {}),
   });
 }
 
@@ -167,13 +168,48 @@ export async function registerGuard(req: Request, res: Response) {
     return created;
   });
 
-  await sendVerificationEmail(user.email, data.full_name, signedVerifyUrl(user.id, emailHash(user.email)));
+  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
 
   return res.status(201).json({
-    message:
-      'Registration submitted. Please verify your email address using the link sent to your inbox.',
+    message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
     user: { id: user.id, email: user.email },
+    ...(otp.dev_otp ? { dev_otp: otp.dev_otp } : {}),
   });
+}
+
+/** POST /auth/email/verify-otp — activate account with the signup code. */
+export async function verifyEmailOtp(req: Request, res: Response) {
+  const schema = z.object({ email: z.string().email(), otp: z.string().min(4) });
+  const { email, otp } = schema.parse(req.body);
+
+  await verifyOtp({ email, purpose: 'signup_verification', otp });
+
+  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!user) throw new HttpError(422, 'Account not found.');
+
+  if (!user.emailVerifiedAt) {
+    await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+    if (user.role === 'employer') {
+      await sendEmployerWelcome(user.email, user.fullName, null, `${frontend()}/employer`);
+    }
+  }
+
+  return res.json({ message: 'Email verified. You can now sign in.' });
+}
+
+/** POST /auth/email/resend-otp — reissue the signup verification code. */
+export async function resendEmailOtp(req: Request, res: Response) {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  let dev_otp: string | undefined;
+  if (email) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user && !user.emailVerifiedAt) {
+      const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+      dev_otp = otp.dev_otp;
+    }
+  }
+  // Do not reveal whether the account exists.
+  return res.json({ message: 'If an account needs verification, a code has been sent.', ...(dev_otp ? { dev_otp } : {}) });
 }
 
 export async function login(req: Request, res: Response) {
@@ -192,6 +228,21 @@ export async function login(req: Request, res: Response) {
     throw new HttpError(403, `Your account is ${user.accountStatus}. Contact support.`);
   }
 
+  if (env.enforceEmailVerification && !user.emailVerifiedAt) {
+    // Do not reissue here (would invalidate the code already sent at signup and
+    // is abusable). The client redirects to the verify screen and can resend.
+    throw new HttpError(403, 'Please verify your email to continue. Check your inbox for the code.', {
+      code: 'email_unverified',
+      email: user.email,
+    });
+  }
+
+  // Second factor: issue a login OTP and defer the token until it is verified.
+  if (env.loginOtpEnabled) {
+    const otp = await issueOtp({ email: user.email, purpose: 'login_2fa', userId: user.id });
+    return res.json({ requires_otp: true, email: user.email, ...(otp.dev_otp ? { dev_otp: otp.dev_otp } : {}) });
+  }
+
   const token = await issueToken(user.id);
   const { employerProfile, guardProfile } = await loadProfiles(user.id, user.role);
 
@@ -199,6 +250,71 @@ export async function login(req: Request, res: Response) {
     token,
     ...meResponse(user as unknown as Record<string, unknown>, employerProfile, guardProfile),
   });
+}
+
+/** POST /auth/login/verify-otp — completes a 2FA login and issues the token. */
+export async function loginVerifyOtp(req: Request, res: Response) {
+  const schema = z.object({
+    email: z.string().email(),
+    otp: z.string().min(4),
+    role: z.enum(ROLES).optional(),
+  });
+  const data = schema.parse(req.body);
+
+  await verifyOtp({ email: data.email, purpose: 'login_2fa', otp: data.otp });
+
+  const user = await prisma.user.findUnique({ where: { email: data.email.trim().toLowerCase() } });
+  if (!user) throw new HttpError(422, 'Account not found.');
+  if (data.role && user.role !== data.role) {
+    throw new HttpError(403, 'This account is not registered for this portal.');
+  }
+  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive') {
+    throw new HttpError(403, `Your account is ${user.accountStatus}. Contact support.`);
+  }
+
+  const token = await issueToken(user.id);
+  const { employerProfile, guardProfile } = await loadProfiles(user.id, user.role);
+
+  return res.json({
+    token,
+    ...meResponse(user as unknown as Record<string, unknown>, employerProfile, guardProfile),
+  });
+}
+
+/** POST /auth/password/request-otp — sends a password reset code. */
+export async function requestPasswordOtp(req: Request, res: Response) {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  let dev_otp: string | undefined;
+  if (email) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user) {
+      const otp = await issueOtp({ email: user.email, purpose: 'password_reset', userId: user.id });
+      dev_otp = otp.dev_otp;
+    }
+  }
+  // Do not reveal whether the account exists.
+  return res.json({ message: 'If an account exists, a reset code has been sent.', ...(dev_otp ? { dev_otp } : {}) });
+}
+
+/** POST /auth/password/reset — verifies the code and sets a new password. */
+export async function resetPassword(req: Request, res: Response) {
+  const schema = z.object({
+    email: z.string().email(),
+    otp: z.string().min(4),
+    password: z.string().min(8),
+  });
+  const data = schema.parse(req.body);
+
+  const record = await verifyOtp({ email: data.email, purpose: 'password_reset', otp: data.otp });
+
+  const user = await prisma.user.findUnique({ where: { id: record.userId ?? '' } });
+  if (!user) throw new HttpError(422, 'Account not found.');
+
+  await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(data.password) } });
+  // Revoke all existing sessions so only the new password grants access.
+  await prisma.personalAccessToken.deleteMany({ where: { tokenableId: user.id } });
+
+  return res.json({ message: 'Password updated. You can now sign in with your new password.' });
 }
 
 export async function logout(req: Request, res: Response) {

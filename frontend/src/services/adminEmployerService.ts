@@ -257,3 +257,9 @@ export async function assertUniqueEmployerForEdit(_id: string, _email: string, _
 export async function deleteEmployerFromAdmin(id: string) {
   await apiClient.delete(`/admin/employers/${id}`);
 }
+
+/** Admin manually declares an employer's Aadhaar verification (API disabled). */
+export async function declareEmployerAadhaar(id: string, status: 'verified' | 'rejected' | 'pending', remarks?: string) {
+  const { data } = await apiClient.patch(`/admin/employers/${id}/aadhaar`, { status, remarks });
+  return data;
+}

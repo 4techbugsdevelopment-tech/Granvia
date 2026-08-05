@@ -3,6 +3,7 @@ import multer from 'multer';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
+import { requireAadhaarApi } from '../middleware/aadhaarApi';
 import * as company from '../controllers/companyController';
 import * as site from '../controllers/siteController';
 import * as companyDoc from '../controllers/companyDocumentController';
@@ -17,6 +18,7 @@ import * as invoice from '../controllers/invoiceController';
 import * as wallet from '../controllers/walletController';
 import * as aadhaar from '../controllers/employerAadhaarController';
 import * as report from '../controllers/reportController';
+import * as aadhaarManual from '../controllers/aadhaarManualController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -45,6 +47,8 @@ router.delete('/employer/jobs/:job', asyncHandler(job.destroy));
 router.get('/employer/applications', asyncHandler(application.employerIndex));
 router.patch('/employer/applications/:application/status', asyncHandler(application.updateStatus));
 
+router.patch('/employer/associates/:guard/aadhaar', asyncHandler(aadhaarManual.employerDeclareAssociate));
+
 router.get('/employer/attendance', asyncHandler(attendance.employerIndex));
 router.patch('/employer/attendance/:record/status', asyncHandler(attendance.updateStatus));
 
@@ -62,6 +66,8 @@ router.patch('/employer/agreements/:agreement', asyncHandler(agreement.update));
 
 router.get('/employer/payments', asyncHandler(payment.index));
 router.post('/employer/payments', asyncHandler(payment.store));
+router.post('/employer/payments/:payment/request-otp', asyncHandler(payment.requestCashOtp));
+router.post('/employer/payments/:payment/confirm-otp', asyncHandler(payment.confirmCashOtp));
 
 router.get('/employer/invoices', asyncHandler(invoice.index));
 
@@ -69,9 +75,10 @@ router.get('/employer/wallet', asyncHandler(wallet.show));
 router.get('/employer/wallet/transactions', asyncHandler(wallet.transactions));
 
 router.get('/employer/aadhaar', asyncHandler(aadhaar.status));
-router.post('/employer/aadhaar/verify-instant', asyncHandler(aadhaar.instantVerify));
-router.post('/employer/aadhaar/send-otp', asyncHandler(aadhaar.sendOtp));
-router.post('/employer/aadhaar/verify-otp', asyncHandler(aadhaar.verifyOtp));
+// Automated/self-service verification — gated off until the real Aadhaar API is live.
+router.post('/employer/aadhaar/verify-instant', requireAadhaarApi, asyncHandler(aadhaar.instantVerify));
+router.post('/employer/aadhaar/send-otp', requireAadhaarApi, asyncHandler(aadhaar.sendOtp));
+router.post('/employer/aadhaar/verify-otp', requireAadhaarApi, asyncHandler(aadhaar.verifyOtp));
 
 router.get('/employer/reports/counts', asyncHandler(report.counts));
 

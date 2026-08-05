@@ -612,3 +612,20 @@ model Discount {
   @@index([salesExecutiveUserId])
   @@map("discounts")
 }
+
+model EmailOtp {
+  id          String    @id @default(uuid()) @db.NVarChar(36)
+  email       String    @db.NVarChar(255)
+  userId      String?   @map("user_id") @db.NVarChar(36)
+  purpose     String    @db.NVarChar(50) // signup_verification | password_reset | login_2fa | cash_payment
+  referenceId String?   @map("reference_id") @db.NVarChar(36)
+  otpHash     String    @map("otp_hash")
+  expiresAt   DateTime  @map("expires_at")
+  consumedAt  DateTime? @map("consumed_at")
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([email, purpose])
+  @@map("email_otps")
+}

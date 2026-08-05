@@ -1,25 +1,96 @@
-// NotificationsScreen — guard notifications (demo data; API pending)
-import { useState } from 'react';
+// NotificationsScreen — guard notifications (live: /me/notifications)
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Briefcase, Wallet, ShieldCheck, Info, CheckCheck } from 'lucide-react';
-import { demoNotifications, DemoNotification } from '../../lib/demoData';
+import { Bell, Briefcase, Wallet, ShieldCheck, Info, CheckCheck, Loader2 } from 'lucide-react';
+import { listMyNotifications, markNotificationRead } from '../../services/notificationService';
 
-const ICONS: Record<DemoNotification['kind'], JSX.Element> = {
+type Kind = 'job' | 'payment' | 'verification' | 'system';
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  read: boolean;
+  kind: Kind;
+}
+
+const ICONS: Record<Kind, JSX.Element> = {
   job: <Briefcase size={16} />,
   payment: <Wallet size={16} />,
   verification: <ShieldCheck size={16} />,
   system: <Info size={16} />,
 };
-const COLORS: Record<DemoNotification['kind'], string> = {
+const COLORS: Record<Kind, string> = {
   job: '#1d4ed8', payment: '#166534', verification: '#7c2d12', system: '#0f1e3c',
 };
 
-export default function NotificationsScreen() {
-  const [items, setItems] = useState<DemoNotification[]>(demoNotifications);
+function kindFromType(type?: string): Kind {
+  const t = (type ?? '').toLowerCase();
+  if (t.includes('job') || t.includes('application') || t.includes('offer') || t.includes('interview')) return 'job';
+  if (t.includes('pay') || t.includes('wallet') || t.includes('invoice')) return 'payment';
+  if (t.includes('verif') || t.includes('document') || t.includes('aadhaar')) return 'verification';
+  return 'system';
+}
 
-  const markAllRead = () => setItems(prev => prev.map(n => ({ ...n, read: true })));
-  const markRead = (id: string) => setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const unread = items.filter(n => !n.read).length;
+function relativeTime(iso?: string): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? '1 day ago' : `${d} days ago`;
+}
+
+function mapNotification(n: any): NotificationItem {
+  return {
+    id: n.id,
+    title: n.title ?? 'Notification',
+    body: n.message ?? n.body ?? '',
+    time: relativeTime(n.created_at),
+    read: Boolean(n.is_read),
+    kind: kindFromType(n.type),
+  };
+}
+
+export default function NotificationsScreen() {
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    listMyNotifications()
+      .then((data) => { if (active) setItems((data ?? []).map(mapNotification)); })
+      .catch((e) => { if (active) setError(e?.response?.data?.message || e.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const markRead = async (id: string) => {
+    const target = items.find((n) => n.id === id);
+    if (!target || target.read) return;
+    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await markNotificationRead(id);
+    } catch {
+      setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
+    }
+  };
+
+  const markAllRead = async () => {
+    const unreadIds = items.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    await Promise.allSettled(unreadIds.map((id) => markNotificationRead(id)));
+  };
+
+  const unread = items.filter((n) => !n.read).length;
 
   return (
     <div className="pb-6">
@@ -42,7 +113,21 @@ export default function NotificationsScreen() {
       </div>
 
       <div className="px-4 mt-4 space-y-2">
-        {items.map((n, i) => (
+        {loading && (
+          <div className="text-center py-16 text-gray-400">
+            <Loader2 size={28} className="mx-auto mb-3 animate-spin opacity-60" />
+            <p className="text-sm">Loading notifications…</p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="text-center py-16 text-red-400">
+            <Bell size={40} className="mx-auto mb-3 opacity-30" />
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && items.map((n, i) => (
           <motion.button
             key={n.id}
             onClick={() => markRead(n.id)}
@@ -64,7 +149,8 @@ export default function NotificationsScreen() {
             </div>
           </motion.button>
         ))}
-        {items.length === 0 && (
+
+        {!loading && !error && items.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <Bell size={40} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">No notifications</p>

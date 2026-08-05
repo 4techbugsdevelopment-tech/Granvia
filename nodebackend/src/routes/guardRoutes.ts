@@ -3,6 +3,7 @@ import multer from 'multer';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
+import { requireAadhaarApi } from '../middleware/aadhaarApi';
 import * as applications from '../controllers/applicationController';
 import * as attendance from '../controllers/attendanceController';
 import * as documents from '../controllers/guardDocumentController';
@@ -28,9 +29,10 @@ router.get('/guard/documents', asyncHandler(documents.index));
 router.post('/guard/documents', upload.single('file'), asyncHandler(documents.store));
 
 router.get('/guard/aadhaar', asyncHandler(aadhaar.status));
-router.post('/guard/aadhaar/mock-session', asyncHandler(surepassTest.createMockSession));
-router.post('/guard/aadhaar/verify-instant', asyncHandler(aadhaar.instantVerify));
-router.post('/guard/aadhaar/send-otp', asyncHandler(aadhaar.sendOtp));
-router.post('/guard/aadhaar/verify-otp', asyncHandler(aadhaar.verifyOtp));
+// Automated/self-service verification — gated off until the real Aadhaar API is live.
+router.post('/guard/aadhaar/mock-session', requireAadhaarApi, asyncHandler(surepassTest.createMockSession));
+router.post('/guard/aadhaar/verify-instant', requireAadhaarApi, asyncHandler(aadhaar.instantVerify));
+router.post('/guard/aadhaar/send-otp', requireAadhaarApi, asyncHandler(aadhaar.sendOtp));
+router.post('/guard/aadhaar/verify-otp', requireAadhaarApi, asyncHandler(aadhaar.verifyOtp));
 
 export default router;

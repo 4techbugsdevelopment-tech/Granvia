@@ -57,6 +57,48 @@ export function sendAadhaarOtp(to: string, otp: string): Promise<void> {
   );
 }
 
+const OTP_COPY: Record<string, { subject: string; title: string; intro: string }> = {
+  signup_verification: {
+    subject: 'Verify your Granvia email',
+    title: 'Confirm your email',
+    intro: 'Use this code to verify your email and activate your Granvia account.',
+  },
+  password_reset: {
+    subject: 'Your Granvia password reset code',
+    title: 'Reset your password',
+    intro: 'Use this code to reset your Granvia password. If you did not request this, ignore this email.',
+  },
+  login_2fa: {
+    subject: 'Your Granvia login code',
+    title: 'Login verification',
+    intro: 'Use this code to complete your sign-in to Granvia.',
+  },
+  cash_payment: {
+    subject: 'Your Granvia cash payment code',
+    title: 'Confirm cash payment',
+    intro: 'Share this code to confirm receipt of your cash payment.',
+  },
+};
+
+/** Generic email OTP for signup verification, password reset, login 2FA and cash payment. */
+export function sendOtpEmail(to: string, otp: string, purpose: string): Promise<void> {
+  const copy = OTP_COPY[purpose] ?? {
+    subject: 'Your Granvia verification code',
+    title: 'Verification code',
+    intro: 'Use this one-time code to continue.',
+  };
+  return sendMail(
+    to,
+    copy.subject,
+    wrap(
+      copy.title,
+      `<p>${copy.intro}</p>
+       <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
+       <p>This code expires in 10 minutes.</p>`
+    )
+  );
+}
+
 export function sendEmployerWelcome(
   to: string,
   name: string,

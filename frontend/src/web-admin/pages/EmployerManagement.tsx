@@ -10,6 +10,7 @@ import {
   EmployerManagementData,
   listEmployerManagementData,
   updateEmployerFromAdmin,
+  declareEmployerAadhaar,
 } from '../../services/adminEmployerService';
 import { getErrorMessage } from '../../services/apiErrors';
 
@@ -70,6 +71,18 @@ export default function EmployerManagement() {
       setNotice('Employer updated.');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to update employer.'));
+    }
+  };
+
+  const declareAadhaar = async (id: string, status: 'verified' | 'rejected') => {
+    setNotice('');
+    setError('');
+    try {
+      await declareEmployerAadhaar(id, status);
+      await reload();
+      setNotice(`Aadhaar marked ${status}.`);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to update Aadhaar status.'));
     }
   };
 
@@ -150,6 +163,12 @@ export default function EmployerManagement() {
                       <button onClick={() => setEditing(employer)} className="table-action"><Edit size={13} className="inline mr-1" />Edit</button>
                       <button onClick={() => updateEmployer(employer.id, { verificationStatus: 'Verified', accountStatus: 'Active', adminRemarks: 'Verified by Super Admin', rejectionReason: '' })} className="table-action tone-green">Approve</button>
                       <button onClick={() => updateEmployer(employer.id, { verificationStatus: 'Rejected', rejectionReason: 'Documents require correction', adminRemarks: 'Rejected by Super Admin' })} className="table-action tone-red">Reject</button>
+                      {employer.aadhaarVerificationStatus !== 'verified' && (
+                        <button onClick={() => declareAadhaar(employer.id, 'verified')} className="table-action tone-green" title="Manually declare Aadhaar verified">Aadhaar ✓</button>
+                      )}
+                      {employer.aadhaarVerificationStatus === 'verified' && (
+                        <button onClick={() => declareAadhaar(employer.id, 'rejected')} className="table-action tone-red" title="Revoke Aadhaar verification">Aadhaar ✗</button>
+                      )}
                       <button onClick={() => updateEmployer(employer.id, { accountStatus: employer.accountStatus === 'Blocked' ? 'Active' : 'Blocked' })} className="table-action">
                         {employer.accountStatus === 'Blocked' ? <Shield size={13} className="inline mr-1" /> : <ShieldOff size={13} className="inline mr-1" />}
                         {employer.accountStatus === 'Blocked' ? 'Unblock' : 'Block'}

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react';
 import { getStaff, createStaff, updateStaff, deleteStaff, StaffMember } from '../../services/subadminService';
-import { PageHeader, Table, Pill, SlideOver, Field, TapButton } from '../ui';
+import { Page, PageHeader, DataTable, Pill, SlideOver, Field, TapButton, DataColumn } from '../ui';
 import { BROWN, NAVY, BURGUNDY } from '../theme';
 
 const STAFF_PERMISSIONS = ['Manage Staff', 'Verify Documents', 'Manage Clients', 'Manage Associates', 'View Reports', 'Post Jobs'];
@@ -42,8 +42,35 @@ export default function StaffPage() {
   };
   const remove = async (id: string) => { await deleteStaff(id); setStaff(prev => prev.filter(s => s.id !== id)); setConfirmId(null); };
 
+  const columns: DataColumn<StaffMember>[] = [
+    { header: 'Name', primary: true, cell: s => s.name },
+    { header: 'Role', cell: s => s.role },
+    { header: 'Contact', cell: s => (<><div>{s.email}</div><div className="text-xs opacity-60">{s.mobile}</div></>) },
+    {
+      header: 'Permissions', wide: true,
+      cell: s => (
+        <div className="flex flex-wrap gap-1 max-w-[220px]">
+          {(!s.permissions || s.permissions.length === 0) && <span className="text-xs opacity-50" style={{ color: BROWN }}>None</span>}
+          {(s.permissions ?? []).map(p => (
+            <span key={p} className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ color: NAVY, background: 'rgba(26,43,86,0.08)' }}>{p}</span>
+          ))}
+        </div>
+      ),
+    },
+    { header: 'Status', cell: s => <Pill label={s.status} /> },
+    {
+      header: 'Actions', actions: true,
+      cell: s => (
+        <div className="flex items-center gap-1">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => startEdit(s)} className="p-1.5 rounded-lg hover:bg-[rgba(26,43,86,0.08)]" style={{ color: NAVY }} title="Edit"><Pencil size={15} /></motion.button>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setConfirmId(s.id)} className="p-1.5 rounded-lg hover:bg-[rgba(122,38,33,0.08)]" style={{ color: BURGUNDY }} title="Delete"><Trash2 size={15} /></motion.button>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader
         title="Staff Management"
         subtitle="Add, edit or remove internal staff and set their access permissions"
@@ -51,34 +78,7 @@ export default function StaffPage() {
       />
 
       {loading ? <div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div> : (
-        <Table headers={['Name', 'Role', 'Contact', 'Permissions', 'Status', 'Actions']}>
-          {staff.map(s => (
-            <tr key={s.id} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
-              <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: NAVY }}>{s.name}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{s.role}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>
-                <div>{s.email}</div>
-                <div className="text-xs opacity-60">{s.mobile}</div>
-              </td>
-              <td className="px-4 py-3.5">
-                <div className="flex flex-wrap gap-1 max-w-[220px]">
-                  {(!s.permissions || s.permissions.length === 0) && <span className="text-xs opacity-50" style={{ color: BROWN }}>None</span>}
-                  {(s.permissions ?? []).map(p => (
-                    <span key={p} className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ color: NAVY, background: 'rgba(26,43,86,0.08)' }}>{p}</span>
-                  ))}
-                </div>
-              </td>
-              <td className="px-4 py-3.5"><Pill label={s.status} /></td>
-              <td className="px-4 py-3.5">
-                <div className="flex items-center gap-1">
-                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => startEdit(s)} className="p-1.5 rounded-lg hover:bg-[rgba(26,43,86,0.08)]" style={{ color: NAVY }} title="Edit"><Pencil size={15} /></motion.button>
-                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => setConfirmId(s.id)} className="p-1.5 rounded-lg hover:bg-[rgba(122,38,33,0.08)]" style={{ color: BURGUNDY }} title="Delete"><Trash2 size={15} /></motion.button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {staff.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No staff members yet.</td></tr>}
-        </Table>
+        <DataTable columns={columns} rows={staff} rowKey={s => s.id} empty="No staff members yet." />
       )}
 
       {confirmId && (
@@ -136,6 +136,6 @@ export default function StaffPage() {
           <TapButton onClick={save} disabled={!draft.name || !draft.role || saving} className="flex-1">{saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Staff'}</TapButton>
         </div>
       </SlideOver>
-    </div>
+    </Page>
   );
 }

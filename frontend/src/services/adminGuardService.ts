@@ -68,3 +68,11 @@ export async function setGuardAccountStatus(userId: string, accountStatus: 'acti
   const { data } = await apiClient.patch(`/admin/guards/${userId}`, { account_status: accountStatus });
   return toGuardView(data);
 }
+
+export type AadhaarDecl = 'verified' | 'rejected' | 'pending';
+
+/** Admin manually declares an associate's Aadhaar verification (API disabled). */
+export async function declareGuardAadhaar(userId: string, status: AadhaarDecl, remarks?: string) {
+  const { data } = await apiClient.patch(`/admin/guards/${userId}/aadhaar`, { status, remarks });
+  return data;
+}

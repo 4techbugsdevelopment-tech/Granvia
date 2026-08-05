@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, Shield, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
-import { signInWithRole } from '../services/authService';
+import { signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import { LoginOtpDialog, ForgotPasswordDialog } from '../components/auth/OtpDialogs';
 
 interface MobileLoginProps {
   onLogin: () => void;
@@ -18,6 +19,10 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+
+  const finishLogin = () => { setSuccess(true); setTimeout(onLogin, 1100); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,14 +33,17 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
       await signInWithRole(email, password, 'guard');
     } catch (err) {
       setLoading(false);
+      if (err instanceof LoginOtpRequiredError) {
+        setOtpChallenge({ email: err.email, devOtp: err.devOtp });
+        return;
+      }
       setError(getErrorMessage(err, 'Invalid credentials or account blocked.'));
       setShake(true);
       setTimeout(() => setShake(false), 600);
       return;
     }
     setLoading(false);
-    setSuccess(true);
-    setTimeout(onLogin, 1100);
+    finishLogin();
   };
 
   return (
@@ -194,6 +202,10 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
                   )}
                 </motion.button>
 
+                <button type="button" onClick={() => setShowForgot(true)}
+                  className="mx-auto block text-xs font-semibold text-gray-500 active:text-gray-800 pt-1">
+                  Forgot password?
+                </button>
                 <p className="text-center text-xs text-gray-400 pt-2">
                   Only admin-registered associates can access this app.
                 </p>
@@ -210,6 +222,17 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {otpChallenge && (
+        <LoginOtpDialog
+          email={otpChallenge.email}
+          role="guard"
+          devOtp={otpChallenge.devOtp}
+          onVerified={() => { setOtpChallenge(null); finishLogin(); }}
+          onClose={() => setOtpChallenge(null)}
+        />
+      )}
+      {showForgot && <ForgotPasswordDialog initialEmail={email} onClose={() => setShowForgot(false)} />}
     </div>
   );
 }

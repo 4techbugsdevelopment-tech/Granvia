@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, MapPin, Pencil, Users } from 'lucide-react';
 import { getSubAdminCompany, updateSubAdminCompany, SubAdminProfile, BranchSite } from '../../services/subadminService';
-import { PageHeader, Card, TapButton, SlideOver, Field } from '../ui';
+import { Page, PageHeader, Card, TapButton, SlideOver, Field } from '../ui';
 import { NAVY, BROWN, BURGUNDY } from '../theme';
 
 export default function CompanyPage() {
@@ -23,7 +23,7 @@ export default function CompanyPage() {
     finally { setSaving(false); }
   };
 
-  if (loading || !profile) return <div className="p-6"><PageHeader title="Company Details" subtitle="Manage your branch business information" /><div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div></div>;
+  if (loading || !profile) return <Page><PageHeader title="Company Details" subtitle="Manage your branch business information" /><div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div></Page>;
 
   const info: [string, string][] = [
     ['Branch Name', profile.branch_name],
@@ -35,7 +35,7 @@ export default function CompanyPage() {
   ];
 
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader
         title="Company Details"
         subtitle="Manage your branch business information, sites and contact points"
@@ -93,6 +93,6 @@ export default function CompanyPage() {
           <TapButton onClick={save} disabled={saving} className="flex-1">{saving ? 'Saving…' : 'Save Changes'}</TapButton>
         </div>
       </SlideOver>
-    </div>
+    </Page>
   );
 }

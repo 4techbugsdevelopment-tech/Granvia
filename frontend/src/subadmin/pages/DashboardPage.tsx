@@ -1,6 +1,5 @@
 // Sub Admin Dashboard — live branch-scoped stats + charts.
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   AreaChart, Area,

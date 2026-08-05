@@ -299,6 +299,13 @@ function App() {
   useEffect(() => {
     if (authLoading) return;
     const applyRoute = () => {
+      // The universal app (/app · /universal-app) owns role routing internally.
+      // When the user is inside it, stay in 'app' — don't bounce authenticated
+      // non-guard users out to their standalone desktop portal.
+      if (getModeFromPath(normalizeUniversalAppPath(window.location.pathname)) === 'app') {
+        setMode('app');
+        return;
+      }
       const authenticatedMode = getModeForRole(profile?.role);
       if (authenticatedMode) {
         setMode(authenticatedMode);

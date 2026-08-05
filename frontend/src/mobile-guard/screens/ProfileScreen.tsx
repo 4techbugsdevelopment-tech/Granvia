@@ -11,7 +11,6 @@ import {
   GUARD_DOCUMENT_LABELS, GuardDocumentType,
   listMyDocuments, uploadMyDocument,
 } from '../../services/guardVerificationService';
-import { createSurepassMockSession } from '../../services/surepassTestService';
 
 const QUALIFICATION_OPTIONS = ['Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate'];
 
@@ -86,11 +85,6 @@ export default function ProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
 
-  // Aadhaar sheet
-  const [aadhaarOpen, setAadhaarOpen] = useState(false);
-  const [aadhaarBusy, setAadhaarBusy] = useState(false);
-  const [aadhaarError, setAadhaarError] = useState<string | null>(null);
-
   const apiError = (e: any, fallback: string) => {
     const data = e?.response?.data;
     const firstFieldError = data?.errors ? (Object.values(data.errors)[0] as string[])[0] : null;
@@ -115,26 +109,6 @@ export default function ProfileScreen() {
       setDocError(apiError(e, 'Upload failed.'));
     } finally {
       setUploading(false);
-    }
-  };
-
-  const openAadhaar = () => {
-    setAadhaarError(null);
-    setAadhaarOpen(true);
-  };
-
-  const handleVerifyAadhaar = async () => {
-    setAadhaarBusy(true);
-    setAadhaarError(null);
-    try {
-      const session = await createSurepassMockSession();
-      const hostedUrl = session.response?.data?.url;
-      if (!hostedUrl) throw new Error('Surepass did not return a verification URL.');
-      window.location.assign(hostedUrl);
-    } catch (e: any) {
-      setAadhaarError(apiError(e, 'Could not start Aadhaar mock verification.'));
-    } finally {
-      setAadhaarBusy(false);
     }
   };
 
@@ -322,7 +296,7 @@ export default function ProfileScreen() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-800">Aadhaar Verification</p>
-                <p className="text-xs text-gray-400 mt-0.5">Surepass sandbox verification</p>
+                <p className="text-xs text-gray-400 mt-0.5">Verified manually by Granvia staff</p>
               </div>
             </div>
             <span
@@ -332,14 +306,11 @@ export default function ProfileScreen() {
               {aadhaar.label}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={openAadhaar}
-            className="w-full mt-4 py-3 rounded-xl text-sm font-bold text-white mobile-touch-interactive"
-            style={{ background: 'linear-gradient(135deg, #8b1a1a, #a52a2a)' }}
-          >
-            Verify now
-          </button>
+          {guardProfile?.aadhaar_status !== 'verified' && (
+            <p className="mt-3 text-xs text-gray-500 leading-relaxed rounded-xl px-3 py-2.5" style={{ background: '#fff7ed' }}>
+              Your Aadhaar will be verified by your administrator or employer. No action is needed from you.
+            </p>
+          )}
         </motion.div>
         <div className="space-y-2">
           {menuItems.map((item, i) => (
@@ -581,69 +552,6 @@ export default function ProfileScreen() {
         )}
       </AnimatePresence>
 
-      {/* Aadhaar verification bottom sheet */}
-      <AnimatePresence>
-        {aadhaarOpen && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-end"
-            style={{ background: 'rgba(0,0,0,0.4)' }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => !aadhaarBusy && setAadhaarOpen(false)}
-          >
-            <motion.div
-              className="w-full rounded-t-3xl"
-              style={{ background: 'white', maxHeight: '85vh', overflow: 'auto', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-gray-200" />
-              </div>
-              <div className="px-5 pt-2 pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Aadhaar Verification</h2>
-                  <button onClick={() => !aadhaarBusy && setAadhaarOpen(false)} className="text-gray-400"><X size={18} /></button>
-                </div>
-
-                <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#eef2ff', color: '#0f1e3c' }}>
-                      <Shield size={19} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-800">Surepass sandbox</p>
-                      <p className="text-xs text-gray-400">A secure hosted verification screen will open.</p>
-                    </div>
-                  </div>
-                </div>
-                {aadhaarError && (
-                  <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs">
-                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />{aadhaarError}
-                  </div>
-                )}
-                <motion.button
-                  onClick={handleVerifyAadhaar}
-                  disabled={aadhaarBusy}
-                  className="w-full mt-4 py-4 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  {aadhaarBusy ? (
-                    <>
-                      <motion.div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent" animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }} />
-                      Starting verification…
-                    </>
-                  ) : 'Continue to Aadhaar verification'}
-                </motion.button>
-                <p className="text-center text-[11px] text-gray-400 mt-3">
-                  Available to every associate while the integration is in sandbox mode.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

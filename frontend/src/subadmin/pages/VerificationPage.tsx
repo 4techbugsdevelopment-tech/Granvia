@@ -5,7 +5,7 @@ import { FileText, Check, X, ShieldCheck, AlertCircle, Clock, Download } from 'l
 import {
   getVerificationQueue, reviewDocument, VerificationCandidate, VerificationDoc,
 } from '../../services/subadminService';
-import { PageHeader, Table, Pill, SlideOver, GlassStat, TapButton } from '../ui';
+import { Page, PageHeader, DataTable, Pill, SlideOver, GlassStat, TapButton, DataColumn } from '../ui';
 import { BROWN, NAVY, BURGUNDY } from '../theme';
 
 const DOC_LABELS: Record<string, string> = {
@@ -70,8 +70,23 @@ export default function VerificationPage() {
     } finally { setBusy(false); }
   };
 
+  const columns: DataColumn<VerificationCandidate>[] = [
+    {
+      header: 'Associate', primary: true,
+      cell: c => (<>{c.name}<div className="text-xs font-normal opacity-60" style={{ color: BROWN }}>{c.mobile}</div></>),
+    },
+    { header: 'City', cell: c => c.city ?? '—' },
+    { header: 'Qualification', cell: c => c.qualification ?? '—' },
+    { header: 'Documents', cell: c => `${c.documents.filter(d => d.status === 'verified').length}/${c.documents.length} approved` },
+    { header: 'Status', cell: c => <Pill label={overallStatus(c.documents)} /> },
+    {
+      header: '', actions: true,
+      cell: c => <TapButton variant="navy" onClick={() => setActiveId(c.id)} className="!px-3 !py-2 text-xs"><FileText size={14} /> Review</TapButton>,
+    },
+  ];
+
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Manual Verification Desk" subtitle="Review uploaded documents and approve or reject each associate" />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -81,27 +96,7 @@ export default function VerificationPage() {
       </div>
 
       {loading ? <div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div> : (
-        <Table headers={['Associate', 'City', 'Qualification', 'Documents', 'Status', '']}>
-          {queue.map(c => {
-            const approved = c.documents.filter(d => d.status === 'verified').length;
-            return (
-              <tr key={c.id} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
-                <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: NAVY }}>
-                  {c.name}
-                  <div className="text-xs font-normal opacity-60" style={{ color: BROWN }}>{c.mobile}</div>
-                </td>
-                <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.city ?? '—'}</td>
-                <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.qualification ?? '—'}</td>
-                <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{approved}/{c.documents.length} approved</td>
-                <td className="px-4 py-3.5"><Pill label={overallStatus(c.documents)} /></td>
-                <td className="px-4 py-3.5">
-                  <TapButton variant="navy" onClick={() => setActiveId(c.id)} className="!px-3 !py-2 text-xs"><FileText size={14} /> Review</TapButton>
-                </td>
-              </tr>
-            );
-          })}
-          {queue.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates in your branch yet.</td></tr>}
-        </Table>
+        <DataTable columns={columns} rows={queue} rowKey={c => c.id} empty="No associates in your branch yet." />
       )}
 
       <SlideOver
@@ -193,6 +188,6 @@ export default function VerificationPage() {
           </>
         )}
       </SlideOver>
-    </div>
+    </Page>
   );
 }

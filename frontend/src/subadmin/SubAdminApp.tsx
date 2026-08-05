@@ -9,6 +9,7 @@ import GranviaLogo from '../components/GranviaLogo';
 import { signOut } from '../services/authService';
 import { NAVY_GRADIENT, PAGE_BG, BURGUNDY } from './theme';
 import MobileChrome from '../universal-mobile/MobileChrome';
+import { AppLayoutProvider } from './ui';
 import DashboardPage from './pages/DashboardPage';
 import CompanyPage from './pages/CompanyPage';
 import StaffPage from './pages/StaffPage';
@@ -57,7 +58,7 @@ export default function SubAdminApp({ onLogout, layout = 'desktop' }: { onLogout
         onLogout={handleLogout}
         accent={BURGUNDY}
       >
-        {render()}
+        <AppLayoutProvider value="mobile">{render()}</AppLayoutProvider>
       </MobileChrome>
     );
   }

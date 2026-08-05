@@ -3,11 +3,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Languages, GraduationCap, IndianRupee } from 'lucide-react';
 import { getSkillsReport, getCommissionReport, SkillRow, CommissionReport } from '../../services/subadminService';
-import { PageHeader, Card, Table, Pill, GlassStat } from '../ui';
+import { Page, PageHeader, Card, DataTable, Pill, GlassStat, DataColumn } from '../ui';
 import { NAVY, BROWN, BURGUNDY } from '../theme';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 const ENGLISH = ['All', 'Yes', 'No'] as const;
+
+const SKILL_COLUMNS: DataColumn<SkillRow>[] = [
+  { header: 'Name', primary: true, cell: m => m.name },
+  { header: 'English', cell: m => <Pill label={m.english === 'Yes' ? 'Fluent' : 'Basic'} /> },
+  { header: 'Qualification', cell: m => m.qualification ?? '—' },
+  { header: 'Specialization', cell: m => m.specialization ?? '—' },
+  { header: 'Experience', cell: m => m.experience ?? '—' },
+];
 
 export default function ReportsPage() {
   const [skills, setSkills] = useState<SkillRow[]>([]);
@@ -25,10 +33,10 @@ export default function ReportsPage() {
   const quals = useMemo(() => ['All', ...Array.from(new Set(skills.map(m => m.qualification).filter(Boolean) as string[]))], [skills]);
   const rows = skills.filter(m => (english === 'All' || m.english === english) && (qual === 'All' || m.qualification === qual));
 
-  if (loading || !commission) return <div className="p-6"><PageHeader title="Reports & Analytics" subtitle="Manpower skills and branch commission tracking" /><div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div></div>;
+  if (loading || !commission) return <Page><PageHeader title="Reports & Analytics" subtitle="Manpower skills and branch commission tracking" /><div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading…</div></Page>;
 
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Reports & Analytics" subtitle="Manpower skills and branch commission tracking" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -83,18 +91,7 @@ export default function ReportsPage() {
         <span className="text-xs ml-auto" style={{ color: 'rgba(75,46,42,0.55)' }}>{rows.length} of {skills.length} associates</span>
       </div>
 
-      <Table headers={['Name', 'English', 'Qualification', 'Specialization', 'Experience']}>
-        {rows.map(m => (
-          <tr key={m.id} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
-            <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: NAVY }}>{m.name}</td>
-            <td className="px-4 py-3.5"><Pill label={m.english === 'Yes' ? 'Fluent' : 'Basic'} /></td>
-            <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{m.qualification ?? '—'}</td>
-            <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{m.specialization ?? '—'}</td>
-            <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{m.experience ?? '—'}</td>
-          </tr>
-        ))}
-        {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No associates match these filters.</td></tr>}
-      </Table>
-    </div>
+      <DataTable columns={SKILL_COLUMNS} rows={rows} rowKey={m => m.id} empty="No associates match these filters." />
+    </Page>
   );
 }

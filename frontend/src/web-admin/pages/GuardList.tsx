@@ -5,7 +5,7 @@ import {
   Phone, Mail, MapPin, XCircle, User, AlertCircle
 } from 'lucide-react';
 import { Guard } from '../../lib/storage';
-import { listGuards, setGuardAccountStatus } from '../../services/adminGuardService';
+import { listGuards, setGuardAccountStatus, declareGuardAadhaar } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 
 interface GuardListProps {
@@ -63,6 +63,17 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       const updated = await setGuardAccountStatus(id, newStatus);
       setGuards(prev => prev.map(g => (g.id === id ? updated : g)));
       if (selectedGuard?.id === id) setSelectedGuard(updated);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const declareAadhaar = async (id: string, status: 'verified' | 'rejected') => {
+    const titled = (status.charAt(0).toUpperCase() + status.slice(1)) as Guard['aadhaarStatus'];
+    try {
+      await declareGuardAadhaar(id, status);
+      setGuards(prev => prev.map(g => (g.id === id ? { ...g, aadhaarStatus: titled } : g)));
+      if (selectedGuard?.id === id) setSelectedGuard({ ...selectedGuard, aadhaarStatus: titled });
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     }
@@ -384,6 +395,24 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Manual Aadhaar declaration (automated API disabled) */}
+              <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+                <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Aadhaar Verification (manual)</div>
+                <div className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: '#f8fafc' }}>
+                  <span className="text-sm font-semibold" style={{ color: verifyColor(selectedGuard.aadhaarStatus) }}>
+                    {selectedGuard.aadhaarStatus}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {selectedGuard.aadhaarStatus !== 'Verified' && (
+                      <button onClick={() => declareAadhaar(selectedGuard.id, 'verified')} className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: '#dcfce7', color: '#166534' }}>Mark Verified</button>
+                    )}
+                    {selectedGuard.aadhaarStatus !== 'Rejected' && (
+                      <button onClick={() => declareAadhaar(selectedGuard.id, 'rejected')} className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: '#fee2e2', color: '#7c2d12' }}>Reject</button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

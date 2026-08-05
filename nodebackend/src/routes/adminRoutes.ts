@@ -7,6 +7,8 @@ import * as adminEmployer from '../controllers/adminEmployerController';
 import * as guardDoc from '../controllers/guardDocumentController';
 import * as job from '../controllers/jobController';
 import * as report from '../controllers/reportController';
+import * as adminReport from '../controllers/adminReportController';
+import * as aadhaarManual from '../controllers/aadhaarManualController';
 
 const router = Router();
 
@@ -16,10 +18,14 @@ router.use('/admin', requireAuth, requireRole('super_admin'));
 router.get('/admin/guards', asyncHandler(adminGuard.index));
 router.post('/admin/guards', asyncHandler(adminGuard.store));
 router.patch('/admin/guards/:guard', asyncHandler(adminGuard.update));
+router.patch('/admin/guards/:guard/aadhaar', asyncHandler(aadhaarManual.adminDeclareGuard));
 router.get('/admin/guards/:guard/documents', asyncHandler(guardDoc.adminIndex));
 router.patch('/admin/guard-documents/:document', asyncHandler(guardDoc.adminUpdateStatus));
 
 router.get('/admin/reports/counts', asyncHandler(report.adminCounts));
+router.get('/admin/reports/analytics', asyncHandler(adminReport.analytics));
+router.get('/admin/attendance', asyncHandler(adminReport.attendance));
+router.get('/admin/hiring', asyncHandler(adminReport.hiring));
 
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs', asyncHandler(job.all));
@@ -30,6 +36,7 @@ router.delete('/admin/jobs/:job', asyncHandler(job.destroy));
 router.get('/admin/employers', asyncHandler(adminEmployer.index));
 router.post('/admin/employers', asyncHandler(adminEmployer.store));
 router.patch('/admin/employers/:employer', asyncHandler(adminEmployer.update));
+router.patch('/admin/employers/:employer/aadhaar', asyncHandler(aadhaarManual.adminDeclareEmployer));
 router.delete('/admin/employers/:employer', asyncHandler(adminEmployer.destroy));
 
 export default router;

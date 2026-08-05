@@ -15,6 +15,7 @@ function guardProfileSubset(p: {
   skills: string | null;
   languages: string | null;
   verificationStatus: string;
+  aadhaarStatus: string;
 }) {
   return {
     id: p.id,
@@ -25,6 +26,7 @@ function guardProfileSubset(p: {
     skills: parseJsonField(p.skills),
     languages: parseJsonField(p.languages),
     verification_status: p.verificationStatus,
+    aadhaar_status: p.aadhaarStatus,
   };
 }
 
@@ -46,6 +48,7 @@ export async function attachGuardProfiles<T extends { guard_user_id?: string | n
           skills: true,
           languages: true,
           verificationStatus: true,
+          aadhaarStatus: true,
         },
       })
     : [];

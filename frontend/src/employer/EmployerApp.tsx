@@ -14,9 +14,9 @@ import { getMyEmployerProfile, updateMyEmployerProfile, updateMyProfile } from '
 import { listMyCompanies, createCompany, updateCompany } from '../services/companyService';
 import { listCompanySites, createCompanySite, updateCompanySite } from '../services/siteService';
 import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '../services/jobService';
-import { listEmployerApplications, updateApplicationStatus } from '../services/applicationService';
+import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar } from '../services/applicationService';
 import { listEmployerAttendance, updateAttendanceStatus } from '../services/attendanceService';
-import { listEmployerPayments, listEmployerInvoices } from '../services/paymentService';
+import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
 import { getEmployerWallet, listWalletTransactions } from '../services/walletService';
 import {
   listInterviewRequests, createInterviewRequest, updateInterviewRequest,
@@ -25,7 +25,7 @@ import {
 } from '../services/hiringService';
 import { listCompanyDocuments, createDocumentRecord } from '../services/documentService';
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
-import { getAadhaarStatus, sendAadhaarOtp, verifyAadhaarOtp } from '../services/aadhaarVerificationService';
+import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import CashPaymentPage from './CashPaymentPage';
@@ -503,83 +503,21 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
   );
 }
 
-// ── Aadhaar verification page ─────────────────────────────────────────────────
+// ── Aadhaar verification page (manual declaration by admin) ────────────────────
 
-function OtpModal({ otp, onClose, onUse }: { otp: string; onClose: () => void; onUse: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(otp).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-  };
-  const useOtp = () => { onUse(); onClose(); };
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
-        <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
-          <span className="text-yellow-600 text-xl font-bold">!</span>
-        </div>
-        <h3 className="text-lg font-bold text-gray-900 mb-1">Your OTP</h3>
-        <p className="text-xs text-gray-500 mb-5">Email is temporarily disabled. Use this OTP to verify.</p>
-        <div className="rounded-xl bg-gray-50 border border-gray-200 px-6 py-4 mb-5">
-          <p className="text-3xl font-bold tracking-[0.3em] text-gray-900">{otp}</p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={copy} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50">
-            {copied ? '✓ Copied!' : 'Copy OTP'}
-          </button>
-          <button onClick={useOtp} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>
-            Use OTP
-          </button>
-        </div>
-        <button onClick={onClose} className="mt-3 text-xs text-gray-400 hover:text-gray-600">Close</button>
-      </div>
-    </div>
-  );
-}
-
-function AadhaarVerificationPage({ onChanged, onVerified }: { onChanged: () => void; onVerified?: () => void }) {
-  const [aadhaarNumber, setAadhaarNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [sentTo, setSentTo] = useState('');
-  const [devOtp, setDevOtp] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+function AadhaarVerificationPage({ onChanged, onVerified: _onVerified }: { onChanged: () => void; onVerified?: () => void }) {
   const [status, setStatus] = useState<any>(null);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getAadhaarStatus().then(setStatus).catch(() => setStatus(null));
-  }, []);
-
-  const sendOtp = async () => {
-    setError(''); setMessage('');
-    if (!/^\d{12}$/.test(aadhaarNumber.trim())) { setError('Enter a valid 12-digit Aadhaar number.'); return; }
-    setSending(true);
-    try {
-      const result = await sendAadhaarOtp(aadhaarNumber);
-      setSentTo(result.sentTo);
-      if (result.devOtp) { setDevOtp(result.devOtp); setShowOtpModal(true); }
-      setMessage(`OTP ready for ${result.sentTo}.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send OTP.');
-    } finally { setSending(false); }
+  const load = () => {
+    setLoading(true);
+    getAadhaarStatus().then(setStatus).catch(() => setStatus(null)).finally(() => setLoading(false));
   };
+  useEffect(() => { load(); }, []);
 
-  const verifyOtp = async () => {
-    setError(''); setMessage('');
-    setVerifying(true);
-    try {
-      await verifyAadhaarOtp(otp);
-      setMessage('Aadhaar verification completed successfully.');
-      getAadhaarStatus().then(setStatus).catch(() => null);
-      setTimeout(() => onVerified ? onVerified() : onChanged(), 1200);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to verify OTP.');
-    } finally { setVerifying(false); }
-  };
-
-  const isVerified = status?.is_aadhaar_verified && status?.aadhaar_verification_status === 'verified';
+  const state = status?.aadhaar_verification_status ?? 'pending';
+  const isVerified = status?.is_aadhaar_verified && state === 'verified';
+  const isRejected = state === 'rejected';
 
   return (
     <div className="p-6 max-w-3xl">
@@ -587,36 +525,29 @@ function AadhaarVerificationPage({ onChanged, onVerified }: { onChanged: () => v
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Aadhaar Verification</h2>
-            <p className="text-sm text-gray-500 mt-1">Verify your Aadhaar to unlock all employer features.</p>
+            <p className="text-sm text-gray-500 mt-1">Aadhaar verification is handled manually by the Granvia team.</p>
           </div>
-          {status && statusBadge(status.aadhaar_verification_status ?? 'pending')}
+          {status && statusBadge(state)}
         </div>
-        {isVerified ? (
+
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading status…</p>
+        ) : isVerified ? (
           <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-4 text-green-700">
-            Aadhaar verified. Last four digits: <b>{status.aadhaar_last_four}</b>
+            Aadhaar verified.{status.aadhaar_last_four ? <> Last four digits: <b>{status.aadhaar_last_four}</b></> : null}
+          </div>
+        ) : isRejected ? (
+          <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-4 text-red-700">
+            Your Aadhaar verification was not approved. Please contact your administrator.
           </div>
         ) : (
-          <div className="space-y-4">
-            <Input label="Aadhaar Number (12 digits)" value={aadhaarNumber} onChange={v => setAadhaarNumber(v.replace(/\D/g, '').slice(0, 12))} />
-            <div className="flex flex-wrap gap-3">
-              <button disabled={sending} onClick={sendOtp} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>{sending ? 'Sending...' : 'Send OTP'}</button>
-              <button disabled={sending} onClick={sendOtp} className="px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Resend OTP</button>
-            </div>
-            {devOtp && showOtpModal && (
-              <OtpModal otp={devOtp} onClose={() => setShowOtpModal(false)} onUse={() => setOtp(devOtp)} />
-            )}
-            {sentTo && (
-              <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-800 flex items-center justify-between">
-                <span>OTP ready for <b>{sentTo}</b></span>
-                {devOtp && <button onClick={() => setShowOtpModal(true)} className="text-xs font-semibold text-blue-700 underline ml-3">Show OTP</button>}
-              </div>
-            )}
-            <Input label="Enter OTP" value={otp} onChange={v => setOtp(v.replace(/\D/g, '').slice(0, 6))} />
-            <button disabled={verifying} onClick={verifyOtp} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#166534' }}>{verifying ? 'Verifying...' : 'Verify OTP'}</button>
+          <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-4 text-amber-800">
+            <p className="font-semibold">Verification pending</p>
+            <p className="text-sm mt-1">An administrator will verify your Aadhaar shortly. You'll get full access to employer features once approved. Self-service verification is temporarily unavailable.</p>
           </div>
         )}
-        {message && <div className="mt-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700">{message}</div>}
-        {error   && <div className="mt-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <button onClick={() => { load(); onChanged(); }} className="mt-5 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Refresh status</button>
       </Card>
     </div>
   );
@@ -1614,6 +1545,21 @@ function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { e
     onChanged();
   };
 
+  const refresh = () => {
+    listEmployerApplications(company.id).then(data => {
+      const list = data ?? [];
+      if (filter === 'shortlisted') return setApps(list.filter((a: any) => a.status === 'shortlisted'));
+      if (filter === 'selected') return setApps(list.filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status)));
+      setApps(list);
+    }).catch(console.error);
+  };
+
+  const markAadhaar = async (app: any, status: 'verified' | 'rejected') => {
+    await declareAssociateAadhaar(app.guard_user_id, status);
+    refresh();
+    onChanged();
+  };
+
   const sendOffer = async (app: any) => {
     await createJobOffer({
       application_id: app.id,
@@ -1656,12 +1602,18 @@ function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { e
               <Td><b>{app.guard_profiles?.full_name ?? 'Associate'}</b><div className="text-xs text-gray-400">{app.guard_profiles?.city} · {app.guard_profiles?.mobile}</div></Td>
               <Td>{app.job_posts?.title}</Td>
               <Td>{app.guard_profiles?.skills?.join(', ') ?? '--'}</Td>
-              <Td><div className="text-xs">Status: {app.guard_profiles?.verification_status ?? '--'}</div></Td>
+              <Td>
+                <div className="text-xs">Profile: {app.guard_profiles?.verification_status ?? '--'}</div>
+                <div className="text-xs">Aadhaar: {app.guard_profiles?.aadhaar_status ?? '--'}</div>
+              </Td>
               <Td>{statusBadge(app.status)}</Td>
               <Td>
                 <button onClick={() => updateStatus(app.id, 'shortlisted')} className="table-action tone-blue">Shortlist</button>
                 <button onClick={() => updateStatus(app.id, 'rejected')} className="table-action tone-red">Reject</button>
                 <button onClick={() => updateStatus(app.id, 'selected')} className="table-action tone-green">Select</button>
+                {app.guard_profiles?.aadhaar_status !== 'verified' && (
+                  <button onClick={() => markAadhaar(app, 'verified')} className="table-action tone-green" title="Manually declare Aadhaar verified">Aadhaar ✓</button>
+                )}
                 <button onClick={() => sendInterview(app)} className="table-action">Call</button>
                 <button onClick={() => sendOffer(app)} className="table-action">Offer</button>
               </Td>
@@ -1845,17 +1797,54 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
   const [payments, setPayments] = useState<any[]>([]);
   const [paid, setPaid] = useState<Set<string>>(new Set());
   const [successMsg, setSuccessMsg] = useState('');
+  const [otpFlow, setOtpFlow] = useState<{ appId: string; paymentId: string; guardName: string; sentTo: string; devOtp?: string } | null>(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpErr, setOtpErr] = useState('');
+
+  const refreshPayments = () => listEmployerPayments(company.id).then(setPayments).catch(console.error);
 
   useEffect(() => {
     listEmployerApplications(company.id)
       .then(data => setApps((data ?? []).filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status))))
       .catch(console.error);
-    listEmployerPayments(company.id).then(setPayments).catch(console.error);
+    refreshPayments();
   }, [company.id]);
 
-  const handlePay = (appId: string, guardName: string) => {
-    setPaid(prev => new Set([...prev, appId]));
-    setSuccessMsg(`Payment done for ${guardName}. Associate will be notified.`);
+  const handlePay = async (app: any, guardName: string) => {
+    setOtpErr('');
+    try {
+      const payment = await createPaymentRecord({
+        guard_user_id: app.guard_user_id,
+        job_id: app.job_id,
+        application_id: app.id,
+        amount: app.job_posts?.salary_amount ?? 0,
+        payment_method: 'cash',
+        payment_status: 'pending',
+      });
+      const res = await requestCashPaymentOtp(payment.id);
+      setOtpInput('');
+      setOtpFlow({ appId: app.id, paymentId: payment.id, guardName, sentTo: res.sent_to, devOtp: res.dev_otp });
+    } catch (e: any) {
+      setSuccessMsg('');
+      setOtpErr(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const confirmOtp = async () => {
+    if (!otpFlow || otpInput.length < 4) return;
+    setOtpBusy(true); setOtpErr('');
+    try {
+      await confirmCashPaymentOtp(otpFlow.paymentId, otpInput);
+      setPaid(prev => new Set([...prev, otpFlow.appId]));
+      setSuccessMsg(`Cash payment confirmed for ${otpFlow.guardName}.`);
+      setOtpFlow(null);
+      refreshPayments();
+    } catch (e: any) {
+      setOtpErr(e?.response?.data?.message || e.message);
+    } finally {
+      setOtpBusy(false);
+    }
   };
 
   return (
@@ -1874,7 +1863,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
                 <Td>
                   {alreadyPaid
                     ? <span className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">Payment Done</span>
-                    : <button onClick={() => handlePay(app.id, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay Now</button>}
+                    : <button onClick={() => handlePay(app, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay Cash (OTP)</button>}
                 </Td>
               </tr>
             );
@@ -1898,6 +1887,27 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
         </DataTable>
         {payments.length === 0 && <EmptyState text="No payment history" />}
       </Card>
+
+      {otpErr && !otpFlow && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{otpErr}</div>}
+
+      {otpFlow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(15,30,60,0.55)' }} onClick={() => setOtpFlow(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900">Confirm cash payment</h3>
+            <p className="text-xs text-gray-500 mt-1">A confirmation code was emailed to <b>{otpFlow.guardName}</b> ({otpFlow.sentTo}). Enter it to mark the payment received.</p>
+            {otpFlow.devOtp && (
+              <p className="text-[11px] text-center text-amber-700 bg-amber-50 border border-amber-100 rounded-lg py-2 mt-3">Dev mode — code: <b className="tracking-widest">{otpFlow.devOtp}</b></p>
+            )}
+            <input autoFocus inputMode="numeric" value={otpInput} onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full mt-3 px-3 py-3 rounded-lg text-center text-lg font-bold tracking-[0.4em] outline-none" style={{ background: '#f7f8fa', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }} placeholder="••••••" />
+            {otpErr && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100 mt-2">{otpErr}</p>}
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setOtpFlow(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700">Cancel</button>
+              <button onClick={confirmOtp} disabled={otpBusy || otpInput.length < 4} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #166534, #15803d)' }}>{otpBusy ? 'Confirming…' : 'Confirm payment'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

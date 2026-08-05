@@ -1,42 +1,92 @@
-// Admin attendance overview (demo data; admin-scoped attendance API pending)
+// Admin attendance overview (live: GET /admin/attendance)
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 import { PageHeader, StatTile, Table, Pill } from './_adminUi';
+import { getAdminAttendance, AdminAttendance } from '../../services/reportService';
 
-const rows = [
-  { guard: 'Rajesh Kumar', site: 'Reliance Mall', date: '2026-07-10', inTime: '08:02 AM', outTime: '04:05 PM', hours: '8h 3m', status: 'verified' },
-  { guard: 'Suresh Patil', site: 'Tech Park', date: '2026-07-10', inTime: '07:58 AM', outTime: '—', hours: '—', status: 'active' },
-  { guard: 'Vikram Rao', site: 'Airport Gate 3', date: '2026-07-10', inTime: '09:10 PM', outTime: '—', hours: '—', status: 'active' },
-  { guard: 'Amit Sharma', site: 'Phoenix Mall', date: '2026-07-09', inTime: '08:00 AM', outTime: '08:12 PM', hours: '12h 12m', status: 'verified' },
-  { guard: 'Neha Singh', site: 'Metro Depot', date: '2026-07-09', inTime: '06:03 AM', outTime: '02:00 PM', hours: '7h 57m', status: 'pending' },
-];
+const tone = (s: string) =>
+  s === 'verified' ? 'green' : s === 'pending_verification' ? 'amber' : s === 'rejected' ? 'red' : 'blue';
 
-const tone = (s: string) => s === 'verified' ? 'green' : s === 'active' ? 'blue' : 'amber';
+const statusLabel = (s: string) => (s === 'pending_verification' ? 'pending' : s);
+
+function fmtTime(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtHours(h: number | null): string {
+  if (h == null) return '—';
+  const hours = Math.floor(h);
+  const mins = Math.round((h - hours) * 60);
+  return `${hours}h ${mins}m`;
+}
 
 export default function AttendanceAdmin() {
+  const [data, setData] = useState<AdminAttendance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAdminAttendance()
+      .then((d) => { if (active) setData(d); })
+      .catch((e) => { if (active) setError(e?.response?.data?.message || e.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const stats = data?.stats;
+  const records = data?.records ?? [];
+
   return (
     <motion.div className="p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader title="Attendance" subtitle="Daily in/out logs across all sites" />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatTile label="Checked In Today" value="126" color="#0f1e3c" />
-        <StatTile label="Currently Active" value="38" color="#1d4ed8" />
-        <StatTile label="Verified" value="88" color="#166534" />
-        <StatTile label="Pending Verification" value="12" color="#854d0e" />
-      </div>
+      {loading && (
+        <div className="text-center py-20 text-gray-400">
+          <Loader2 size={28} className="mx-auto mb-3 animate-spin opacity-60" />
+          <p className="text-sm">Loading attendance…</p>
+        </div>
+      )}
 
-      <Table headers={['Associate', 'Site', 'Date', 'In', 'Out', 'Hours', 'Status']}>
-        {rows.map((r, i) => (
-          <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/60">
-            <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard}</td>
-            <td className="px-4 py-3.5 text-sm text-gray-600">{r.site}</td>
-            <td className="px-4 py-3.5 text-xs text-gray-500">{new Date(r.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-            <td className="px-4 py-3.5 text-sm text-gray-700">{r.inTime}</td>
-            <td className="px-4 py-3.5 text-sm text-gray-700">{r.outTime}</td>
-            <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#0f1e3c' }}>{r.hours}</td>
-            <td className="px-4 py-3.5"><Pill label={r.status} tone={tone(r.status) as any} /></td>
-          </tr>
-        ))}
-      </Table>
+      {!loading && error && (
+        <div className="rounded-2xl p-6 bg-white" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <p className="text-sm text-red-500">{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <StatTile label="Checked In Today" value={String(stats?.checked_in_today ?? 0)} color="#0f1e3c" />
+            <StatTile label="Currently Active" value={String(stats?.active ?? 0)} color="#1d4ed8" />
+            <StatTile label="Verified" value={String(stats?.verified ?? 0)} color="#166534" />
+            <StatTile label="Pending Verification" value={String(stats?.pending ?? 0)} color="#854d0e" />
+          </div>
+
+          <Table headers={['Associate', 'Site', 'Date', 'In', 'Out', 'Hours', 'Status']}>
+            {records.map((r) => (
+              <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/60">
+                <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard_profile?.full_name ?? '—'}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-600">{r.job?.site?.site_name ?? '—'}</td>
+                <td className="px-4 py-3.5 text-xs text-gray-500">
+                  {r.attendance_date ? new Date(r.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                </td>
+                <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.in_time)}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.out_time)}</td>
+                <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#0f1e3c' }}>{fmtHours(r.total_hours)}</td>
+                <td className="px-4 py-3.5"><Pill label={statusLabel(r.status)} tone={tone(r.status) as any} /></td>
+              </tr>
+            ))}
+            {records.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
+            )}
+          </Table>
+        </>
+      )}
     </motion.div>
   );
 }

@@ -5,8 +5,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Lock, Mail, RefreshCw, Shield, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
-import { signIn } from '../services/authService';
+import { signIn, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 
 interface UniversalLoginProps {
   onLogin: () => void;
@@ -33,6 +34,11 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
+
+  const finishLogin = () => { setSuccess(true); setTimeout(onLogin, 1000); };
 
   const refreshCaptcha = () => {
     setCaptcha(generateCaptcha());
@@ -63,14 +69,21 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       await signIn(email, password);
     } catch (err) {
       setLoading(false);
+      if (err instanceof LoginOtpRequiredError) {
+        setOtpChallenge({ email: err.email, devOtp: err.devOtp });
+        return;
+      }
+      if ((err as any)?.response?.data?.code === 'email_unverified') {
+        setVerifyEmail((err as any).response.data.email || email);
+        return;
+      }
       setError(getErrorMessage(err, 'Invalid credentials or account blocked.'));
       triggerShake();
       refreshCaptcha();
       return;
     }
     setLoading(false);
-    setSuccess(true);
-    setTimeout(onLogin, 1000);
+    finishLogin();
   };
 
   return (
@@ -260,6 +273,10 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                   )}
                 </motion.button>
 
+                <button type="button" onClick={() => setShowForgot(true)}
+                  className="mx-auto block text-xs font-semibold text-gray-500 active:text-gray-800 pt-1">
+                  Forgot password?
+                </button>
                 <p className="text-center text-xs text-gray-400 pt-2">
                   Associates, Employers, Sales &amp; Sub Admins can sign in here.
                 </p>
@@ -268,6 +285,23 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {otpChallenge && (
+        <LoginOtpDialog
+          email={otpChallenge.email}
+          devOtp={otpChallenge.devOtp}
+          onVerified={() => { setOtpChallenge(null); finishLogin(); }}
+          onClose={() => setOtpChallenge(null)}
+        />
+      )}
+      {showForgot && <ForgotPasswordDialog initialEmail={email} onClose={() => setShowForgot(false)} />}
+      {verifyEmail && (
+        <VerifyEmailDialog
+          email={verifyEmail}
+          onVerified={() => { setVerifyEmail(null); setError('Email verified — please sign in.'); }}
+          onClose={() => setVerifyEmail(null)}
+        />
+      )}
     </div>
   );
 }

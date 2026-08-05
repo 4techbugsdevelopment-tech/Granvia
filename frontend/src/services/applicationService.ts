@@ -30,3 +30,9 @@ export async function updateApplicationStatus(applicationId: string, status: str
   const { data } = await apiClient.patch(`/employer/applications/${applicationId}/status`, { status, remarks });
   return data;
 }
+
+/** Employer manually declares an associate's Aadhaar (must be in their pipeline). */
+export async function declareAssociateAadhaar(guardUserId: string, status: 'verified' | 'rejected' | 'pending', remarks?: string) {
+  const { data } = await apiClient.patch(`/employer/associates/${guardUserId}/aadhaar`, { status, remarks });
+  return data;
+}

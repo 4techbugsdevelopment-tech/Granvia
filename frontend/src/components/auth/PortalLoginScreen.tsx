@@ -5,9 +5,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../GranviaLogo';
-import { signInWithRole } from '../../services/authService';
+import { signInWithRole, LoginOtpRequiredError } from '../../services/authService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { UserRole } from '../../lib/apiTypes';
+import { LoginOtpDialog, ForgotPasswordDialog } from './OtpDialogs';
 
 interface PortalLoginScreenProps {
   onLogin: () => void;
@@ -69,6 +70,10 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+
+  const finishLogin = () => { setSuccess(true); setTimeout(onLogin, 1200); };
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -105,6 +110,10 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
       await signInWithRole(email, password, role);
     } catch (err) {
       setLoading(false);
+      if (err instanceof LoginOtpRequiredError) {
+        setOtpChallenge({ email: err.email, devOtp: err.devOtp });
+        return;
+      }
       setError(getErrorMessage(err, 'Invalid credentials. Please try again.'));
       triggerShake();
       refreshCaptcha();
@@ -112,8 +121,7 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
     }
 
     setLoading(false);
-    setSuccess(true);
-    setTimeout(onLogin, 1200);
+    finishLogin();
   };
 
   return (
@@ -384,6 +392,11 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
                           transition={{ duration: 0.3 }}
                         />
                       </motion.button>
+
+                      <button type="button" onClick={() => setShowForgot(true)}
+                        className="mx-auto text-xs font-semibold text-gray-500 hover:text-gray-800">
+                        Forgot password?
+                      </button>
                     </form>
                   )}
                 </AnimatePresence>
@@ -404,6 +417,17 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
           </motion.div>
         </div>
       </div>
+
+      {otpChallenge && (
+        <LoginOtpDialog
+          email={otpChallenge.email}
+          role={role}
+          devOtp={otpChallenge.devOtp}
+          onVerified={() => { setOtpChallenge(null); finishLogin(); }}
+          onClose={() => setOtpChallenge(null)}
+        />
+      )}
+      {showForgot && <ForgotPasswordDialog initialEmail={email} onClose={() => setShowForgot(false)} />}
     </div>
   );
 }

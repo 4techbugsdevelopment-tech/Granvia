@@ -1,8 +1,30 @@
 // Shared presentational primitives for the Sub Admin module.
+//
+// These primitives are **layout-aware**: in the desktop web portal they render
+// the classic admin chrome (right slide-over panels, big page titles); inside the
+// universal mobile app (`/app`) they render the guide's mobile patterns (bottom
+// sheets, compact headers that don't duplicate MobileChrome's top bar). The role's
+// navy/burgundy brand palette is kept in both — only the structure adapts.
+// See docs/UNIVERSAL_APP_UI_GUIDE.md.
+import { createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { BROWN, NAVY, statusTone } from './theme';
+
+/** Which shell the sub-admin pages are rendering inside. */
+export type AppLayout = 'desktop' | 'mobile';
+const LayoutContext = createContext<AppLayout>('desktop');
+
+/** Wrap the page tree so the primitives below know which shell they're in. */
+export function AppLayoutProvider({ value, children }: { value: AppLayout; children: ReactNode }) {
+  return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>;
+}
+
+/** Read the active layout ('desktop' by default). */
+export function useAppLayout(): AppLayout {
+  return useContext(LayoutContext);
+}
 
 /** Button with a subtle scale-down on tap. */
 export function TapButton({
@@ -82,6 +104,22 @@ export function Pill({ label }: { label: string }) {
 }
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  const layout = useAppLayout();
+
+  // On mobile the page title already lives in MobileChrome's top bar, so we skip
+  // the big duplicate <h1> and render only the subtitle + action as a compact row.
+  if (layout === 'mobile') {
+    if (!subtitle && !action) return null;
+    return (
+      <div className="flex items-center justify-between gap-3 mb-4">
+        {subtitle ? (
+          <p className="text-xs leading-snug" style={{ color: 'rgba(75,46,42,0.6)' }}>{subtitle}</p>
+        ) : <span />}
+        {action && <div className="flex-shrink-0">{action}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
       <div>
@@ -112,6 +150,98 @@ export function Table({ headers, children }: { headers: string[]; children: Reac
   );
 }
 
+/** Page wrapper: tighter padding on mobile (guide §3), roomy on the desktop portal. */
+export function Page({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const layout = useAppLayout();
+  return <div className={`${layout === 'mobile' ? 'px-4 py-4' : 'p-6'} ${className}`}>{children}</div>;
+}
+
+export interface DataColumn<T> {
+  header: string;
+  cell: (row: T) => ReactNode;
+  /** Mobile: this column is the card's bold title. Desktop: rendered bold-navy. */
+  primary?: boolean;
+  /** Mobile: rendered as a full-width footer row (no label) — for row action buttons. */
+  actions?: boolean;
+  /** Mobile: value spans both grid columns (for chip lists / long text). */
+  wide?: boolean;
+}
+
+/**
+ * Layout-aware data collection. Renders the classic desktop table in the web
+ * portal and reflows into the guide's list-card pattern (§5.4) on mobile — one
+ * card per row: primary column as the title, the rest as a label/value grid, and
+ * any `actions` column as a full-width footer. Keeps the role's navy/brown palette.
+ */
+export function DataTable<T>({ columns, rows, rowKey, empty }: {
+  columns: DataColumn<T>[];
+  rows: T[];
+  rowKey: (row: T) => string;
+  empty?: string;
+}) {
+  const layout = useAppLayout();
+  const emptyMsg = empty ?? 'No records.';
+
+  if (layout === 'mobile') {
+    if (rows.length === 0) {
+      return (
+        <div className="rounded-2xl px-4 py-8 text-center text-sm"
+          style={{ background: 'white', border: '1px solid #ece7e3', color: 'rgba(75,46,42,0.5)' }}>
+          {emptyMsg}
+        </div>
+      );
+    }
+    const primary = columns.find(c => c.primary) ?? columns[0];
+    const bodyCols = columns.filter(c => c !== primary && !c.actions);
+    const actionCols = columns.filter(c => c.actions);
+    return (
+      <div className="space-y-2.5">
+        {rows.map((row, i) => (
+          <motion.div
+            key={rowKey(row)}
+            className="rounded-2xl p-4"
+            style={{ background: 'white', boxShadow: '0 2px 12px rgba(26,43,86,0.07)', border: '1px solid #ece7e3' }}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }}
+          >
+            <div className="text-sm font-bold mb-2.5" style={{ color: NAVY }}>{primary.cell(row)}</div>
+            {bodyCols.length > 0 && (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                {bodyCols.map((c, ci) => (
+                  <div key={ci} className={`min-w-0 ${c.wide ? 'col-span-2' : ''}`}>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'rgba(75,46,42,0.45)' }}>{c.header}</div>
+                    <div className="text-sm" style={{ color: BROWN }}>{c.cell(row)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {actionCols.length > 0 && (
+              <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid #f1ece8' }}>
+                {actionCols.map((c, ci) => <div key={ci} className="flex-1">{c.cell(row)}</div>)}
+              </div>
+            )}
+          </motion.div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Table headers={columns.map(c => c.header)}>
+      {rows.length === 0 ? (
+        <tr><td colSpan={columns.length} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>{emptyMsg}</td></tr>
+      ) : rows.map(row => (
+        <tr key={rowKey(row)} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
+          {columns.map((c, ci) => (
+            <td key={ci} className={`px-4 py-3.5 text-sm ${c.primary ? 'font-semibold' : ''}`} style={{ color: c.primary ? NAVY : BROWN }}>
+              {c.cell(row)}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </Table>
+  );
+}
+
 /**
  * "Information Sliding" right-hand panel — used for CRUD forms and document viewers.
  * Slides in from the right over a dimmed backdrop.
@@ -124,6 +254,43 @@ export function SlideOver({ open, onClose, title, subtitle, width = 460, childre
   width?: number;
   children: ReactNode;
 }) {
+  const layout = useAppLayout();
+
+  // Mobile: the "Information Sliding" panel becomes a bottom sheet (guide §5.6) —
+  // grab handle, spring-up, tap-scrim-to-close, safe-area bottom padding.
+  if (layout === 'mobile') {
+    return (
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-end"
+            style={{ background: 'rgba(15,27,56,0.45)', backdropFilter: 'blur(2px)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          >
+            <motion.div
+              className="w-full rounded-t-3xl bg-white flex flex-col"
+              style={{ maxHeight: '90vh', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-gray-200" /></div>
+              <div className="flex items-start justify-between px-5 pt-1 pb-3">
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: NAVY }}>{title}</h2>
+                  {subtitle && <p className="text-xs mt-0.5" style={{ color: 'rgba(75,46,42,0.6)' }}>{subtitle}</p>}
+                </div>
+                <button onClick={onClose} className="-mr-1" style={{ color: BROWN }}><X size={20} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 pb-2 mobile-scroll">{children}</div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence>
       {open && (

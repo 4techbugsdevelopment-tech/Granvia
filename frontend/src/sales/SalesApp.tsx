@@ -9,7 +9,7 @@ import GranviaLogo from '../components/GranviaLogo';
 import { signOut } from '../services/authService';
 import MobileChrome from '../universal-mobile/MobileChrome';
 import { NAVY, NAVY_GRADIENT, BURGUNDY, BROWN, PAGE_BG } from '../subadmin/theme';
-import { GlassStat, Card, Table, Pill, PageHeader, SlideOver, TapButton, Field } from '../subadmin/ui';
+import { GlassStat, Card, Pill, PageHeader, SlideOver, TapButton, Field, Page, DataTable, AppLayoutProvider, DataColumn } from '../subadmin/ui';
 import {
   getSalesCounts, getSalesActivity, getSalesClients, getSalesClientDetail,
   requestJobOtp, postProxyJob, getDiscounts, createDiscount, deleteDiscount, getManpower,
@@ -45,7 +45,7 @@ function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading || !counts) return <div className="p-6"><PageHeader title="Sales Dashboard" subtitle="Your client portfolio at a glance" /><Loading /></div>;
+  if (loading || !counts) return <Page><PageHeader title="Sales Dashboard" subtitle="Your client portfolio at a glance" /><Loading /></Page>;
 
   const stats = [
     { label: 'Managed Clients', value: String(counts.managed_clients), icon: <Users size={18} />, accent: NAVY },
@@ -55,7 +55,7 @@ function DashboardPage() {
   ];
 
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Sales Dashboard" subtitle="Your client portfolio at a glance" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map((s, i) => (
@@ -87,7 +87,7 @@ function DashboardPage() {
           ))}
         </div>
       </Card>
-    </div>
+    </Page>
   );
 }
 
@@ -109,8 +109,18 @@ function ClientsPage() {
 
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.city ?? '').toLowerCase().includes(search.toLowerCase()));
 
+  const columns: DataColumn<SalesClient>[] = [
+    { header: 'Company', primary: true, cell: c => c.name },
+    { header: 'Contact', cell: c => c.email },
+    { header: 'City', cell: c => c.city ?? '—' },
+    { header: 'Sites', cell: c => c.sites },
+    { header: 'Jobs', cell: c => c.jobs },
+    { header: 'Billing', cell: c => <Pill label={c.billing_status} /> },
+    { header: '', actions: true, cell: c => <TapButton variant="navy" onClick={() => open(c.id)} className="!px-3 !py-2 text-xs">View</TapButton> },
+  ];
+
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Clients" subtitle="Employers assigned to you — click to view sites, jobs and billing" />
       <div className="relative mb-4 max-w-md">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(75,46,42,0.4)' }} />
@@ -119,20 +129,7 @@ function ClientsPage() {
       </div>
 
       {loading ? <Loading /> : (
-        <Table headers={['Company', 'Contact', 'City', 'Sites', 'Jobs', 'Billing', '']}>
-          {filtered.map(c => (
-            <tr key={c.id} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
-              <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: NAVY }}>{c.name}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.email}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.city ?? '—'}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.sites}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{c.jobs}</td>
-              <td className="px-4 py-3.5"><Pill label={c.billing_status} /></td>
-              <td className="px-4 py-3.5"><TapButton variant="navy" onClick={() => open(c.id)} className="!px-3 !py-2 text-xs">View</TapButton></td>
-            </tr>
-          ))}
-          {filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No clients assigned yet.</td></tr>}
-        </Table>
+        <DataTable columns={columns} rows={filtered} rowKey={c => c.id} empty="No clients assigned yet." />
       )}
 
       <SlideOver open={!!detail || detailLoading} onClose={() => setDetail(null)} title={detail?.client.name ?? 'Loading…'} subtitle={detail ? detail.client.email : ''} width={520}>
@@ -173,7 +170,7 @@ function ClientsPage() {
           </>
         )}
       </SlideOver>
-    </div>
+    </Page>
   );
 }
 
@@ -231,7 +228,7 @@ function PostJobPage() {
   const reset = () => { setStep('form'); setOtp(''); setOtpMeta(null); setForm(f => ({ ...f, title: '', experience: '', education: '' })); };
 
   return (
-    <div className="p-6 max-w-2xl">
+    <Page className="max-w-2xl">
       <PageHeader title="Post Job on Behalf of Client" subtitle="Requires OTP confirmation from the client" />
       <Card>
         {step === 'form' && (
@@ -306,7 +303,7 @@ function PostJobPage() {
           </div>
         )}
       </Card>
-    </div>
+    </Page>
   );
 }
 
@@ -343,26 +340,23 @@ function DiscountsPage() {
 
   const remove = async (id: string) => { await deleteDiscount(id); setDiscounts(d => d.filter(x => x.id !== id)); };
 
+  const columns: DataColumn<Discount>[] = [
+    { header: 'Client', primary: true, cell: d => d.employer?.full_name ?? 'All clients' },
+    { header: 'Label', cell: d => d.label },
+    { header: 'Type', cell: d => <span className="capitalize">{d.discount_type}</span> },
+    { header: 'Value', cell: d => <span className="font-semibold" style={{ color: BURGUNDY }}>{d.discount_type === 'percentage' ? `${Number(d.value)}%` : inr(Number(d.value))}</span> },
+    { header: 'Applies To', cell: d => d.applies_to ?? '—' },
+    { header: 'Status', cell: d => <Pill label={d.status} /> },
+    { header: '', actions: true, cell: d => <motion.button whileTap={{ scale: 0.9 }} onClick={() => remove(d.id)} className="p-1.5 rounded-lg inline-flex items-center gap-1.5 text-sm" style={{ color: BURGUNDY }}><Trash2 size={15} /> Remove</motion.button> },
+  ];
+
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Discounts & Billing" subtitle="Apply festival or volume discounts to client billing"
         action={<TapButton onClick={() => setOpen(true)}><Plus size={16} /> New Discount</TapButton>} />
 
       {loading ? <Loading /> : (
-        <Table headers={['Client', 'Label', 'Type', 'Value', 'Applies To', 'Status', '']}>
-          {discounts.map(d => (
-            <tr key={d.id} className="border-b hover:bg-[#faf8f6]" style={{ borderColor: '#f1ece8' }}>
-              <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: NAVY }}>{d.employer?.full_name ?? 'All clients'}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{d.label}</td>
-              <td className="px-4 py-3.5 text-sm capitalize" style={{ color: BROWN }}>{d.discount_type}</td>
-              <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: BURGUNDY }}>{d.discount_type === 'percentage' ? `${Number(d.value)}%` : inr(Number(d.value))}</td>
-              <td className="px-4 py-3.5 text-sm" style={{ color: BROWN }}>{d.applies_to ?? '—'}</td>
-              <td className="px-4 py-3.5"><Pill label={d.status} /></td>
-              <td className="px-4 py-3.5"><motion.button whileTap={{ scale: 0.9 }} onClick={() => remove(d.id)} className="p-1.5 rounded-lg" style={{ color: BURGUNDY }}><Trash2 size={15} /></motion.button></td>
-            </tr>
-          ))}
-          {discounts.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>No discounts yet.</td></tr>}
-        </Table>
+        <DataTable columns={columns} rows={discounts} rowKey={d => d.id} empty="No discounts yet." />
       )}
 
       <SlideOver open={open} onClose={() => setOpen(false)} title="New Discount" subtitle="Real-time billing preview">
@@ -410,7 +404,7 @@ function DiscountsPage() {
           <TapButton onClick={save} disabled={saving || !form.label} className="flex-1">{saving ? 'Saving…' : 'Apply Discount'}</TapButton>
         </div>
       </SlideOver>
-    </div>
+    </Page>
   );
 }
 
@@ -428,7 +422,7 @@ function ManpowerPage() {
   }, [radius]);
 
   return (
-    <div className="p-6">
+    <Page>
       <PageHeader title="Manpower Availability" subtitle="Live associate coverage around your search area" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Card className="lg:col-span-2 !p-0 overflow-hidden">
@@ -478,7 +472,7 @@ function ManpowerPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -509,7 +503,7 @@ export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: (
         onLogout={handleLogout}
         accent={BURGUNDY}
       >
-        {render()}
+        <AppLayoutProvider value="mobile">{render()}</AppLayoutProvider>
       </MobileChrome>
     );
   }

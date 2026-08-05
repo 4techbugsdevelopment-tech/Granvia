@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Eye, EyeOff, Lock, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
-import { signInWithRole } from '../services/authService';
+import { signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import { LoginOtpDialog, ForgotPasswordDialog } from '../components/auth/OtpDialogs';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -59,6 +60,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+
+  const finishLogin = () => { setSuccess(true); setTimeout(onLogin, 1200); };
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -96,6 +101,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       await signInWithRole(email, password, 'super_admin');
     } catch (err) {
       setLoading(false);
+      if (err instanceof LoginOtpRequiredError) {
+        setOtpChallenge({ email: err.email, devOtp: err.devOtp });
+        return;
+      }
       setError(getErrorMessage(err, 'Invalid credentials. Please try again.'));
       triggerShake();
       refreshCaptcha();
@@ -103,8 +112,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
 
     setLoading(false);
-    setSuccess(true);
-    setTimeout(onLogin, 1200);
+    finishLogin();
   };
 
   return (
@@ -379,6 +387,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                           transition={{ duration: 0.3 }}
                         />
                       </motion.button>
+
+                      <button type="button" onClick={() => setShowForgot(true)}
+                        className="mx-auto text-xs font-semibold text-gray-500 hover:text-gray-800">
+                        Forgot password?
+                      </button>
                     </form>
                   )}
                 </AnimatePresence>
@@ -391,6 +404,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </motion.div>
         </div>
       </div>
+
+      {otpChallenge && (
+        <LoginOtpDialog
+          email={otpChallenge.email}
+          role="super_admin"
+          devOtp={otpChallenge.devOtp}
+          onVerified={() => { setOtpChallenge(null); finishLogin(); }}
+          onClose={() => setOtpChallenge(null)}
+        />
+      )}
+      {showForgot && <ForgotPasswordDialog initialEmail={email} onClose={() => setShowForgot(false)} />}
     </div>
   );
 }

@@ -4,8 +4,9 @@ import { ArrowLeft, BadgeCheck, Briefcase, Building2, ClipboardList, Eye, EyeOff
 import GranviaLogo from '../components/GranviaLogo';
 import { EmployerFieldKind, getInputMode, sanitizeEmployerInput } from '../lib/inputSanitizers';
 import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
-import { registerEmployer, signInWithRole } from '../services/authService';
+import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 
 interface EmployerAuthProps {
   onLogin: () => void;
@@ -45,6 +46,9 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
   const [success, setSuccess] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+  const [verify, setVerify] = useState<{ email: string; devOtp?: string } | null>(null);
 
   const updateRegister = (key: keyof typeof initialRegister, value: string, kind: EmployerFieldKind = 'text') => {
     setRegister(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
@@ -58,8 +62,16 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
       await signInWithRole(identifier, loginPassword, 'employer');
       onLogin();
     } catch (err) {
-      setError(getErrorMessage(err, 'Invalid employer credentials or blocked account.'));
       setSubmitting(false);
+      if (err instanceof LoginOtpRequiredError) {
+        setOtpChallenge({ email: err.email, devOtp: err.devOtp });
+        return;
+      }
+      if ((err as any)?.response?.data?.code === 'email_unverified') {
+        setVerify({ email: (err as any).response.data.email || identifier });
+        return;
+      }
+      setError(getErrorMessage(err, 'Invalid employer credentials or blocked account.'));
       return;
     }
   };
@@ -79,7 +91,7 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
     }
     setSubmitting(true);
     try {
-      await registerEmployer({
+      const res: any = await registerEmployer({
         companyName: register.companyName,
         contactPersonName: register.contactPersonName,
         mobile: register.mobile,
@@ -94,14 +106,20 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
         panNumber: register.panNumber,
         website: register.website,
       });
-      // Email verification disabled — sign in immediately after registration
-      await signInWithRole(register.email, register.password, 'employer');
-      onLogin();
+      // Verify the email via the code we just sent, then the user signs in.
+      setVerify({ email: register.email, devOtp: res?.dev_otp });
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to create employer account.'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const onEmailVerified = (email: string) => {
+    setVerify(null);
+    setMode('login');
+    setIdentifier(email);
+    setSuccess('Email verified — please sign in.');
   };
 
   if (pendingEmail) {
@@ -197,6 +215,9 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
                 </Field>
                 <Message error={error} success={success} />
                 <SubmitButton label={submitting ? 'Signing In...' : 'Login to Employer Dashboard'} disabled={submitting} />
+                <button type="button" onClick={() => setShowForgot(true)} className="mx-auto block text-xs font-semibold text-gray-500 hover:text-gray-800">
+                  Forgot password?
+                </button>
                 <LandingLink onClick={onBackToLanding} />
               </form>
             ) : (
@@ -227,6 +248,25 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
           </div>
         </motion.div>
       </div>
+
+      {otpChallenge && (
+        <LoginOtpDialog
+          email={otpChallenge.email}
+          role="employer"
+          devOtp={otpChallenge.devOtp}
+          onVerified={() => { setOtpChallenge(null); onLogin(); }}
+          onClose={() => setOtpChallenge(null)}
+        />
+      )}
+      {showForgot && <ForgotPasswordDialog initialEmail={identifier} onClose={() => setShowForgot(false)} />}
+      {verify && (
+        <VerifyEmailDialog
+          email={verify.email}
+          devOtp={verify.devOtp}
+          onVerified={() => onEmailVerified(verify.email)}
+          onClose={() => setVerify(null)}
+        />
+      )}
     </div>
   );
 }
