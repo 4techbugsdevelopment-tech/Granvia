@@ -218,26 +218,25 @@ async function ensureDemoAccount(account: DemoAccount, dryRun: boolean) {
   }
 
   if (account.role === 'sub_admin') {
-    await prisma.subAdminProfile.upsert({
-      where: { userId: user.id },
-      create: {
-        userId: user.id,
-        branchName: 'Granvia Regional Office - West',
-        registrationNo: 'U74999MH2019PTC000000',
-        gstNumber: '27AABCG1234K1Z5',
-        address: '4th Floor, Nariman Point, Mumbai 400021',
-        contactEmail: 'west@granvia.com',
-        phone: '+91 22 4000 1200',
-      },
-      update: {
-        branchName: 'Granvia Regional Office - West',
-        registrationNo: 'U74999MH2019PTC000000',
-        gstNumber: '27AABCG1234K1Z5',
-        address: '4th Floor, Nariman Point, Mumbai 400021',
-        contactEmail: 'west@granvia.com',
-        phone: '+91 22 4000 1200',
-      },
-    });
+    const profileData = {
+      userId: user.id,
+      branchName: 'Granvia Regional Office - West',
+      registrationNo: 'U74999MH2019PTC000000',
+      gstNumber: '27AABCG1234K1Z5',
+      address: '4th Floor, Nariman Point, Mumbai 400021',
+      contactEmail: 'west@granvia.com',
+      phone: '+91 22 4000 1200',
+    };
+
+    const existingProfile = await prisma.subAdminProfile.findFirst({ where: { userId: user.id } });
+    if (!existingProfile) {
+      await prisma.subAdminProfile.create({ data: profileData });
+    } else {
+      await prisma.subAdminProfile.update({
+        where: { id: existingProfile.id },
+        data: profileData,
+      });
+    }
   }
 
   if (account.role === 'sales_executive') {

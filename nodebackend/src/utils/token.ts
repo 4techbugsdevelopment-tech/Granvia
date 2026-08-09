@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { env } from '../config/env';
 
-// Replicates Laravel Sanctum's personal-access-token scheme so the existing
+// Replicates Sanctum-compatible personal-access-token behavior so the existing
 // frontend (which stores an opaque Bearer string) works unchanged:
 //   plainTextToken returned to client = `${tokenId}|${random40}`
 //   value stored in DB                = sha256(random40)  (64 hex chars)

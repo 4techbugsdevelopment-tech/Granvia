@@ -59,9 +59,9 @@ function AnimatedCounter({ target }: { target: number }) {
   return <>{count.toLocaleString()}+</>;
 }
 
-export default function PortalLoginScreen({ onLogin, onBackToLanding, role, title, subtitle, initialEmail = '', initialPassword = '' }: PortalLoginScreenProps) {
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState(initialPassword);
+export default function PortalLoginScreen({ onLogin, onBackToLanding, role, title, subtitle }: PortalLoginScreenProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(generateCaptcha);
   const [captchaInput, setCaptchaInput] = useState('');
@@ -422,7 +422,6 @@ export default function PortalLoginScreen({ onLogin, onBackToLanding, role, titl
         <LoginOtpDialog
           email={otpChallenge.email}
           role={role}
-          devOtp={otpChallenge.devOtp}
           onVerified={() => { setOtpChallenge(null); finishLogin(); }}
           onClose={() => setOtpChallenge(null)}
         />

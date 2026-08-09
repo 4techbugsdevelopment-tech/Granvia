@@ -26,6 +26,7 @@ async function employerProfileOrFail(userId: string) {
 export async function status(req: Request, res: Response) {
   const profile = await employerProfileOrFail(req.user!.id);
   return res.json({
+    aadhaar_api_enabled: false,
     is_aadhaar_verified: profile.isAadhaarVerified,
     aadhaar_verification_status: profile.aadhaarVerificationStatus,
     aadhaar_verified_at: profile.aadhaarVerifiedAt ?? null,

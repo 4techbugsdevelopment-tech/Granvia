@@ -50,8 +50,8 @@ function AnimatedCounter({ target }: { target: number }) {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [email, setEmail] = useState(import.meta.env.VITE_DEMO_SUPERADMIN_EMAIL || '');
-  const [password, setPassword] = useState(import.meta.env.VITE_DEMO_SUPERADMIN_PASSWORD || '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(generateCaptcha);
   const [captchaInput, setCaptchaInput] = useState('');
@@ -409,7 +409,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         <LoginOtpDialog
           email={otpChallenge.email}
           role="super_admin"
-          devOtp={otpChallenge.devOtp}
           onVerified={() => { setOtpChallenge(null); finishLogin(); }}
           onClose={() => setOtpChallenge(null)}
         />

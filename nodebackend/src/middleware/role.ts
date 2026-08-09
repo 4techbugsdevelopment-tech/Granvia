@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 /**
- * Equivalent of Laravel's `role:...` middleware (App\Http\Middleware\EnsureRole).
+ * Role-check middleware for route protection.
  * Must run after requireAuth.
  */
 export function requireRole(...roles: string[]) {

@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from '../utils/password';
 import { issueToken, revokeToken } from '../utils/token';
 import { HttpError } from '../utils/http';
 import { signedVerifyUrl, verifyEmailSignature, emailHash } from '../utils/signing';
-import { sendVerificationEmail, sendEmployerWelcome } from '../services/mailService';
+import { sendVerificationEmail, sendEmployerWelcome, sendSmtpTestEmail, sendNewUserRegistrationAlert } from '../services/mailService';
 import { issueOtp, verifyOtp } from '../services/otpService';
 import { meResponse } from '../serializers/userSerializer';
 
@@ -72,61 +72,104 @@ async function assertEmailAvailable(email: string) {
   }
 }
 
+async function assertMobileAvailable(mobile: string) {
+  const existing = await prisma.user.findFirst({ where: { mobile } });
+  if (existing) {
+    throw new HttpError(422, 'The mobile has already been taken.', {
+      errors: { mobile: ['The mobile has already been taken.'] },
+    });
+  }
+}
+
+function uniqueViolationToHttpError(err: unknown) {
+  const code = (err as { code?: string } | null)?.code;
+  if (code !== 'P2002') return null;
+
+  const target = (err as { meta?: { target?: unknown } }).meta?.target;
+  const fields = Array.isArray(target) ? target.map(String) : [String(target ?? '')];
+  if (fields.some((field) => field.includes('mobile'))) {
+    return new HttpError(422, 'The mobile has already been taken.', {
+      errors: { mobile: ['The mobile has already been taken.'] },
+    });
+  }
+  if (fields.some((field) => field.includes('email'))) {
+    return new HttpError(422, 'The email has already been taken.', {
+      errors: { email: ['The email has already been taken.'] },
+    });
+  }
+
+  return new HttpError(422, 'The given data conflicts with an existing record.');
+}
+
 // --- handlers --------------------------------------------------------------
 
 export async function registerEmployer(req: Request, res: Response) {
   const data = registerEmployerSchema.parse(req.body);
   await assertEmailAvailable(data.email);
+  await assertMobileAvailable(data.mobile);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const created = await tx.user.create({
-      data: {
-        fullName: data.contact_person_name,
-        email: data.email,
-        mobile: data.mobile,
-        password: await hashPassword(data.password),
-        role: 'employer',
-        profileType: 'employer',
-        accountStatus: 'active',
-      },
-    });
-
-    await tx.employerProfile.create({
-      data: {
-        userId: created.id,
-        contactPersonName: data.contact_person_name,
-        city: data.city,
-        state: data.state,
-        pincode: data.pincode,
-        profileStatus: 'incomplete',
-        verificationStatus: 'pending',
-        createdFrom: 'app',
-      },
-    });
-
-    if (data.company_name) {
-      await tx.employerCompany.create({
+  let user;
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
-          employerUserId: created.id,
-          companyName: data.company_name,
-          businessType: data.business_type ?? null,
-          gstNumber: data.gst_number ?? null,
-          panNumber: data.pan_number ?? null,
-          website: data.website ?? null,
-          registeredAddress: data.company_address ?? null,
-          city: data.city,
-          state: data.state,
-          pincode: data.pincode,
-          verificationStatus: 'pending',
+          fullName: data.contact_person_name,
+          email: data.email,
+          mobile: data.mobile,
+          password: await hashPassword(data.password),
+          role: 'employer',
+          profileType: 'employer',
           accountStatus: 'active',
         },
       });
-    }
 
-    return created;
-  });
+      await tx.employerProfile.create({
+        data: {
+          userId: created.id,
+          contactPersonName: data.contact_person_name,
+          city: data.city,
+          state: data.state,
+          pincode: data.pincode,
+          profileStatus: 'incomplete',
+          verificationStatus: 'pending',
+          createdFrom: 'app',
+        },
+      });
+
+      if (data.company_name) {
+        await tx.employerCompany.create({
+          data: {
+            employerUserId: created.id,
+            companyName: data.company_name,
+            businessType: data.business_type ?? null,
+            gstNumber: data.gst_number ?? null,
+            panNumber: data.pan_number ?? null,
+            website: data.website ?? null,
+            registeredAddress: data.company_address ?? null,
+            city: data.city,
+            state: data.state,
+            pincode: data.pincode,
+            verificationStatus: 'pending',
+            accountStatus: 'active',
+          },
+        });
+      }
+
+      return created;
+    });
+  } catch (err) {
+    const mapped = uniqueViolationToHttpError(err);
+    if (mapped) throw mapped;
+    throw err;
+  }
 
   const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+  await sendNewUserRegistrationAlert({
+    role: 'employer',
+    name: String(user.fullName ?? user.email ?? 'New user'),
+    email: String(user.email ?? ''),
+    mobile: String(user.mobile ?? ''),
+  });
 
   return res.status(201).json({
     message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
@@ -138,37 +181,51 @@ export async function registerEmployer(req: Request, res: Response) {
 export async function registerGuard(req: Request, res: Response) {
   const data = registerGuardSchema.parse(req.body);
   await assertEmailAvailable(data.email);
+  await assertMobileAvailable(data.mobile);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const created = await tx.user.create({
-      data: {
-        fullName: data.full_name,
-        email: data.email,
-        mobile: data.mobile,
-        password: await hashPassword(data.password),
-        role: 'guard',
-        profileType: 'guard',
-        accountStatus: 'active',
-      },
+  let user;
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          fullName: data.full_name,
+          email: data.email,
+          mobile: data.mobile,
+          password: await hashPassword(data.password),
+          role: 'guard',
+          profileType: 'guard',
+          accountStatus: 'active',
+        },
+      });
+
+      await tx.guardProfile.create({
+        data: {
+          userId: created.id,
+          fullName: data.full_name,
+          mobile: data.mobile,
+          gender: data.gender ?? null,
+          city: data.city ?? null,
+          state: data.state ?? null,
+          pincode: data.pincode ?? null,
+          verificationStatus: 'pending',
+        },
+      });
+
+      return created;
     });
-
-    await tx.guardProfile.create({
-      data: {
-        userId: created.id,
-        fullName: data.full_name,
-        mobile: data.mobile,
-        gender: data.gender ?? null,
-        city: data.city ?? null,
-        state: data.state ?? null,
-        pincode: data.pincode ?? null,
-        verificationStatus: 'pending',
-      },
-    });
-
-    return created;
-  });
+  } catch (err) {
+    const mapped = uniqueViolationToHttpError(err);
+    if (mapped) throw mapped;
+    throw err;
+  }
 
   const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+  await sendNewUserRegistrationAlert({
+    role: 'guard',
+    name: String(user.fullName ?? user.email ?? 'New user'),
+    email: String(user.email ?? ''),
+    mobile: String(user.mobile ?? ''),
+  });
 
   return res.status(201).json({
     message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
@@ -317,6 +374,21 @@ export async function resetPassword(req: Request, res: Response) {
   return res.json({ message: 'Password updated. You can now sign in with your new password.' });
 }
 
+/** POST /auth/test-email â€” sends a direct SMTP test mail and returns the provider response. */
+export async function testEmail(req: Request, res: Response) {
+  const schema = z.object({ email: z.string().email() });
+  const { email } = schema.parse(req.body);
+  const report = await sendSmtpTestEmail(email.trim().toLowerCase());
+
+  return res.status(report.error ? 502 : 200).json({
+    ok: !report.error,
+    message: report.error
+      ? 'SMTP test failed.'
+      : 'SMTP test email sent.',
+    report,
+  });
+}
+
 export async function logout(req: Request, res: Response) {
   if (req.bearerToken) {
     await revokeToken(req.bearerToken);
@@ -340,7 +412,7 @@ export async function resendVerification(req: Request, res: Response) {
       await sendVerificationEmail(user.email, user.fullName, signedVerifyUrl(user.id, emailHash(user.email)));
     }
   }
-  // Do not reveal whether the account exists (matches Laravel).
+  // Do not reveal whether the account exists.
   return res.json({ message: 'If an account exists, a verification link has been sent.' });
 }
 

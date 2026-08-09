@@ -11,6 +11,7 @@ import { Guard } from '../../lib/storage';
 import { listGuards } from '../../services/adminGuardService';
 import { listAllJobsForAdmin } from '../../services/jobService';
 import { getAdminReportCounts, AdminReportCounts } from '../../services/reportService';
+import type { AdminPage } from '../Sidebar';
 
 function AnimatedCounter({ target, prefix = '', suffix = '' }: { target: number; prefix?: string; suffix?: string }) {
   const [count, setCount] = useState(0);
@@ -36,7 +37,11 @@ const itemVariants: Variants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 200 } },
 };
 
-export default function Dashboard() {
+interface DashboardProps {
+  onNavigate: (page: AdminPage) => void;
+}
+
+export default function Dashboard({ onNavigate }: DashboardProps) {
   const [counts, setCounts] = useState<AdminReportCounts | null>(null);
   const [guards, setGuards] = useState<Guard[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -54,14 +59,62 @@ export default function Dashboard() {
   const openPositions = activeJobs.reduce((sum, job) => sum + (job.guards_required ?? 0), 0);
 
   const kpis = [
-    { label: 'Total Associates', value: counts?.guards ?? guards.length, icon: <Users size={20} />, color: '#0f1e3c' },
-    { label: 'Active Associates', value: activeGuards, icon: <Shield size={20} />, color: '#166534' },
-    { label: 'Employers', value: counts?.employers ?? 0, icon: <UserCheck size={20} />, color: '#0f766e' },
-    { label: 'Jobs Posted', value: counts?.jobs ?? jobs.length, icon: <Briefcase size={20} />, color: '#7c2d12' },
-    { label: 'Open Positions', value: openPositions, icon: <MapPin size={20} />, color: '#1d4ed8' },
-    { label: 'Today Attendance', value: counts?.attendance_today ?? 0, icon: <Clock size={20} />, color: '#1e3a5f' },
-    { label: 'Applications', value: counts?.applications ?? 0, icon: <FileText size={20} />, color: '#5b21b6' },
-    { label: 'Pending Approvals', value: counts?.pending_jobs ?? 0, icon: <TrendingUp size={20} />, color: '#854d0e' },
+    {
+      label: 'Total Associates',
+      value: counts?.guards ?? guards.length,
+      icon: <Users size={20} />,
+      color: '#0f1e3c',
+      onTap: () => onNavigate('guards'),
+    },
+    {
+      label: 'Active Associates',
+      value: activeGuards,
+      icon: <Shield size={20} />,
+      color: '#166534',
+      onTap: () => onNavigate('guards'),
+    },
+    {
+      label: 'Employers',
+      value: counts?.employers ?? 0,
+      icon: <UserCheck size={20} />,
+      color: '#0f766e',
+      onTap: () => onNavigate('employers'),
+    },
+    {
+      label: 'Jobs Posted',
+      value: counts?.jobs ?? jobs.length,
+      icon: <Briefcase size={20} />,
+      color: '#7c2d12',
+      onTap: () => onNavigate('jobs'),
+    },
+    {
+      label: 'Open Positions',
+      value: openPositions,
+      icon: <MapPin size={20} />,
+      color: '#1d4ed8',
+      onTap: () => onNavigate('jobs'),
+    },
+    {
+      label: 'Today Attendance',
+      value: counts?.attendance_today ?? 0,
+      icon: <Clock size={20} />,
+      color: '#1e3a5f',
+      onTap: () => onNavigate('attendance'),
+    },
+    {
+      label: 'Applications',
+      value: counts?.applications ?? 0,
+      icon: <FileText size={20} />,
+      color: '#5b21b6',
+      onTap: () => onNavigate('hiring'),
+    },
+    {
+      label: 'Pending Approvals',
+      value: counts?.pending_jobs ?? 0,
+      icon: <TrendingUp size={20} />,
+      color: '#854d0e',
+      onTap: () => onNavigate('jobs'),
+    },
   ];
 
   // Top cities by guard count, with job counts from the same city.
@@ -137,6 +190,7 @@ export default function Dashboard() {
               label={kpi.label}
               value={<AnimatedCounter target={kpi.value} />}
               color={kpi.color}
+              onTap={kpi.onTap}
             />
           </motion.div>
         ))}

@@ -9,8 +9,6 @@ export default function SubAdminAuth({ onLogin, onBackToLanding }: { onLogin: ()
       role="sub_admin"
       title="Sub Admin Login"
       subtitle="Regional Company & Staff Management"
-      initialEmail={import.meta.env.VITE_DEMO_SUBADMIN_EMAIL || ''}
-      initialPassword={import.meta.env.VITE_DEMO_SUBADMIN_PASSWORD || ''}
     />
   );
 }

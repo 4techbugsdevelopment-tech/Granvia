@@ -1,10 +1,10 @@
 import { prisma } from '../prisma';
 import { parseJsonField } from './serialize';
 
-// Laravel eagerly loads a `guardProfile` relation on several employer-facing
-// lists (keyed `guard_profile` in JSON). Prisma can't model that as an optional
-// relation off a required FK without risking "required relation missing" errors,
-// so we enrich manually: one batched lookup by guard_user_id.
+// Several employer-facing lists include guard profile data keyed `guard_profile`
+// in JSON. Prisma can't model that as an optional relation off a required FK
+// without risking "required relation missing" errors, so we enrich manually:
+// one batched lookup by guard_user_id.
 
 function guardProfileSubset(p: {
   id: string;

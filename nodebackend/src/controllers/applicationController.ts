@@ -5,7 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 
-// Guard-facing subset of Laravel's ApplicationController.
+// Guard-facing application controller.
 // (employerIndex/updateStatus are wired when the employer/admin routes are ported.)
 
 const applySchema = z.object({

@@ -17,8 +17,9 @@ router.post('/auth/email/verify-otp', asyncHandler(auth.verifyEmailOtp));
 router.post('/auth/email/resend-otp', asyncHandler(auth.resendEmailOtp));
 router.post('/auth/password/request-otp', asyncHandler(auth.requestPasswordOtp));
 router.post('/auth/password/reset', asyncHandler(auth.resetPassword));
+router.post('/auth/test-email', asyncHandler(auth.testEmail));
 
-// Signed verification link (top-level in Laravel's auth.php, outside /auth).
+// Signed verification link (top-level in auth routes, outside /auth).
 router.get('/email/verify/:id/:hash', asyncHandler(auth.verifyEmail));
 
 export default router;

@@ -1,9 +1,7 @@
-# Granvia Node backend — TODO (post-port)
+# Granvia Node backend TODO
 
-The Laravel → Node/SQL Server port is **feature-complete** (107/107 endpoints) and the
-data is migrated. The items below were **never built in the Laravel source**, so they were
-out of scope for the port. They are net-new work to be scoped separately — attach them to
-the next milestone's completion list.
+The Node backend is feature-complete for the current port. The items below are net-new work
+that should be scoped separately.
 
 ## Deferred / net-new features
 
@@ -14,10 +12,10 @@ the next milestone's completion list.
   (`instantVerify` approves any valid 12-digit number). Swap send/verify internals for the
   client-provided Aadhaar API when credentials arrive; route contracts stay the same.
   Files: `src/controllers/guardAadhaarController.ts`, `src/controllers/employerAadhaarController.ts`.
-- [ ] **Call/Video interaction** (guard ↔ employer) — Phase-2 requirement, never built in
-  Laravel. Needs a third-party (Twilio/Agora/Daily.co) + service + endpoints + UI.
+- [ ] **Call/Video interaction** (guard ↔ employer) — Phase-2 requirement. Needs a third-party
+  (Twilio/Agora/Daily.co) + service + endpoints + UI.
 
-## Operational follow-ups (port-related)
+## Operational follow-ups
 
 - [ ] Provide SMTP creds in `.env` (`SMTP_*`) to send real emails; until then OTPs return
   as `dev_otp` and mail is skipped (logged).

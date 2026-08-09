@@ -1,41 +1,175 @@
 import nodemailer, { Transporter } from 'nodemailer';
 
-// SMTP mail service (port of Laravel's Mail + send-email edge function).
-// Reads SMTP_* env vars. When SMTP is not configured, sending is a no-op that
-// logs — so dev works without a mail server (OTP endpoints return dev_otp).
+// SMTP mail service.
+// Supports both explicit SMTP_* and legacy MAIL_* env vars. SMTP_* wins when
+// both are present so local overrides stay predictable.
 
-const host = process.env.SMTP_HOST;
-const port = Number(process.env.SMTP_PORT ?? 587);
-const user = process.env.SMTP_USER;
-const pass = process.env.SMTP_PASSWORD;
-const fromEmail = process.env.SMTP_FROM_EMAIL ?? 'no-reply@granvia.local';
-const fromName = process.env.SMTP_FROM_NAME ?? 'Granvia';
+type MailConfig = {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  fromEmail: string;
+  fromName: string;
+  secure: boolean;
+  allowInvalidCerts: boolean;
+};
 
-export const mailConfigured = Boolean(host && user && pass);
+export type MailSendReport = {
+  configured: boolean;
+  to: string;
+  subject: string;
+  messageId?: string;
+  response?: string;
+  accepted?: string[];
+  rejected?: string[];
+  pending?: string[];
+  envelope?: {
+    from?: string;
+    to?: string[];
+  };
+  error?: string;
+  provider?: {
+    host: string;
+    port: number;
+    secure: boolean;
+    fromEmail: string;
+    fromName: string;
+  };
+};
 
-let transporter: Transporter | null = null;
-if (mailConfigured) {
-  transporter = nodemailer.createTransport({
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function parsePort(value: string | undefined, fallback: number): number {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value == null || value.trim() === '') return fallback;
+  return /^(1|true|yes|on)$/i.test(value.trim());
+}
+
+function resolveMailConfig(): MailConfig | null {
+  const host = firstEnv('SMTP_HOST', 'MAIL_HOST');
+  const user = firstEnv('SMTP_USER', 'MAIL_USERNAME');
+  const pass = firstEnv('SMTP_PASSWORD', 'MAIL_PASSWORD');
+  const fromEmail = firstEnv('SMTP_FROM_EMAIL', 'MAIL_FROM_ADDRESS') ?? 'no-reply@granvia.local';
+  const fromName = firstEnv('SMTP_FROM_NAME', 'MAIL_FROM_NAME') ?? 'Granvia';
+
+  if (!host || !user || !pass) {
+    return null;
+  }
+
+  const port = parsePort(firstEnv('SMTP_PORT', 'MAIL_PORT'), 587);
+  const secureFlag = firstEnv('SMTP_SECURE');
+  const encryption = firstEnv('MAIL_ENCRYPTION');
+  const allowInvalidCerts = parseBoolean(firstEnv('SMTP_ALLOW_INVALID_CERTS', 'MAIL_ALLOW_INVALID_CERTS'), false);
+
+  return {
     host,
     port,
-    secure: port === 465, // implicit TLS on 465; STARTTLS otherwise
-    auth: { user, pass },
+    user,
+    pass,
+    fromEmail,
+    fromName,
+    secure: encryption ? encryption.toLowerCase() === 'ssl' : parseBoolean(secureFlag, port === 465),
+    allowInvalidCerts,
+  };
+}
+
+const mailConfig = resolveMailConfig();
+
+export const mailConfigured = Boolean(mailConfig);
+
+let transporter: Transporter | null = null;
+if (mailConfig) {
+  transporter = nodemailer.createTransport({
+    host: mailConfig.host,
+    port: mailConfig.port,
+    secure: mailConfig.secure,
+    auth: { user: mailConfig.user, pass: mailConfig.pass },
+    tls: mailConfig.allowInvalidCerts ? { rejectUnauthorized: false } : undefined,
   });
 }
 
-async function sendMail(to: string, subject: string, html: string): Promise<void> {
-  if (!transporter) {
+async function sendMailDetailed(
+  to: string,
+  subject: string,
+  html: string
+): Promise<MailSendReport> {
+  if (!transporter || !mailConfig) {
+    const report: MailSendReport = {
+      configured: false,
+      to,
+      subject,
+      error: 'SMTP/MAIL env vars are not fully configured.',
+    };
     // eslint-disable-next-line no-console
-    console.log(`[mail:skipped] to=${to} subject="${subject}" (SMTP not configured)`);
-    return;
+    console.log(`[mail:skipped] to=${to} subject="${subject}"`, report.error);
+    return report;
   }
+
   try {
-    await transporter.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html });
+    await transporter.verify();
+    const info = await transporter.sendMail({
+      from: `"${mailConfig.fromName}" <${mailConfig.fromEmail}>`,
+      to,
+      subject,
+      html,
+    });
+
+    return {
+      configured: true,
+      to,
+      subject,
+      messageId: info.messageId,
+      response: info.response,
+      accepted: Array.isArray(info.accepted) ? info.accepted.map(String) : undefined,
+      rejected: Array.isArray(info.rejected) ? info.rejected.map(String) : undefined,
+      pending: Array.isArray(info.pending) ? info.pending.map(String) : undefined,
+      envelope: info.envelope
+        ? {
+            from: info.envelope.from ?? undefined,
+            to: Array.isArray(info.envelope.to) ? info.envelope.to.map(String) : undefined,
+          }
+        : undefined,
+      provider: {
+        host: mailConfig.host,
+        port: mailConfig.port,
+        secure: mailConfig.secure,
+        fromEmail: mailConfig.fromEmail,
+        fromName: mailConfig.fromName,
+      },
+    };
   } catch (err) {
-    // Mail failures must never break the request flow (matches Laravel queue).
+    const message = (err as Error)?.message ?? 'Unknown SMTP error';
     // eslint-disable-next-line no-console
-    console.error(`[mail:error] to=${to} subject="${subject}"`, (err as Error).message);
+    console.error(`[mail:error] to=${to} subject="${subject}"`, message);
+    return {
+      configured: true,
+      to,
+      subject,
+      error: message,
+      provider: {
+        host: mailConfig.host,
+        port: mailConfig.port,
+        secure: mailConfig.secure,
+        fromEmail: mailConfig.fromEmail,
+        fromName: mailConfig.fromName,
+      },
+    };
   }
+}
+
+async function sendMail(to: string, subject: string, html: string): Promise<void> {
+  await sendMailDetailed(to, subject, html);
 }
 
 const wrap = (title: string, body: string) =>
@@ -43,6 +177,8 @@ const wrap = (title: string, body: string) =>
      <h2 style="color:#166534">${title}</h2>${body}
      <p style="color:#888;font-size:12px;margin-top:32px">Granvia Associate Management</p>
    </div>`;
+
+const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL?.trim() || 'admin@granvia.llc';
 
 export function sendAadhaarOtp(to: string, otp: string): Promise<void> {
   return sendMail(
@@ -121,6 +257,27 @@ export function sendEmployerWelcome(
   );
 }
 
+export function sendNewUserRegistrationAlert(input: {
+  role: string;
+  name: string;
+  email: string;
+  mobile: string;
+}): Promise<void> {
+  const { role, name, email, mobile } = input;
+  return sendMail(
+    adminNotificationEmail,
+    `New Granvia registration: ${role}`,
+    wrap(
+      'New user registered',
+      `<p>A new ${role} account has been created in Granvia.</p>
+       <p><strong>Name:</strong> ${name}<br/>
+       <strong>Email:</strong> ${email}<br/>
+       <strong>Mobile:</strong> ${mobile}</p>
+       <p>Please review the account and verify Aadhaar manually.</p>`
+    )
+  );
+}
+
 export function sendVerificationEmail(to: string, name: string, verifyUrl: string): Promise<void> {
   return sendMail(
     to,
@@ -130,6 +287,19 @@ export function sendVerificationEmail(to: string, name: string, verifyUrl: strin
       `<p>Please confirm your email address to activate your Granvia account.</p>
        <p><a href="${verifyUrl}" style="display:inline-block;background:#166534;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Verify email</a></p>
        <p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't create an account, ignore this email.</p>`
+    )
+  );
+}
+
+export function sendSmtpTestEmail(to: string): Promise<MailSendReport> {
+  return sendMailDetailed(
+    to,
+    'Granvia SMTP test email',
+    wrap(
+      'SMTP Test',
+      `<p>This is a test email sent from the Granvia backend.</p>
+       <p>If you received this message, SMTP is working for this account.</p>
+       <p><strong>Time:</strong> ${new Date().toISOString()}</p>`
     )
   );
 }

@@ -12,8 +12,8 @@ interface MobileLoginProps {
 }
 
 export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginProps) {
-  const [email, setEmail] = useState(import.meta.env.VITE_DEMO_GUARD_EMAIL || '');
-  const [password, setPassword] = useState(import.meta.env.VITE_DEMO_GUARD_PASSWORD || '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
@@ -227,7 +227,6 @@ export default function MobileLogin({ onLogin, onBackToLanding }: MobileLoginPro
         <LoginOtpDialog
           email={otpChallenge.email}
           role="guard"
-          devOtp={otpChallenge.devOtp}
           onVerified={() => { setOtpChallenge(null); finishLogin(); }}
           onClose={() => setOtpChallenge(null)}
         />

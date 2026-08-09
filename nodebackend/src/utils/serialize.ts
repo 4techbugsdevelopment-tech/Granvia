@@ -1,7 +1,6 @@
 // Prisma returns camelCase keys, Prisma.Decimal instances, and Date objects.
-// The React frontend was built against the Laravel/Supabase API, which speaks
-// snake_case with decimals-as-strings and ISO timestamps. These helpers convert
-// Prisma records back into that exact wire shape.
+// The React frontend expects snake_case with decimals-as-strings and ISO
+// timestamps. These helpers convert Prisma records back into that wire shape.
 
 function toSnake(key: string): string {
   return key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
@@ -21,7 +20,7 @@ export function snakeKeys(value: any): any {
   if (value === null || value === undefined) return value;
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'bigint') return Number(value);
-  if (isDecimal(value)) return value.toString(); // Laravel serialises decimals as strings
+  if (isDecimal(value)) return value.toString(); // Keep decimals as strings on the wire.
   if (Array.isArray(value)) return value.map(snakeKeys);
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};
@@ -45,8 +44,8 @@ export function parseJsonField(value: unknown): unknown {
 
 /**
  * snake_cases a Prisma row/array for output AND parses the named JSON-string
- * columns back into arrays/objects (Laravel casts these to arrays). Use for
- * models with `json()` columns: job_posts, company_sites, agreements, etc.
+ * columns back into arrays/objects. Use for models with `json()` columns:
+ * job_posts, company_sites, agreements, etc.
  */
 export function serializeOut(value: unknown, jsonFields: string[] = []): unknown {
   const snaked = snakeKeys(value);

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 
 /**
- * Laravel hashes passwords with bcrypt, producing `$2y$` prefixed hashes.
+ * Existing bcrypt hashes use the `$2y$` prefix.
  * bcryptjs verifies `$2a$`/`$2b$`; the `$2y$` variant is algorithmically
  * identical, so we normalise the prefix before comparing existing hashes.
  */

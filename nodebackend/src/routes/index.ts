@@ -10,7 +10,7 @@ import fileRoutes from './fileRoutes';
 
 const router = Router();
 
-// Each portal's routes are mounted here as they are ported from Laravel.
+// Each portal's routes are mounted here.
 router.use(authRoutes);
 router.use(guardRoutes); // routes/api/guard.php
 router.use(employerRoutes); // routes/api/employer.php

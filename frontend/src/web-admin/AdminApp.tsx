@@ -46,7 +46,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard onNavigate={setPage} />;
       case 'guards': return <GuardList onAddGuard={() => setPage('add-guard')} />;
       case 'add-guard': return <AddGuard onSuccess={() => setPage('guards')} />;
       case 'employers': return <EmployerManagement />;

@@ -26,6 +26,7 @@ import {
 import { listCompanyDocuments, createDocumentRecord } from '../services/documentService';
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
+import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import CashPaymentPage from './CashPaymentPage';
@@ -151,7 +152,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
     switch (currentPage) {
       case 'dashboard':   return <EmployerDashboard employer={employer} company={activeCompany} companies={companies} key={refresh} onNavigate={setPage} />;
       case 'profile':     return <EmployerProfile employer={employer} activeCompany={activeCompany} key={refresh} onChanged={reload} />;
-      case 'aadhaar':     return <AadhaarVerificationPage key={refresh} onChanged={reload} onVerified={() => { reload(); setPage('dashboard'); }} />;
+      case 'aadhaar':     return <EmailOtpAadhaarPage key={refresh} onChanged={reload} onVerified={() => { reload(); setPage('dashboard'); }} />;
       case 'companies':   return <CompaniesPage employer={employer} activeCompanyId={activeCompany?.id ?? null} onSwitch={switchCompany} key={refresh} onChanged={reload} />;
       case 'documents':   return aadhaarVerified && activeCompany ? <CompanyDocumentsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'sites':       return aadhaarVerified && activeCompany ? <SitesPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
@@ -1198,6 +1199,13 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 function JobFormPage({ employer: _employer, company, onSaved }: { employer: EmployerInfo; company: any; onSaved: () => void }) {
   const [sites, setSites] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [creatingSite, setCreatingSite] = useState(false);
+  const [siteForm, setSiteForm] = useState<SiteFormState>({
+    site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
+    pincode: company.pincode ?? '', contact_person: _employer.contactPersonName,
+    contact_mobile: company.company_phone ?? _employer.mobile,
+    latitude: '', longitude: '', shift_details: '', notes: '', status: 'active',
+  });
   const [job, setJob] = useState({
     title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: 'Associate',
     gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
@@ -1214,6 +1222,46 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
       if (active.length > 0) setJob(j => ({ ...j, site_id: active[0].id }));
     }).catch(console.error);
   }, [company.id]);
+
+  const saveSiteInline = async () => {
+    if (!siteForm.site_name.trim() || !siteForm.address.trim() || !siteForm.contact_mobile.trim()) {
+      alert('Site name, address and contact mobile are required.');
+      return;
+    }
+    setCreatingSite(true);
+    try {
+      const created = await createCompanySite({
+        company_id: company.id,
+        site_name: siteForm.site_name.trim(),
+        site_type: siteForm.site_type,
+        address: siteForm.address.trim(),
+        city: siteForm.city.trim(),
+        state: siteForm.state.trim(),
+        pincode: siteForm.pincode.trim(),
+        contact_person: siteForm.contact_person.trim(),
+        contact_mobile: siteForm.contact_mobile.trim(),
+        latitude: siteForm.latitude ? Number(siteForm.latitude) : null,
+        longitude: siteForm.longitude ? Number(siteForm.longitude) : null,
+        shift_details: siteForm.shift_details.trim(),
+        notes: siteForm.notes.trim(),
+        status: 'active',
+      });
+
+      const nextSites = await listCompanySites(company.id).then(data => (data ?? []).filter((s: any) => s.status === 'active'));
+      setSites(nextSites);
+      setSiteForm({
+        site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
+        pincode: company.pincode ?? '', contact_person: _employer.contactPersonName,
+        contact_mobile: company.company_phone ?? _employer.mobile,
+        latitude: '', longitude: '', shift_details: '', notes: '', status: 'active',
+      });
+      setJob(j => ({ ...j, site_id: created?.id ?? nextSites[0]?.id ?? j.site_id }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save site.');
+    } finally {
+      setCreatingSite(false);
+    }
+  };
 
   const saveJob = async () => {
     if (!job.site_id || !job.title || !job.salary_amount || !job.start_date) { alert('Select a site and complete title, salary and start date.'); return; }
@@ -1252,7 +1300,45 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
     } finally { setSaving(false); }
   };
 
-  if (sites.length === 0) return <div className="p-6"><Card className="p-8"><EmptyState text="Add an active site before posting a job." /></Card></div>;
+  if (sites.length === 0) {
+    return (
+      <div className="p-6">
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Add a Site First</h2>
+              <p className="text-sm text-gray-500 mt-1">Create the site location here, then continue posting the job.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <Input label="Site Name" value={siteForm.site_name} onChange={v => setSiteForm(f => ({ ...f, site_name: v }))} />
+            <Sel label="Site Type" value={siteForm.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setSiteForm(f => ({ ...f, site_type: v }))} />
+            <Input label="City" value={siteForm.city} onChange={v => setSiteForm(f => ({ ...f, city: v }))} />
+            <Input label="State" value={siteForm.state} onChange={v => setSiteForm(f => ({ ...f, state: v }))} />
+            <Input label="Pincode" value={siteForm.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v }))} />
+            <Input label="Site Contact" value={siteForm.contact_person} onChange={v => setSiteForm(f => ({ ...f, contact_person: v }))} />
+            <Input label="Contact Mobile" value={siteForm.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />
+          </div>
+          <Input className="mt-3" label="Site Address" value={siteForm.address} onChange={v => setSiteForm(f => ({ ...f, address: v }))} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <Input label="Shift Details" value={siteForm.shift_details} onChange={v => setSiteForm(f => ({ ...f, shift_details: v }))} />
+            <Input label="Notes" value={siteForm.notes} onChange={v => setSiteForm(f => ({ ...f, notes: v }))} />
+          </div>
+          <SiteLocationSection form={siteForm} setForm={setSiteForm} />
+          <div className="flex justify-end mt-5">
+            <button
+              onClick={saveSiteInline}
+              disabled={creatingSite}
+              className="px-5 py-3 rounded-xl text-sm font-semibold text-white"
+              style={{ background: creatingSite ? '#94a3b8' : '#0f1e3c' }}
+            >
+              {creatingSite ? 'Saving Site...' : 'Save Site and Continue'}
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -1797,7 +1883,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
   const [payments, setPayments] = useState<any[]>([]);
   const [paid, setPaid] = useState<Set<string>>(new Set());
   const [successMsg, setSuccessMsg] = useState('');
-  const [otpFlow, setOtpFlow] = useState<{ appId: string; paymentId: string; guardName: string; sentTo: string; devOtp?: string } | null>(null);
+  const [otpFlow, setOtpFlow] = useState<{ appId: string; paymentId: string; guardName: string; sentTo: string } | null>(null);
   const [otpInput, setOtpInput] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpErr, setOtpErr] = useState('');
@@ -1824,7 +1910,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
       });
       const res = await requestCashPaymentOtp(payment.id);
       setOtpInput('');
-      setOtpFlow({ appId: app.id, paymentId: payment.id, guardName, sentTo: res.sent_to, devOtp: res.dev_otp });
+      setOtpFlow({ appId: app.id, paymentId: payment.id, guardName, sentTo: res.sent_to });
     } catch (e: any) {
       setSuccessMsg('');
       setOtpErr(e?.response?.data?.message || e.message);
@@ -1895,9 +1981,6 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900">Confirm cash payment</h3>
             <p className="text-xs text-gray-500 mt-1">A confirmation code was emailed to <b>{otpFlow.guardName}</b> ({otpFlow.sentTo}). Enter it to mark the payment received.</p>
-            {otpFlow.devOtp && (
-              <p className="text-[11px] text-center text-amber-700 bg-amber-50 border border-amber-100 rounded-lg py-2 mt-3">Dev mode — code: <b className="tracking-widest">{otpFlow.devOtp}</b></p>
-            )}
             <input autoFocus inputMode="numeric" value={otpInput} onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
               className="w-full mt-3 px-3 py-3 rounded-lg text-center text-lg font-bold tracking-[0.4em] outline-none" style={{ background: '#f7f8fa', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }} placeholder="••••••" />
             {otpErr && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100 mt-2">{otpErr}</p>}
@@ -2043,3 +2126,4 @@ function ReportsPage({ employer: _employer, company, companies }: { employer: Em
     </div>
   );
 }
+

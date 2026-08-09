@@ -25,7 +25,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'granvia-nodebackend' });
 });
 
-// All API routes live under /api (matches Laravel's api.php prefix).
+// All API routes live under /api.
 app.use('/api', apiRoutes);
 
 app.use(notFound);

@@ -5,7 +5,7 @@ import { verifySignature, absolutePathFor } from '../utils/fileStorage';
 const router = Router();
 
 // Signed download endpoint for private files (guard-documents, invoices, etc.).
-// Mirrors Laravel's `files.download` signed route.
+// Signed download route for private files.
 router.get('/files/download', (req: Request, res: Response) => {
   const path = String(req.query.path ?? '');
   const expires = Number(req.query.expires ?? 0);

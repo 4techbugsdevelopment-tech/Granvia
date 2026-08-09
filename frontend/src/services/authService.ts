@@ -24,6 +24,16 @@ export type EmployerRegistrationInput = {
   website?: string;
 };
 
+export type GuardRegistrationInput = {
+  fullName: string;
+  mobile: string;
+  email: string;
+  password: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+};
+
 function toAppSession(data: {
   user: ProfileRow;
   employer_profile: EmployerProfileRow | null;
@@ -119,6 +129,20 @@ export async function registerEmployer(input: EmployerRegistrationInput) {
     gst_number: input.gstNumber?.trim().toUpperCase() || undefined,
     pan_number: input.panNumber?.trim().toUpperCase() || undefined,
     website: input.website?.trim() || undefined,
+  });
+
+  return data;
+}
+
+export async function registerGuard(input: GuardRegistrationInput) {
+  const { data } = await apiClient.post('/auth/register/guard', {
+    full_name: input.fullName.trim(),
+    mobile: input.mobile.trim(),
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    city: input.city?.trim() || undefined,
+    state: input.state?.trim() || undefined,
+    pincode: input.pincode?.trim() || undefined,
   });
 
   return data;

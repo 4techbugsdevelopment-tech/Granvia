@@ -5,7 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 
-// Guard-facing subset of Laravel's AttendanceController.
+// Guard-facing attendance controller.
 
 const jobInclude = { job: { select: { id: true, title: true } } };
 

@@ -188,7 +188,7 @@ function PostJobPage() {
   const [form, setForm] = useState({ employer: '', company: '', site: '', title: '', dutyHours: '8-hour', english: true, experience: '', education: '', guards: '2' });
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form');
   const [otp, setOtp] = useState('');
-  const [otpMeta, setOtpMeta] = useState<{ otp_id: string; dev_otp: string | null } | null>(null);
+  const [otpMeta, setOtpMeta] = useState<{ otp_id: string } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -204,8 +204,7 @@ function PostJobPage() {
     setError(''); setBusy(true);
     try {
       const meta = await requestJobOtp(form.employer);
-      setOtpMeta({ otp_id: meta.otp_id, dev_otp: meta.dev_otp });
-      if (meta.dev_otp) setOtp(meta.dev_otp);
+      setOtpMeta({ otp_id: meta.otp_id });
       setStep('otp');
     } catch { setError('Could not send OTP.'); } finally { setBusy(false); }
   };
@@ -282,7 +281,6 @@ function PostJobPage() {
             <p className="text-sm mb-1" style={{ color: BROWN }}>Client confirmation OTP sent.</p>
             <p className="text-xs mb-4" style={{ color: 'rgba(75,46,42,0.55)' }}>
               Enter the code the client shares to confirm.
-              {otpMeta?.dev_otp && <span className="font-mono font-bold ml-1" style={{ color: BURGUNDY }}>(dev: {otpMeta.dev_otp})</span>}
             </p>
             <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="4-digit OTP"
               className="w-48 px-3.5 py-2.5 rounded-xl text-sm outline-none text-center mx-auto block mb-4" style={{ border: '1.5px solid #e6ddd8', background: '#faf8f6', color: BROWN }} />
@@ -543,3 +541,4 @@ export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: (
     </div>
   );
 }
+

@@ -9,8 +9,6 @@ export default function SalesAuth({ onLogin, onBackToLanding }: { onLogin: () =>
       role="sales_executive"
       title="Sales Executive Login"
       subtitle="Client Management & Job Posting"
-      initialEmail={import.meta.env.VITE_DEMO_SALES_EMAIL || ''}
-      initialPassword={import.meta.env.VITE_DEMO_SALES_PASSWORD || ''}
     />
   );
 }

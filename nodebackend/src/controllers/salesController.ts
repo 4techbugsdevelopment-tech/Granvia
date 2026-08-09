@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword } from '../utils/password';
 
 // Port of App\Http\Controllers\SalesController (role: sales_executive).
 
-// In-memory OTP store (Laravel used Cache). Fine for a single-process dev server.
+// In-memory OTP store. Fine for a single-process dev server.
 const otpStore = new Map<string, { hash: string; salesId: string; employerId: string; expires: number }>();
 
 async function managedClientIds(salesId: string): Promise<string[]> {

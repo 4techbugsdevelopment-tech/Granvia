@@ -38,8 +38,8 @@ function validatePassword(password: string) {
 
 export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthProps) {
   const [mode, setMode] = useState<Mode>('login');
-  const [identifier, setIdentifier] = useState(import.meta.env.VITE_DEMO_EMPLOYER_EMAIL || '');
-  const [loginPassword, setLoginPassword] = useState(import.meta.env.VITE_DEMO_EMPLOYER_PASSWORD || '');
+  const [identifier, setIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [register, setRegister] = useState(initialRegister);
   const [error, setError] = useState('');
@@ -107,7 +107,7 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
         website: register.website,
       });
       // Verify the email via the code we just sent, then the user signs in.
-      setVerify({ email: register.email, devOtp: res?.dev_otp });
+      setVerify({ email: register.email });
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to create employer account.'));
     } finally {
@@ -250,10 +250,9 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
       </div>
 
       {otpChallenge && (
-        <LoginOtpDialog
+      <LoginOtpDialog
           email={otpChallenge.email}
           role="employer"
-          devOtp={otpChallenge.devOtp}
           onVerified={() => { setOtpChallenge(null); onLogin(); }}
           onClose={() => setOtpChallenge(null)}
         />
@@ -262,7 +261,6 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
       {verify && (
         <VerifyEmailDialog
           email={verify.email}
-          devOtp={verify.devOtp}
           onVerified={() => onEmailVerified(verify.email)}
           onClose={() => setVerify(null)}
         />

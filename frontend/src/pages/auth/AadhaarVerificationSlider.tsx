@@ -11,7 +11,6 @@ export default function AadhaarVerificationSlider({ onCompleted }: { onCompleted
   const [aadhaarNumber, setAadhaarNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [sentTo, setSentTo] = useState('');
-  const [devOtp, setDevOtp] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,7 +24,6 @@ export default function AadhaarVerificationSlider({ onCompleted }: { onCompleted
     try {
       const result = await sendAadhaarOtp(aadhaarNumber);
       setSentTo(result.sentTo);
-      if (result.devOtp) setDevOtp(result.devOtp);
       setStep('otp');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to send OTP.'));
@@ -100,12 +98,6 @@ export default function AadhaarVerificationSlider({ onCompleted }: { onCompleted
                   <span className="form-label">OTP</span>
                   <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" className="form-input text-center tracking-widest text-xl" placeholder="••••••" />
                 </label>
-                {devOtp && (
-                  <div className="mt-4 p-3 rounded-xl border border-yellow-300 bg-yellow-50 text-center">
-                    <p className="text-xs text-yellow-700 font-medium mb-1">Your OTP (email disabled temporarily)</p>
-                    <p className="text-2xl font-bold tracking-widest text-yellow-900">{devOtp}</p>
-                  </div>
-                )}
                 {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
                 <button disabled={submitting} onClick={verifyOtp} className="mt-5 w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#166534' }}>
                   {submitting ? 'Verifying...' : 'Verify OTP'}

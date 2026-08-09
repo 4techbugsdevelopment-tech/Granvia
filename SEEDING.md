@@ -13,6 +13,16 @@ Seed demo users and prefill login fields
    VITE_DEMO_EMPLOYER_EMAIL=employer@demo.local
    VITE_DEMO_EMPLOYER_PASSWORD=DemoEmployer123!
 
+   Current backend demo accounts:
+
+   | Role | Email | Password |
+   | --- | --- | --- |
+   | super_admin | admin@granvia.test | password |
+   | employer | employer@granvia.test | password |
+   | guard | guard@granvia.test | password |
+   | sales_executive | sales@granvia.test | password |
+   | sub_admin | subadmin@granvia.test | password |
+
 3. Run the seed script (requires Node 18+):
 
    node scripts/seedDemoUsers.mjs

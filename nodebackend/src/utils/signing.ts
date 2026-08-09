@@ -1,8 +1,7 @@
 import crypto from 'crypto';
 import { env } from '../config/env';
 
-// Generic HMAC signed-URL helper (Laravel signed-route equivalent) used for
-// email-verification links. Distinct purpose string from file downloads.
+// Generic HMAC signed-URL helper used for email-verification links.
 
 function sign(value: string, expires: number): string {
   return crypto.createHmac('sha256', env.fileSigningSecret).update(`verify|${value}|${expires}`).digest('hex');
@@ -23,7 +22,7 @@ export function verifyEmailSignature(userId: string, hash: string, expires: numb
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** Laravel uses sha1(email) as the URL hash component. */
+/** Uses sha1(email) as the URL hash component. */
 export function emailHash(email: string): string {
   return crypto.createHash('sha1').update(email).digest('hex');
 }

@@ -12,7 +12,7 @@ export async function getAadhaarStatus() {
   }
 }
 
-/** Mock instant Aadhaar verification — enter number, approved immediately. */
+/** Instant Aadhaar verification fallback for manual/test scenarios. */
 export async function verifyAadhaarInstant(aadhaarNumber: string) {
   if (!AADHAAR_FORMAT.test(aadhaarNumber.trim())) {
     throw new Error('Enter a valid 12-digit Aadhaar number.');

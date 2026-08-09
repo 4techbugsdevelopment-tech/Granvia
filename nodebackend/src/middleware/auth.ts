@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-/** Equivalent of Laravel's `auth:sanctum` middleware. */
+/** Bearer-token auth guard for protected routes. */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.header('authorization') ?? '';
   const match = header.match(/^Bearer\s+(.+)$/i);

@@ -2,8 +2,8 @@ import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { HttpError } from '../utils/http';
 
-/** Formats a ZodError into Laravel's 422 validation-error shape. */
-function zodToLaravel(err: ZodError) {
+/** Formats a ZodError into the API's 422 validation-error shape. */
+function zodToValidationError(err: ZodError) {
   const errors: Record<string, string[]> = {};
   for (const issue of err.issues) {
     const field = issue.path.join('.') || 'value';
@@ -16,7 +16,7 @@ function zodToLaravel(err: ZodError) {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
-    return res.status(422).json(zodToLaravel(err));
+    return res.status(422).json(zodToValidationError(err));
   }
 
   if (err instanceof HttpError) {

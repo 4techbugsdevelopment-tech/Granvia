@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 
 /**
  * Thrown by controllers/services to produce a specific HTTP status.
- * Mirrors Laravel's abort()/response()->json([...], status) pattern.
+ * Standard JSON error helper used throughout the API.
  */
 export class HttpError extends Error {
   status: number;

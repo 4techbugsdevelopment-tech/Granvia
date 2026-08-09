@@ -13,6 +13,7 @@ import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
 import SubAdminApp from './subadmin/SubAdminApp';
 import UniversalMobileApp from './universal-mobile/UniversalMobileApp';
+import SmtpTestPage from './pages/dev/SmtpTestPage';
 import {
   UNIVERSAL_APP_BASE_PATH,
   normalizeUniversalAppPath,
@@ -68,7 +69,7 @@ function getModeFromPath(pathname: string): AppMode {
 function getPathForMode(mode: AppMode): string {
   if (mode === 'landing') return '/home-1';
   if (mode === 'app') return UNIVERSAL_APP_BASE_PATH;
-  if (mode === 'admin') return '/';
+  if (mode === 'admin') return '/admin';
   if (mode === 'mobile') return '/guard';
   if (mode === 'employer') return '/employer';
   if (mode === 'sales') return '/sales';
@@ -86,6 +87,10 @@ function isApkMode(): boolean {
 
 function isMobileViewport(): boolean {
   return window.innerWidth < 768;
+}
+
+function normalizePath(pathname: string): string {
+  return pathname.replace(/\/+$/, '') || '/';
 }
 
 function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
@@ -189,8 +194,8 @@ function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
         </div>
 
         <div className="mt-8 text-center space-y-1">
-          <p className="text-gray-500 text-xs">Admin: admin@granvia.com / admin123</p>
-          <p className="text-gray-500 text-xs">Associate: rajesh@example.com / guard123</p>
+          <p className="text-gray-500 text-xs">Super Admin: admin@granvia.test / password</p>
+          <p className="text-gray-500 text-xs">Associate: guard@granvia.test / password</p>
         </div>
       </motion.div>
     </div>
@@ -253,7 +258,7 @@ function MobileFrame({
   );
 }
 
-function App() {
+function AppShell() {
   const { profile, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<AppMode>(() => {
     const routeMode = getModeFromPath(normalizeUniversalAppPath(window.location.pathname));
@@ -261,9 +266,7 @@ function App() {
     if (window.location.pathname === '/' && isApkMode()) return 'app';
     return routeMode;
   });
-  const [adminState, setAdminState] = useState<AdminState>(
-    window.location.pathname === '/' ? 'login' : 'splash',
-  );
+  const [adminState, setAdminState] = useState<AdminState>('splash');
   const [mobileState, setMobileState] = useState<MobileState>('splash');
   const [employerState, setEmployerState] = useState<EmployerState>('login');
   const [salesState, setSalesState] = useState<DemoPanelState>('login');
@@ -337,12 +340,13 @@ function App() {
       }
       if (routeMode === 'admin') {
         setMode('admin');
+        if (window.location.pathname === '/') {
+          setPathForMode('admin', true);
+        }
         setAdminState(
           profile?.role === 'super_admin'
             ? 'dashboard'
-            : window.location.pathname === '/'
-              ? 'login'
-              : 'splash',
+            : 'splash',
         );
         return;
       }
@@ -487,6 +491,19 @@ function App() {
   }
 
   return null;
+}
+
+function App() {
+  const path = normalizePath(window.location.pathname);
+  if (path === '/' && !isApkMode()) {
+    window.location.replace('/admin');
+    return null;
+  }
+  if (path === '/smtp-test' || path === '/test-smtp') {
+    return <SmtpTestPage />;
+  }
+
+  return <AppShell />;
 }
 
 export default App;

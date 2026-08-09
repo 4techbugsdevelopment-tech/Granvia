@@ -5,7 +5,7 @@ import { env } from '../config/env';
 
 // Port of App\Services\FileStorageService. Files land under ./storage/app.
 // Private categories are served through a signed /api/files/download link
-// (mirrors Laravel's temporarySignedRoute); public ones via /storage.
+// Signed download URLs for private files; public ones are served via /storage.
 
 // Private files require a signed link; public ones are served statically at /storage.
 export const PRIVATE_ROOT = path.resolve(process.cwd(), 'storage', 'app');

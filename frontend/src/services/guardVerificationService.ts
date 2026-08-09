@@ -1,6 +1,6 @@
 import { apiClient } from '../lib/apiClient';
 
-// ── Guard documents ───────────────────────────────────────────────────────────
+// Guard documents
 
 export type GuardDocumentType = 'id_proof' | 'police_verification' | 'bank_proof' | 'other';
 
@@ -40,14 +40,14 @@ export async function reviewGuardDocument(documentId: string, status: 'verified'
   return data;
 }
 
-// ── Guard Aadhaar (email-OTP interim; same contract for the real API later) ──
+// Guard Aadhaar (email OTP to the registered email address)
 
 export async function getMyAadhaarStatus() {
   const { data } = await apiClient.get('/guard/aadhaar');
   return data;
 }
 
-/** Mock instant Aadhaar verification — enter number, approved immediately. */
+/** Instant Aadhaar verification fallback for manual/test scenarios. */
 export async function verifyAadhaarInstant(aadhaarNumber: string) {
   const { data } = await apiClient.post('/guard/aadhaar/verify-instant', { aadhaar_number: aadhaarNumber });
   return data as { aadhaar_status: string; aadhaar_last_four: string; verified_at: string };

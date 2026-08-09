@@ -1,10 +1,10 @@
 // Granvia — Prisma schema (SQL Server)
-// Ported 1:1 from the Laravel migrations in ../backend/database/migrations.
+// Ported 1:1 from the original database migrations in ../backend/database/migrations.
 // Conventions for the Postgres/MySQL -> SQL Server move:
-//   - Laravel uuid PKs  -> String @db.NVarChar(36) with app-generated uuid() (matches Laravel HasUuids, avoids GUID casing issues)
-//   - Laravel json()    -> String @db.NVarChar(Max)  (SQL Server has no Prisma Json type; controllers JSON.parse/stringify)
-//   - Laravel text()    -> String @db.NVarChar(Max)
-//   - Laravel string()  -> String (default) / @db.NVarChar(255) on unique/indexed columns
+//   - UUID PKs          -> String @db.NVarChar(36) with app-generated uuid() to avoid GUID casing issues
+//   - json()            -> String @db.NVarChar(Max)  (SQL Server has no Prisma Json type; controllers JSON.parse/stringify)
+//   - text()            -> String @db.NVarChar(Max)
+//   - string()          -> String (default) / @db.NVarChar(255) on unique/indexed columns
 //   - decimal/date/timestamp/boolean map to their SQL Server equivalents
 
 generator client {

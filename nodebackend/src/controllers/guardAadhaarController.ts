@@ -8,9 +8,9 @@ import { serializeGuardProfile } from '../serializers/userSerializer';
 import { sendAadhaarOtp } from '../services/mailService';
 import { mailConfigured } from '../services/mailService';
 
-// Port of App\Http\Controllers\GuardAadhaarController — interim email-OTP flow.
-// OTP delivery isn't wired yet, so sendOtp returns dev_otp (Laravel does this
-// under app.debug); swap in the client Aadhaar API later without changing routes.
+// Interim email-OTP flow.
+// OTP delivery isn't wired yet, so sendOtp returns dev_otp in development.
+// Swap in the client Aadhaar API later without changing routes.
 
 const aadhaarSchema = z.object({
   aadhaar_number: z.string().regex(/^\d{12}$/, 'The aadhaar number format is invalid.'),
@@ -38,6 +38,7 @@ export async function status(req: Request, res: Response) {
   });
 
   return res.json({
+    aadhaar_api_enabled: false,
     aadhaar_status: profile.aadhaarStatus,
     aadhaar_last_four: latest?.aadhaarLastFour ?? null,
     verified_at: latest?.otpVerifiedAt ?? null,
