@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, CheckCircle, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, User, UserCheck } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -10,6 +10,7 @@ import {
 } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
+import { lookupIndianPincode } from '../services/pincodeService';
 
 interface UniversalLoginProps {
   onLogin: () => void;
@@ -58,8 +59,8 @@ function Field({
     <label className="block">
       <span className="text-xs font-semibold text-gray-500 mb-1 block">{label}</span>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>
-        <div className="[&_.form-input]:pl-9">{children}</div>
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>
+        <div className="[&_.register-input]:pl-10">{children}</div>
       </div>
     </label>
   );
@@ -71,24 +72,68 @@ function Input({
   onChange,
   type = 'text',
   icon,
+  inputMode,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   icon?: React.ReactNode;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  maxLength?: number;
 }) {
   return (
     <label className="block">
       <span className="text-xs font-semibold text-gray-500 mb-1 block">{label}</span>
       <div className="relative">
-        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>}
+        {icon && <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>}
         <input
           type={type}
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={`form-input ${icon ? 'pl-9' : ''}`}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          className={`register-input w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm outline-none ${icon ? '' : ''}`}
+          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
         />
+      </div>
+    </label>
+  );
+}
+
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  visible,
+  onToggle,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-gray-500 mb-1 block">{label}</span>
+      <div className="relative">
+        <Lock size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="register-input w-full pl-10 pr-11 py-3.5 rounded-2xl text-sm outline-none"
+          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 active:text-gray-600"
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
       </div>
     </label>
   );
@@ -114,6 +159,8 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
   const [captcha, setCaptcha] = useState(generateCaptcha);
   const [captchaInput, setCaptchaInput] = useState('');
   const [error, setError] = useState('');
@@ -128,6 +175,32 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [showForgot, setShowForgot] = useState(false);
   const [registerOtp, setRegisterOtp] = useState<{ email: string; devOtp?: string } | null>(null);
   const [register, setRegister] = useState(emptyRegister);
+
+  useEffect(() => {
+    const pincode = register.pincode.trim();
+    if (pincode.length !== 6) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    lookupIndianPincode(pincode, controller.signal)
+      .then(result => {
+        if (cancelled || !result) return;
+        setRegister(current => ({
+          ...current,
+          city: result.city,
+          state: result.state,
+        }));
+      })
+      .catch(() => {
+        // Keep manual entry available if the lookup fails.
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [register.pincode]);
 
   const triggerShake = () => {
     setShake(true);
@@ -248,15 +321,15 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
         paddingTop: 'env(safe-area-inset-top, 0px)',
       }}
     >
-      <div className="relative flex flex-col items-center justify-center py-12 flex-shrink-0" style={{ background: 'linear-gradient(160deg, #0f1e3c 0%, #1a2d50 100%)' }}>
+      <div className="relative flex flex-col items-center justify-center py-12 flex-shrink-0 overflow-hidden" style={{ background: 'linear-gradient(160deg, #0f1e3c 0%, #1a2d50 100%)' }}>
         <motion.div
-          className="absolute w-64 h-64 rounded-full opacity-10"
+          className="absolute w-64 h-64 rounded-full opacity-10 pointer-events-none"
           style={{ background: '#8b1a1a', bottom: -60, right: -40 }}
           animate={{ scale: [1, 1.15, 1] }}
           transition={{ duration: 4, repeat: Infinity }}
         />
         <motion.div
-          className="absolute w-48 h-48 rounded-full opacity-10"
+          className="absolute w-48 h-48 rounded-full opacity-10 pointer-events-none"
           style={{ background: 'white', top: -30, left: -30 }}
           animate={{ scale: [1.1, 1, 1.1] }}
           transition={{ duration: 5, repeat: Infinity }}
@@ -426,9 +499,18 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                   />
                   <Input label="Mobile *" value={register.mobile} onChange={value => updateRegister('mobile', value)} icon={<UserCheck size={14} />} />
                   <Input label="Email *" value={register.email} onChange={value => updateRegister('email', value)} type="email" icon={<Mail size={14} />} />
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Pincode"
+                      value={register.pincode}
+                      onChange={value => updateRegister('pincode', value.replace(/\D/g, '').slice(0, 6))}
+                      icon={<Building2 size={14} />}
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                  </div>
                   <Input label="City" value={register.city} onChange={value => updateRegister('city', value)} icon={<Building2 size={14} />} />
                   <Input label="State" value={register.state} onChange={value => updateRegister('state', value)} icon={<Building2 size={14} />} />
-                  <Input label="Pincode" value={register.pincode} onChange={value => updateRegister('pincode', value)} icon={<Building2 size={14} />} />
                   {registerRole === 'employer' && (
                     <div className="sm:col-span-2">
                       <Input label="Company Name *" value={register.companyName} onChange={value => updateRegister('companyName', value)} icon={<Building2 size={14} />} />
@@ -437,8 +519,20 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input label="Password *" value={register.password} onChange={value => updateRegister('password', value)} type="password" icon={<Lock size={14} />} />
-                  <Input label="Confirm Password *" value={register.confirmPassword} onChange={value => updateRegister('confirmPassword', value)} type="password" icon={<Lock size={14} />} />
+                  <PasswordInput
+                    label="Password *"
+                    value={register.password}
+                    onChange={value => updateRegister('password', value)}
+                    visible={showRegisterPassword}
+                    onToggle={() => setShowRegisterPassword(current => !current)}
+                  />
+                  <PasswordInput
+                    label="Confirm Password *"
+                    value={register.confirmPassword}
+                    onChange={value => updateRegister('confirmPassword', value)}
+                    visible={showRegisterConfirmPassword}
+                    onToggle={() => setShowRegisterConfirmPassword(current => !current)}
+                  />
                 </div>
 
                 <AnimatePresence>

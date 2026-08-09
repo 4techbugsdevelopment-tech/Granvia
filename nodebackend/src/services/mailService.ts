@@ -67,7 +67,16 @@ async function recordEmailLog(
   report: MailSendReport,
 ): Promise<void> {
   try {
-    await (prisma as any).emailDeliveryLog.create({
+    const emailDeliveryLog = (prisma as any).emailDeliveryLog;
+    if (!emailDeliveryLog?.create) {
+      if (mailDebugLogging) {
+        // eslint-disable-next-line no-console
+        console.warn('[mail-log:skipped] emailDeliveryLog model unavailable in Prisma client');
+      }
+      return;
+    }
+
+    await emailDeliveryLog.create({
       data: {
         kind: audit.kind,
         status: report.error ? (report.configured ? 'error' : 'skipped') : 'sent',

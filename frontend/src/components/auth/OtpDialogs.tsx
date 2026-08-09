@@ -81,7 +81,7 @@ export function LoginOtpDialog({
   const [error, setError] = useState('');
 
   const submit = async () => {
-    if (otp.length < 4) return;
+    if (otp.length < 6) return;
     setBusy(true);
     setError('');
     try {
@@ -107,7 +107,7 @@ export function LoginOtpDialog({
           placeholder="••••••"
         />
         {error && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100">{error}</p>}
-        <button onClick={submit} disabled={busy || otp.length < 4} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
+        <button onClick={submit} disabled={busy || otp.length < 6} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
           {busy && <Loader2 size={15} className="animate-spin" />}
           {busy ? 'Verifying...' : 'Verify & sign in'}
         </button>
@@ -133,7 +133,7 @@ export function VerifyEmailDialog({
   const [message, setMessage] = useState('');
 
   const submit = async () => {
-    if (otp.length < 4) return;
+    if (otp.length < 6) return;
     setBusy(true);
     setError('');
     setMessage('');
@@ -173,7 +173,7 @@ export function VerifyEmailDialog({
         />
         {message && <p className="text-green-700 text-xs bg-green-50 px-3 py-2 rounded-lg border border-green-100">{message}</p>}
         {error && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100">{error}</p>}
-        <button onClick={submit} disabled={busy || otp.length < 4} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #166534, #15803d)' }}>
+        <button onClick={submit} disabled={busy || otp.length < 6} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #166534, #15803d)' }}>
           {busy && <Loader2 size={15} className="animate-spin" />}
           {busy ? 'Verifying...' : 'Verify email'}
         </button>
@@ -213,7 +213,7 @@ export function ForgotPasswordDialog({ initialEmail = '', onClose }: { initialEm
   };
 
   const reset = async () => {
-    if (otp.length < 4 || password.length < 8) {
+    if (otp.length < 6 || password.length < 8) {
       setError('Enter the code and a password of at least 8 characters.');
       return;
     }

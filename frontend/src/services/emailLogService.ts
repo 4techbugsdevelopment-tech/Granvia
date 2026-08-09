@@ -39,6 +39,7 @@ export interface EmailLogSummary {
 export interface EmailLogResponse {
   summary: EmailLogSummary;
   items: EmailLogRow[];
+  warning?: string;
 }
 
 export async function getEmailLogs(params?: {

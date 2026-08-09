@@ -141,6 +141,11 @@ export default function EmailLogs() {
 
       {!loading && !error && data && (
         <>
+          {data.warning && (
+            <Card className="mb-4 border border-amber-200 bg-amber-50">
+              <p className="text-sm text-amber-900">{data.warning}</p>
+            </Card>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="p-4"><div className="text-xs text-gray-400">Total</div><div className="text-2xl font-bold text-slate-900">{data.summary.total}</div></Card>
             <Card className="p-4"><div className="text-xs text-gray-400">Sent</div><div className="text-2xl font-bold text-green-700">{data.summary.sent}</div></Card>

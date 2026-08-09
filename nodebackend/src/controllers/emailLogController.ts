@@ -46,11 +46,37 @@ export async function index(req: Request, res: Response) {
     };
   }
 
-  const rows = await (prisma as any).emailDeliveryLog.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-  }) as EmailLogRow[];
+  let rows: EmailLogRow[] = [];
+  let warning: string | undefined;
+  const emailDeliveryLog = (prisma as any).emailDeliveryLog;
+
+  if (!emailDeliveryLog?.findMany) {
+    warning = 'The email logs model is not available in the running Prisma client yet.';
+    return res.json({
+      summary: { total: 0, sent: 0, skipped: 0, error: 0 },
+      items: [],
+      warning,
+    });
+  }
+
+  try {
+    rows = await emailDeliveryLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }) as EmailLogRow[];
+  } catch (err) {
+    const message = (err as Error)?.message ?? String(err);
+    const isMissingTable =
+      message.includes('email_delivery_logs') ||
+      message.includes('EmailDeliveryLog') ||
+      message.includes('Invalid object name') ||
+      message.includes('does not exist');
+    if (!isMissingTable) {
+      throw err;
+    }
+    warning = 'The email logs table has not been created in this database yet.';
+  }
 
   const filtered = q
     ? rows.filter((row) =>
@@ -70,5 +96,6 @@ export async function index(req: Request, res: Response) {
   return res.json({
     summary,
     items: snakeKeys(filtered),
+    warning,
   });
 }

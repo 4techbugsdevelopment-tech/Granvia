@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BadgeCheck, Briefcase, Building2, ClipboardList, Eye, EyeOff, HardHat, Lock, Mail, MapPin, Phone, Shield, User, UserCheck, Users, Wallet } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -7,6 +7,7 @@ import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
 import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
+import { lookupIndianPincode } from '../services/pincodeService';
 
 interface EmployerAuthProps {
   onLogin: () => void;
@@ -36,11 +37,50 @@ function validatePassword(password: string) {
   return password.length >= 8 && Boolean(password.match(/[A-Z]/)) && Boolean(password.match(/\d/));
 }
 
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  visible,
+  onToggle,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-gray-500 mb-1 block">{label}</span>
+      <div className="relative">
+        <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="register-input w-full pl-10 pr-11 py-3.5 rounded-2xl text-sm outline-none"
+          style={{ background: '#f7f8fa', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </label>
+  );
+}
+
 export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthProps) {
   const [mode, setMode] = useState<Mode>('login');
   const [identifier, setIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
   const [register, setRegister] = useState(initialRegister);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -49,6 +89,32 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
   const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const [verify, setVerify] = useState<{ email: string; devOtp?: string } | null>(null);
+
+  useEffect(() => {
+    const pincode = register.pincode.trim();
+    if (pincode.length !== 6) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    lookupIndianPincode(pincode, controller.signal)
+      .then(result => {
+        if (cancelled || !result) return;
+        setRegister(current => ({
+          ...current,
+          city: result.city,
+          state: result.state,
+        }));
+      })
+      .catch(() => {
+        // Keep the form usable if the external lookup fails.
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [register.pincode]);
 
   const updateRegister = (key: keyof typeof initialRegister, value: string, kind: EmployerFieldKind = 'text') => {
     setRegister(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
@@ -237,8 +303,20 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
                   <TextInput label="Company Address *" value={register.companyAddress} onChange={value => updateRegister('companyAddress', value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <TextInput label="Password *" type="password" value={register.password} onChange={value => updateRegister('password', value)} />
-                  <TextInput label="Confirm Password *" type="password" value={register.confirmPassword} onChange={value => updateRegister('confirmPassword', value)} />
+                  <PasswordInput
+                    label="Password *"
+                    value={register.password}
+                    onChange={value => updateRegister('password', value)}
+                    visible={showRegisterPassword}
+                    onToggle={() => setShowRegisterPassword(current => !current)}
+                  />
+                  <PasswordInput
+                    label="Confirm Password *"
+                    value={register.confirmPassword}
+                    onChange={value => updateRegister('confirmPassword', value)}
+                    visible={showRegisterConfirmPassword}
+                    onToggle={() => setShowRegisterConfirmPassword(current => !current)}
+                  />
                 </div>
                 <Message error={error} success={success} />
                 <SubmitButton label={submitting ? 'Submitting...' : 'Register Company'} disabled={submitting} />
@@ -299,15 +377,16 @@ function TextInput({ label, value, onChange, type = 'text', kind = 'text' }: { l
     <label className="block">
       <span className="text-xs font-semibold text-gray-500 mb-1 block">{label}</span>
       <div className="relative">
-        {label.includes('Person') && <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
-        {label.includes('Mobile') && <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />}
+        {label.includes('Person') && <User size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />}
+        {label.includes('Mobile') && <Phone size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />}
         <input
           type={type}
           value={value}
           onChange={e => onChange(e.target.value)}
           inputMode={getInputMode(kind)}
           maxLength={kind === 'mobile' ? 10 : kind === 'pincode' ? 6 : kind === 'gst' ? 15 : kind === 'pan' ? 10 : undefined}
-          className={`form-input ${label.includes('Person') || label.includes('Mobile') ? 'pl-9' : ''}`}
+          className={`register-input w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm outline-none ${label.includes('Person') || label.includes('Mobile') ? '' : ''}`}
+          style={{ background: '#f7f8fa', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
         />
       </div>
     </label>

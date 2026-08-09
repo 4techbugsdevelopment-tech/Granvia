@@ -381,7 +381,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                         </span>
                         {/* Glow effect on hover */}
                         <motion.div
-                          className="absolute inset-0 opacity-0"
+                          className="pointer-events-none absolute inset-0 opacity-0"
                           style={{ background: 'linear-gradient(135deg, rgba(139,26,26,0.3), rgba(139,26,26,0))' }}
                           whileHover={{ opacity: 1 }}
                           transition={{ duration: 0.3 }}
