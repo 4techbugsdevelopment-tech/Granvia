@@ -1,4 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import { prisma } from '../prisma';
 
 // SMTP mail service.
 // Supports both explicit SMTP_* and legacy MAIL_* env vars. SMTP_* wins when
@@ -13,6 +14,18 @@ type MailConfig = {
   fromName: string;
   secure: boolean;
   allowInvalidCerts: boolean;
+};
+
+const mailDebugLogging = /^(1|true|yes|on)$/i.test(process.env.EMAIL_DEBUG_LOGS ?? 'true');
+
+export type EmailAuditContext = {
+  kind: string;
+  sourceUrl?: string;
+  requestUrl?: string;
+  origin?: string;
+  referer?: string;
+  environment?: string;
+  details?: Record<string, unknown>;
 };
 
 export type MailSendReport = {
@@ -37,6 +50,62 @@ export type MailSendReport = {
     fromName: string;
   };
 };
+
+function jsonValue(value: unknown): string | null {
+  if (value == null) return null;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+async function recordEmailLog(
+  audit: EmailAuditContext,
+  to: string,
+  subject: string,
+  report: MailSendReport,
+): Promise<void> {
+  try {
+    await (prisma as any).emailDeliveryLog.create({
+      data: {
+        kind: audit.kind,
+        status: report.error ? (report.configured ? 'error' : 'skipped') : 'sent',
+        toEmail: to,
+        subject,
+        sourceUrl: audit.sourceUrl ?? null,
+        requestUrl: audit.requestUrl ?? null,
+        origin: audit.origin ?? null,
+        referer: audit.referer ?? null,
+        environment: audit.environment ?? process.env.NODE_ENV ?? 'unknown',
+        providerHost: report.provider?.host ?? null,
+        providerPort: report.provider?.port ?? null,
+        providerSecure: report.provider?.secure ?? null,
+        fromEmail: report.provider?.fromEmail ?? null,
+        fromName: report.provider?.fromName ?? null,
+        messageId: report.messageId ?? null,
+        response: report.response ?? null,
+        accepted: jsonValue(report.accepted),
+        rejected: jsonValue(report.rejected),
+        pending: jsonValue(report.pending),
+        envelopeFrom: report.envelope?.from ?? null,
+        envelopeTo: jsonValue(report.envelope?.to ?? null),
+        errorMessage: report.error ?? null,
+        details: jsonValue(audit.details ?? null),
+      },
+    });
+  } catch (err) {
+    if (mailDebugLogging) {
+      // eslint-disable-next-line no-console
+      console.error('[mail-log:error]', {
+        kind: audit.kind,
+        to,
+        subject,
+        error: (err as Error)?.message ?? String(err),
+      });
+    }
+  }
+}
 
 function firstEnv(...names: string[]): string | undefined {
   for (const name of names) {
@@ -102,8 +171,10 @@ if (mailConfig) {
 async function sendMailDetailed(
   to: string,
   subject: string,
-  html: string
+  html: string,
+  audit?: EmailAuditContext
 ): Promise<MailSendReport> {
+  const resolvedAudit: EmailAuditContext = audit ?? { kind: 'unknown' };
   if (!transporter || !mailConfig) {
     const report: MailSendReport = {
       configured: false,
@@ -111,8 +182,11 @@ async function sendMailDetailed(
       subject,
       error: 'SMTP/MAIL env vars are not fully configured.',
     };
-    // eslint-disable-next-line no-console
-    console.log(`[mail:skipped] to=${to} subject="${subject}"`, report.error);
+    if (mailDebugLogging) {
+      // eslint-disable-next-line no-console
+      console.warn(`[mail:skipped] to=${to} subject="${subject}"`, report.error);
+    }
+    await recordEmailLog(resolvedAudit, to, subject, report);
     return report;
   }
 
@@ -125,7 +199,7 @@ async function sendMailDetailed(
       html,
     });
 
-    return {
+    const report: MailSendReport = {
       configured: true,
       to,
       subject,
@@ -148,11 +222,25 @@ async function sendMailDetailed(
         fromName: mailConfig.fromName,
       },
     };
+    if (mailDebugLogging) {
+      // eslint-disable-next-line no-console
+      console.info('[mail:sent]', {
+        to: report.to,
+        subject: report.subject,
+        messageId: report.messageId,
+        response: report.response,
+        accepted: report.accepted,
+        rejected: report.rejected,
+        pending: report.pending,
+        envelope: report.envelope,
+        provider: report.provider,
+      });
+    }
+    await recordEmailLog(resolvedAudit, to, subject, report);
+    return report;
   } catch (err) {
     const message = (err as Error)?.message ?? 'Unknown SMTP error';
-    // eslint-disable-next-line no-console
-    console.error(`[mail:error] to=${to} subject="${subject}"`, message);
-    return {
+    const report: MailSendReport = {
       configured: true,
       to,
       subject,
@@ -165,11 +253,22 @@ async function sendMailDetailed(
         fromName: mailConfig.fromName,
       },
     };
+    if (mailDebugLogging) {
+      // eslint-disable-next-line no-console
+      console.error('[mail:error]', {
+        to: report.to,
+        subject: report.subject,
+        error: report.error,
+        provider: report.provider,
+      });
+    }
+    await recordEmailLog(resolvedAudit, to, subject, report);
+    return report;
   }
 }
 
-async function sendMail(to: string, subject: string, html: string): Promise<void> {
-  await sendMailDetailed(to, subject, html);
+async function sendMail(to: string, subject: string, html: string, audit?: EmailAuditContext): Promise<void> {
+  await sendMailDetailed(to, subject, html, audit);
 }
 
 const wrap = (title: string, body: string) =>
@@ -180,7 +279,7 @@ const wrap = (title: string, body: string) =>
 
 const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL?.trim() || 'admin@granvia.llc';
 
-export function sendAadhaarOtp(to: string, otp: string): Promise<void> {
+export function sendAadhaarOtp(to: string, otp: string, audit?: EmailAuditContext): Promise<void> {
   return sendMail(
     to,
     'Your Granvia Aadhaar Verification OTP',
@@ -189,7 +288,8 @@ export function sendAadhaarOtp(to: string, otp: string): Promise<void> {
       `<p>Your one-time verification code is:</p>
        <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
        <p>This code expires in 10 minutes.</p>`
-    )
+    ),
+    audit
   );
 }
 
@@ -217,7 +317,7 @@ const OTP_COPY: Record<string, { subject: string; title: string; intro: string }
 };
 
 /** Generic email OTP for signup verification, password reset, login 2FA and cash payment. */
-export function sendOtpEmail(to: string, otp: string, purpose: string): Promise<void> {
+export function sendOtpEmail(to: string, otp: string, purpose: string, audit?: EmailAuditContext): Promise<void> {
   const copy = OTP_COPY[purpose] ?? {
     subject: 'Your Granvia verification code',
     title: 'Verification code',
@@ -231,7 +331,8 @@ export function sendOtpEmail(to: string, otp: string, purpose: string): Promise<
       `<p>${copy.intro}</p>
        <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
        <p>This code expires in 10 minutes.</p>`
-    )
+    ),
+    audit
   );
 }
 
@@ -239,7 +340,8 @@ export function sendEmployerWelcome(
   to: string,
   name: string,
   temporaryPassword: string | null,
-  loginUrl: string
+  loginUrl: string,
+  audit?: EmailAuditContext
 ): Promise<void> {
   const creds = temporaryPassword
     ? `<p>You can sign in with:</p>
@@ -253,7 +355,8 @@ export function sendEmployerWelcome(
       `Welcome, ${name}`,
       `<p>Your employer account is ready.</p>${creds}
        <p><a href="${loginUrl}" style="color:#166534">Go to your dashboard</a></p>`
-    )
+    ),
+    audit
   );
 }
 
@@ -262,7 +365,7 @@ export function sendNewUserRegistrationAlert(input: {
   name: string;
   email: string;
   mobile: string;
-}): Promise<void> {
+}, audit?: EmailAuditContext): Promise<void> {
   const { role, name, email, mobile } = input;
   return sendMail(
     adminNotificationEmail,
@@ -274,11 +377,12 @@ export function sendNewUserRegistrationAlert(input: {
        <strong>Email:</strong> ${email}<br/>
        <strong>Mobile:</strong> ${mobile}</p>
        <p>Please review the account and verify Aadhaar manually.</p>`
-    )
+    ),
+    audit
   );
 }
 
-export function sendVerificationEmail(to: string, name: string, verifyUrl: string): Promise<void> {
+export function sendVerificationEmail(to: string, name: string, verifyUrl: string, audit?: EmailAuditContext): Promise<void> {
   return sendMail(
     to,
     'Verify your Granvia email address',
@@ -287,11 +391,12 @@ export function sendVerificationEmail(to: string, name: string, verifyUrl: strin
       `<p>Please confirm your email address to activate your Granvia account.</p>
        <p><a href="${verifyUrl}" style="display:inline-block;background:#166534;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Verify email</a></p>
        <p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't create an account, ignore this email.</p>`
-    )
+    ),
+    audit
   );
 }
 
-export function sendSmtpTestEmail(to: string): Promise<MailSendReport> {
+export function sendSmtpTestEmail(to: string, audit?: EmailAuditContext): Promise<MailSendReport> {
   return sendMailDetailed(
     to,
     'Granvia SMTP test email',
@@ -300,6 +405,7 @@ export function sendSmtpTestEmail(to: string): Promise<MailSendReport> {
       `<p>This is a test email sent from the Granvia backend.</p>
        <p>If you received this message, SMTP is working for this account.</p>
        <p><strong>Time:</strong> ${new Date().toISOString()}</p>`
-    )
+    ),
+    audit
   );
 }

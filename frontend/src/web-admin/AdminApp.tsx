@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Menu } from 'lucide-react';
 import Sidebar, { AdminPage } from './Sidebar';
@@ -11,6 +11,7 @@ import AttendanceAdmin from './pages/AttendanceAdmin';
 import HiringWorkflow from './pages/HiringWorkflow';
 import WalletPayments from './pages/WalletPayments';
 import Reports from './pages/Reports';
+import EmailLogs from './pages/EmailLogs';
 import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
@@ -30,11 +31,32 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   hiring: 'Hiring Workflow',
   wallet: 'Wallet & Payments',
   reports: 'Reports',
+  'email-logs': 'Email Logs',
   settings: 'Settings',
 };
 
+function getAdminPageFromPath(pathname: string): AdminPage {
+  if (pathname === '/admin/email-logs' || pathname === '/admin/email-logs/') return 'email-logs';
+  if (pathname === '/admin/guards/add' || pathname === '/admin/add-guard') return 'add-guard';
+  if (pathname === '/admin/guards') return 'guards';
+  if (pathname === '/admin/employers') return 'employers';
+  if (pathname === '/admin/jobs') return 'jobs';
+  if (pathname === '/admin/attendance') return 'attendance';
+  if (pathname === '/admin/hiring') return 'hiring';
+  if (pathname === '/admin/wallet') return 'wallet';
+  if (pathname === '/admin/reports') return 'reports';
+  if (pathname === '/admin/settings') return 'settings';
+  return 'dashboard';
+}
+
+function getAdminPath(page: AdminPage): string {
+  if (page === 'email-logs') return '/admin/email-logs';
+  if (page === 'guards' || page === 'add-guard') return page === 'guards' ? '/admin/guards' : '/admin/guards/add';
+  return page === 'dashboard' ? '/admin' : `/admin/${page}`;
+}
+
 export default function AdminApp({ onLogout }: AdminAppProps) {
-  const [page, setPage] = useState<AdminPage>('dashboard');
+  const [page, setPage] = useState<AdminPage>(() => getAdminPageFromPath(window.location.pathname));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { profile } = useAuth();
 
@@ -42,29 +64,51 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
     signOut().finally(onLogout);
   };
 
+  const navigate = (nextPage: AdminPage) => {
+    setPage(nextPage);
+    const nextPath = getAdminPath(nextPage);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+    }
+  };
+
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard onNavigate={setPage} />;
-      case 'guards': return <GuardList onAddGuard={() => setPage('add-guard')} />;
-      case 'add-guard': return <AddGuard onSuccess={() => setPage('guards')} />;
+      case 'dashboard': return <Dashboard onNavigate={navigate} />;
+      case 'guards': return <GuardList onAddGuard={() => navigate('add-guard')} />;
+      case 'add-guard': return <AddGuard onSuccess={() => navigate('guards')} />;
       case 'employers': return <EmployerManagement />;
       case 'jobs': return <JobApprovals />;
       case 'attendance': return <AttendanceAdmin />;
       case 'hiring': return <HiringWorkflow />;
       case 'wallet': return <WalletPayments />;
       case 'reports': return <Reports />;
+      case 'email-logs': return <EmailLogs />;
       case 'settings': return <SettingsPage />;
       default: return <PlaceholderPage page={page} />;
     }
   };
 
+  useEffect(() => {
+    const syncPage = () => setPage(getAdminPageFromPath(window.location.pathname));
+    window.addEventListener('popstate', syncPage);
+    return () => window.removeEventListener('popstate', syncPage);
+  }, []);
+
+  useEffect(() => {
+    const nextPath = getAdminPath(page);
+    if (window.location.pathname !== nextPath) {
+      window.history.replaceState({}, '', nextPath);
+    }
+  }, [page]);
+
   return (
     <div className="min-h-screen flex" style={{ background: '#f1f5f9' }}>
       <Sidebar
         currentPage={page}
-        onNavigate={setPage}
+        onNavigate={navigate}
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}

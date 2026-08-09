@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Briefcase, Clock, GitBranch,
-  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield
+  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 
@@ -16,6 +16,7 @@ export type AdminPage =
   | 'hiring'
   | 'wallet'
   | 'reports'
+  | 'email-logs'
   | 'settings';
 
 interface SidebarProps {
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
   { id: 'hiring', label: 'Hiring Workflow', icon: <GitBranch size={18} /> },
   { id: 'wallet', label: 'Wallet & Payments', icon: <Wallet size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
+  { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 

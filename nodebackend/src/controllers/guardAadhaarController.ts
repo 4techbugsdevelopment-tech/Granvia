@@ -8,6 +8,18 @@ import { serializeGuardProfile } from '../serializers/userSerializer';
 import { sendAadhaarOtp } from '../services/mailService';
 import { mailConfigured } from '../services/mailService';
 
+function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
+  return {
+    kind,
+    sourceUrl: req.get('referer')?.trim() || req.get('origin')?.trim() || undefined,
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    origin: req.get('origin')?.trim() || undefined,
+    referer: req.get('referer')?.trim() || undefined,
+    environment: process.env.NODE_ENV ?? 'unknown',
+    details,
+  };
+}
+
 // Interim email-OTP flow.
 // OTP delivery isn't wired yet, so sendOtp returns dev_otp in development.
 // Swap in the client Aadhaar API later without changing routes.
@@ -102,7 +114,7 @@ export async function sendOtp(req: Request, res: Response) {
     data: { aadhaarStatus: 'otp_sent' },
   });
 
-  await sendAadhaarOtp(user.email, otp);
+  await sendAadhaarOtp(user.email, otp, auditFromRequest(req, 'guard_aadhaar_otp', { guard_user_id: user.id }));
 
   return res.json({
     sent_to: user.email,

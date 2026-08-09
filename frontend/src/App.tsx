@@ -323,6 +323,12 @@ function AppShell() {
         } else if (authenticatedMode === 'subadmin') {
           setSubAdminState('app');
         }
+        if (
+          authenticatedMode === 'admin' &&
+          window.location.pathname.startsWith('/admin')
+        ) {
+          return;
+        }
         if (window.location.pathname !== getPathForMode(authenticatedMode)) {
           setPathForMode(authenticatedMode, true);
         }

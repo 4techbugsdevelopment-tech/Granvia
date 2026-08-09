@@ -7,6 +7,18 @@ import { hashPassword, verifyPassword } from '../utils/password';
 import { snakeKeys } from '../utils/serialize';
 import { sendAadhaarOtp, mailConfigured } from '../services/mailService';
 
+function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
+  return {
+    kind,
+    sourceUrl: req.get('referer')?.trim() || req.get('origin')?.trim() || undefined,
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    origin: req.get('origin')?.trim() || undefined,
+    referer: req.get('referer')?.trim() || undefined,
+    environment: process.env.NODE_ENV ?? 'unknown',
+    details,
+  };
+}
+
 // Port of App\Http\Controllers\AadhaarVerificationController (employer email-OTP).
 
 const aadhaarSchema = z.object({
@@ -97,7 +109,7 @@ export async function sendOtp(req: Request, res: Response) {
     },
   });
 
-  await sendAadhaarOtp(user.email, otp);
+  await sendAadhaarOtp(user.email, otp, auditFromRequest(req, 'employer_aadhaar_otp', { employer_user_id: user.id }));
 
   return res.json({
     sent_to: user.email,

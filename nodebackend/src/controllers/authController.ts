@@ -12,6 +12,18 @@ import { meResponse } from '../serializers/userSerializer';
 
 const frontend = () => env.frontendUrl.replace(/\/$/, '');
 
+function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
+  return {
+    kind,
+    sourceUrl: req.get('referer')?.trim() || req.get('origin')?.trim() || undefined,
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    origin: req.get('origin')?.trim() || undefined,
+    referer: req.get('referer')?.trim() || undefined,
+    environment: process.env.NODE_ENV ?? 'unknown',
+    details,
+  };
+}
+
 const ROLES = ['super_admin', 'employer', 'guard', 'sub_admin', 'sales_executive'] as const;
 
 // --- validation (mirrors App\Http\Requests\Auth\*) -------------------------
@@ -163,13 +175,19 @@ export async function registerEmployer(req: Request, res: Response) {
     throw err;
   }
 
-  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+  const otpAudit = auditFromRequest(req, 'signup_verification_employer', {
+    registration_role: 'employer',
+  });
+  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id, audit: otpAudit });
+  const alertAudit = auditFromRequest(req, 'admin_registration_alert_employer', {
+    registration_role: 'employer',
+  });
   await sendNewUserRegistrationAlert({
     role: 'employer',
     name: String(user.fullName ?? user.email ?? 'New user'),
     email: String(user.email ?? ''),
     mobile: String(user.mobile ?? ''),
-  });
+  }, alertAudit);
 
   return res.status(201).json({
     message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
@@ -219,13 +237,19 @@ export async function registerGuard(req: Request, res: Response) {
     throw err;
   }
 
-  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+  const otpAudit = auditFromRequest(req, 'signup_verification_guard', {
+    registration_role: 'guard',
+  });
+  const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id, audit: otpAudit });
+  const alertAudit = auditFromRequest(req, 'admin_registration_alert_guard', {
+    registration_role: 'guard',
+  });
   await sendNewUserRegistrationAlert({
     role: 'guard',
     name: String(user.fullName ?? user.email ?? 'New user'),
     email: String(user.email ?? ''),
     mobile: String(user.mobile ?? ''),
-  });
+  }, alertAudit);
 
   return res.status(201).json({
     message: 'Registration submitted. Enter the verification code sent to your email to activate your account.',
@@ -247,7 +271,7 @@ export async function verifyEmailOtp(req: Request, res: Response) {
   if (!user.emailVerifiedAt) {
     await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
     if (user.role === 'employer') {
-      await sendEmployerWelcome(user.email, user.fullName, null, `${frontend()}/employer`);
+      await sendEmployerWelcome(user.email, user.fullName, null, `${frontend()}/employer`, auditFromRequest(req, 'email_verification_employer', { user_id: user.id }));
     }
   }
 
@@ -261,7 +285,12 @@ export async function resendEmailOtp(req: Request, res: Response) {
   if (email) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user && !user.emailVerifiedAt) {
-      const otp = await issueOtp({ email: user.email, purpose: 'signup_verification', userId: user.id });
+      const otp = await issueOtp({
+        email: user.email,
+        purpose: 'signup_verification',
+        userId: user.id,
+        audit: auditFromRequest(req, 'signup_verification_resend', { user_id: user.id }),
+      });
       dev_otp = otp.dev_otp;
     }
   }
@@ -296,7 +325,12 @@ export async function login(req: Request, res: Response) {
 
   // Second factor: issue a login OTP and defer the token until it is verified.
   if (env.loginOtpEnabled) {
-    const otp = await issueOtp({ email: user.email, purpose: 'login_2fa', userId: user.id });
+    const otp = await issueOtp({
+      email: user.email,
+      purpose: 'login_2fa',
+      userId: user.id,
+      audit: auditFromRequest(req, 'login_2fa', { user_id: user.id }),
+    });
     return res.json({ requires_otp: true, email: user.email, ...(otp.dev_otp ? { dev_otp: otp.dev_otp } : {}) });
   }
 
@@ -345,7 +379,12 @@ export async function requestPasswordOtp(req: Request, res: Response) {
   if (email) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user) {
-      const otp = await issueOtp({ email: user.email, purpose: 'password_reset', userId: user.id });
+      const otp = await issueOtp({
+        email: user.email,
+        purpose: 'password_reset',
+        userId: user.id,
+        audit: auditFromRequest(req, 'password_reset', { user_id: user.id }),
+      });
       dev_otp = otp.dev_otp;
     }
   }
@@ -378,7 +417,7 @@ export async function resetPassword(req: Request, res: Response) {
 export async function testEmail(req: Request, res: Response) {
   const schema = z.object({ email: z.string().email() });
   const { email } = schema.parse(req.body);
-  const report = await sendSmtpTestEmail(email.trim().toLowerCase());
+  const report = await sendSmtpTestEmail(email.trim().toLowerCase(), auditFromRequest(req, 'smtp_test', { target_email: email.trim().toLowerCase() }));
 
   return res.status(report.error ? 502 : 200).json({
     ok: !report.error,
@@ -409,7 +448,7 @@ export async function resendVerification(req: Request, res: Response) {
   if (email) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user && !user.emailVerifiedAt) {
-      await sendVerificationEmail(user.email, user.fullName, signedVerifyUrl(user.id, emailHash(user.email)));
+      await sendVerificationEmail(user.email, user.fullName, signedVerifyUrl(user.id, emailHash(user.email)), auditFromRequest(req, 'email_verification', { user_id: user.id }));
     }
   }
   // Do not reveal whether the account exists.
@@ -434,7 +473,7 @@ export async function verifyEmail(req: Request, res: Response) {
   if (!user.emailVerifiedAt) {
     await prisma.user.update({ where: { id }, data: { emailVerifiedAt: new Date() } });
     if (user.role === 'employer') {
-      await sendEmployerWelcome(user.email, user.fullName, null, `${frontend()}/employer`);
+      await sendEmployerWelcome(user.email, user.fullName, null, `${frontend()}/employer`, auditFromRequest(req, 'email_verification_employer', { user_id: user.id }));
     }
   }
 

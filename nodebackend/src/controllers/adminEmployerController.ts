@@ -29,6 +29,18 @@ const employerSchema = z.object({
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
 
+function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
+  return {
+    kind,
+    sourceUrl: req.get('referer')?.trim() || req.get('origin')?.trim() || undefined,
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    origin: req.get('origin')?.trim() || undefined,
+    referer: req.get('referer')?.trim() || undefined,
+    environment: process.env.NODE_ENV ?? 'unknown',
+    details,
+  };
+}
+
 async function assertUnique(email?: string, mobile?: string, ignoreId?: string) {
   if (email) {
     const e = await prisma.user.findFirst({ where: { email, NOT: ignoreId ? { id: ignoreId } : undefined } });
@@ -128,7 +140,8 @@ export async function store(req: Request, res: Response) {
     user.email,
     data.contact_person_name,
     tempPassword,
-    `${env.frontendUrl.replace(/\/$/, '')}/employer`
+    `${env.frontendUrl.replace(/\/$/, '')}/employer`,
+    auditFromRequest(req, 'admin_employer_welcome', { employer_user_id: user.id })
   );
 
   const withProfile = await prisma.user.findUnique({ where: { id: user.id }, include: { employerProfile: true } });

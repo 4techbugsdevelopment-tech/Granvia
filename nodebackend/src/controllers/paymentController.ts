@@ -6,6 +6,18 @@ import { attachGuardProfiles } from '../utils/enrich';
 import { HttpError } from '../utils/http';
 import { issueOtp, verifyOtp } from '../services/otpService';
 
+function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
+  return {
+    kind,
+    sourceUrl: req.get('referer')?.trim() || req.get('origin')?.trim() || undefined,
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+    origin: req.get('origin')?.trim() || undefined,
+    referer: req.get('referer')?.trim() || undefined,
+    environment: process.env.NODE_ENV ?? 'unknown',
+    details,
+  };
+}
+
 // Port of App\Http\Controllers\PaymentController.
 
 const createSchema = z.object({
@@ -73,6 +85,10 @@ export async function requestCashOtp(req: Request, res: Response) {
     purpose: 'cash_payment',
     userId: guard.id,
     referenceId: payment.id,
+    audit: auditFromRequest(req, 'cash_payment_otp', {
+      payment_id: payment.id,
+      guard_user_id: guard.id,
+    }),
   });
 
   await prisma.payment.update({

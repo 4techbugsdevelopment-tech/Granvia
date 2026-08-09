@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { HttpError } from '../utils/http';
+import type { EmailAuditContext } from './mailService';
 import { sendOtpEmail, mailConfigured } from './mailService';
 
 // Reusable email-OTP core shared by signup verification, password reset,
@@ -28,6 +29,7 @@ export async function issueOtp(params: {
   purpose: OtpPurpose;
   userId?: string | null;
   referenceId?: string | null;
+  audit?: EmailAuditContext;
 }): Promise<{ id: string; dev_otp?: string }> {
   const email = params.email.trim().toLowerCase();
   const otp = sixDigit();
@@ -49,7 +51,7 @@ export async function issueOtp(params: {
     },
   });
 
-  await sendOtpEmail(email, otp, params.purpose);
+  await sendOtpEmail(email, otp, params.purpose, params.audit);
 
   return { id: record.id, ...(mailConfigured ? {} : { dev_otp: otp }) };
 }
