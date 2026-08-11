@@ -10,6 +10,7 @@ import * as report from '../controllers/reportController';
 import * as adminReport from '../controllers/adminReportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
 import * as emailLog from '../controllers/emailLogController';
+import * as roles from '../controllers/roleController';
 
 const router = Router();
 
@@ -28,6 +29,11 @@ router.get('/admin/reports/analytics', asyncHandler(adminReport.analytics));
 router.get('/admin/attendance', asyncHandler(adminReport.attendance));
 router.get('/admin/hiring', asyncHandler(adminReport.hiring));
 router.get('/admin/email-logs', asyncHandler(emailLog.index));
+
+router.get('/admin/roles', asyncHandler(roles.index));
+router.post('/admin/roles', asyncHandler(roles.store));
+router.patch('/admin/roles/:role', asyncHandler(roles.update));
+router.delete('/admin/roles/:role', asyncHandler(roles.destroy));
 
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs', asyncHandler(job.all));

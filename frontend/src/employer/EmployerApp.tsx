@@ -4,6 +4,7 @@ import {
   BarChart3, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
   Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, XCircle,
+  UsersRound,
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
@@ -30,6 +31,7 @@ import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import CashPaymentPage from './CashPaymentPage';
+import TeamPage from './TeamPage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ interface EmployerInfo {
 }
 
 type EmployerPage =
-  | 'dashboard' | 'profile' | 'aadhaar' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
+  | 'dashboard' | 'profile' | 'aadhaar' | 'team' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
   | 'shortlisted' | 'selected' | 'available-guards' | 'interviews' | 'agreements' | 'attendance'
   | 'payments' | 'cash-payments' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
 
@@ -58,6 +60,7 @@ type EmployerPage =
 const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard',   label: 'Dashboard',                icon: <LayoutDashboard size={18} /> },
   { id: 'profile',     label: 'Profile',                  icon: <UserCheck size={18} /> },
+  { id: 'team',        label: 'Team Management',          icon: <UsersRound size={18} />,    master: true },
   { id: 'companies',   label: 'Companies',                icon: <Building2 size={18} />,     master: true },
   { id: 'documents',   label: 'Company Documents',        icon: <FileText size={18} />,      master: true },
   { id: 'sites',       label: 'Sites / Locations',        icon: <MapPin size={18} />,        master: true },
@@ -133,11 +136,11 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
 
   const visibleNavItems = aadhaarVerified
     ? (companies.length === 0
-        ? navItems.filter(item => ['dashboard', 'companies', 'profile'].includes(item.id))
+        ? navItems.filter(item => ['dashboard', 'companies', 'profile', 'team'].includes(item.id))
         : navItems)
-    : navItems.filter(item => item.id === 'profile' || item.id === 'aadhaar');
+    : navItems.filter(item => item.id === 'profile' || item.id === 'aadhaar' || item.id === 'team');
 
-  const currentPage = page === 'dashboard' || aadhaarVerified || page === 'profile' || page === 'aadhaar'
+  const currentPage = page === 'dashboard' || aadhaarVerified || page === 'profile' || page === 'aadhaar' || page === 'team'
     ? page
     : 'aadhaar';
 
@@ -153,6 +156,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'dashboard':   return <EmployerDashboard employer={employer} company={activeCompany} companies={companies} key={refresh} onNavigate={setPage} />;
       case 'profile':     return <EmployerProfile employer={employer} activeCompany={activeCompany} key={refresh} onChanged={reload} />;
       case 'aadhaar':     return <EmailOtpAadhaarPage key={refresh} onChanged={reload} onVerified={() => { reload(); setPage('dashboard'); }} />;
+      case 'team':        return <TeamPage key={refresh} />;
       case 'companies':   return <CompaniesPage employer={employer} activeCompanyId={activeCompany?.id ?? null} onSwitch={switchCompany} key={refresh} onChanged={reload} />;
       case 'documents':   return aadhaarVerified && activeCompany ? <CompanyDocumentsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'sites':       return aadhaarVerified && activeCompany ? <SitesPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;

@@ -6,6 +6,7 @@ import * as job from '../controllers/jobController';
 import * as profile from '../controllers/profileController';
 import * as notification from '../controllers/notificationController';
 import * as support from '../controllers/supportTicketController';
+import * as roles from '../controllers/roleController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -26,6 +27,7 @@ router.get('/me/employer-profile', asyncHandler(profile.showEmployerProfile));
 router.patch('/me/employer-profile', asyncHandler(profile.updateEmployerProfile));
 router.get('/me/guard-profile', asyncHandler(profile.showGuardProfile));
 router.patch('/me/guard-profile', asyncHandler(profile.updateGuardProfile));
+router.get('/me/roles', asyncHandler(roles.active));
 
 router.get('/me/notifications', asyncHandler(notification.index));
 router.patch('/me/notifications/:notification/read', asyncHandler(notification.markRead));

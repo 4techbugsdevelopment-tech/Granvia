@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
-import { snakeKeys, serializeOut, toPrismaData } from '../utils/serialize';
+import { parseJsonField, snakeKeys, serializeOut, toPrismaData } from '../utils/serialize';
 import { urlFor } from '../utils/fileStorage';
 
 // Port of App\Http\Controllers\SubAdminController (role: sub_admin).
@@ -23,6 +23,20 @@ async function guardIds(subAdminId: string): Promise<string[]> {
 }
 
 const parseJson = (v: string | null): unknown[] => (v ? (JSON.parse(v) as unknown[]) : []);
+
+async function resolveRole(roleId?: string | null, roleName?: string | null) {
+  if (roleId) {
+    const row = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!row || row.status !== 'active') throw new HttpError(422, 'The selected role is not available.');
+    return row;
+  }
+
+  const name = String(roleName ?? '').trim();
+  if (!name) throw new HttpError(422, 'The selected role is required.');
+  const row = await prisma.role.findFirst({ where: { name, status: 'active' } });
+  if (!row) throw new HttpError(422, 'The selected role is not available.');
+  return row;
+}
 
 /** GET /subadmin/reports/counts */
 export async function counts(req: Request, res: Response) {
@@ -97,29 +111,60 @@ export async function updateCompany(req: Request, res: Response) {
 
 const staffSchema = z.object({
   name: z.string().min(2),
-  role: z.string(),
+  role_id: z.string().uuid().nullish(),
+  role: z.string().min(2).nullish(),
   email: z.string().email().nullish(),
   mobile: z.string().nullish(),
   status: z.enum(['Active', 'Inactive']).nullish(),
-  permissions: z.array(z.string()).nullish(),
 });
+
+function permissionList(row: Record<string, any>) {
+  const parsed = parseJsonField(row.roleMaster?.permissions ?? row.permissions ?? '[]');
+  return Array.isArray(parsed) ? parsed : [];
+}
 
 /** GET /subadmin/staff */
 export async function staff(req: Request, res: Response) {
   const rows = await prisma.staffMember.findMany({
     where: { subAdminUserId: req.user!.id },
+    include: { roleMaster: true },
     orderBy: { createdAt: 'desc' },
   });
-  return res.json(serializeOut(rows, ['permissions']));
+  return res.json(
+    serializeOut(
+      rows.map((row) => ({
+        ...row,
+        role: row.roleMaster?.name ?? row.role,
+        role_id: row.roleId ?? row.roleMaster?.id ?? null,
+        permissions: permissionList(row),
+      }))
+    )
+  );
 }
 
 /** POST /subadmin/staff */
 export async function storeStaff(req: Request, res: Response) {
   const data = staffSchema.parse(req.body);
+  const role = await resolveRole(data.role_id, data.role);
   const created = await prisma.staffMember.create({
-    data: { ...toPrismaData(data, ['permissions']), subAdminUserId: req.user!.id } as never,
+    data: {
+      ...toPrismaData(data),
+      role: role.name,
+      roleId: role.id,
+      subAdminUserId: req.user!.id,
+    } as never,
   });
-  return res.status(201).json(serializeOut(created, ['permissions']));
+  const withRole = await prisma.staffMember.findUnique({ where: { id: created.id }, include: { roleMaster: true } });
+  return res.status(201).json(
+    serializeOut(
+      {
+        ...withRole,
+        role: withRole?.roleMaster?.name ?? withRole?.role,
+        role_id: withRole?.roleId ?? withRole?.roleMaster?.id ?? null,
+        permissions: permissionList(withRole as unknown as Record<string, any>),
+      },
+    )
+  );
 }
 
 /** PATCH /subadmin/staff/:staff */
@@ -129,11 +174,25 @@ export async function updateStaff(req: Request, res: Response) {
   if (member.subAdminUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = staffSchema.partial().parse(req.body);
+  const role = data.role_id || data.role ? await resolveRole(data.role_id ?? null, data.role ?? null) : null;
   const updated = await prisma.staffMember.update({
     where: { id: member.id },
-    data: toPrismaData(data, ['permissions']) as never,
+    data: {
+      ...toPrismaData(data),
+      ...(role ? { role: role.name, roleId: role.id } : {}),
+    } as never,
   });
-  return res.json(serializeOut(updated, ['permissions']));
+  const withRole = await prisma.staffMember.findUnique({ where: { id: updated.id }, include: { roleMaster: true } });
+  return res.json(
+    serializeOut(
+      {
+        ...withRole,
+        role: withRole?.roleMaster?.name ?? withRole?.role,
+        role_id: withRole?.roleId ?? withRole?.roleMaster?.id ?? null,
+        permissions: permissionList(withRole as unknown as Record<string, any>),
+      },
+    )
+  );
 }
 
 /** DELETE /subadmin/staff/:staff */

@@ -17,6 +17,7 @@ export type AdminPage =
   | 'wallet'
   | 'reports'
   | 'email-logs'
+  | 'roles'
   | 'settings';
 
 interface SidebarProps {
@@ -51,6 +52,7 @@ const navItems: NavItem[] = [
   { id: 'wallet', label: 'Wallet & Payments', icon: <Wallet size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
+  { id: 'roles', label: 'Role Master', icon: <Shield size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 

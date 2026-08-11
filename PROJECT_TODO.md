@@ -7,6 +7,22 @@ Ref docs: `PROJECT_CHANGES.md` (SRS audit), `PROJECT_PROGRESS.md` (status snapsh
 
 ---
 
+## Latest completed work
+
+### 2026-08-11 - Role master and module permissions
+- â˜‘ Added super-admin-only Role Master CRUD.
+- â˜‘ Roles now store module-level permissions.
+- â˜‘ Employers and subadmins now select from super-admin-created roles only.
+- â˜‘ Staff screens no longer edit free-form permissions.
+- â˜‘ Employer team management now supports staff and sub-admin CRUD with role inheritance.
+- â˜‘ Prisma 7 config migration completed and backend/frontend builds pass.
+
+### 2026-08-11 - Next steps for tomorrow
+- â˜ Add route and menu enforcement so pages and APIs are hidden or blocked based on role permissions.
+- â˜ Add a reusable permission helper in backend middleware and frontend navigation.
+- â˜ Decide whether the module list in Role Master should stay broad or be split into smaller groups.
+- â˜ Review employer and subadmin UX so inherited role permissions are displayed consistently everywhere.
+
 ## 0. Locked-in decisions (from requirements Q&A)
 
 - **Aadhaar** → no real API. Mock: enter 12-digit number → **instant approve**.

@@ -19,6 +19,7 @@ import * as wallet from '../controllers/walletController';
 import * as aadhaar from '../controllers/employerAadhaarController';
 import * as report from '../controllers/reportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
+import * as team from '../controllers/employerTeamController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -46,6 +47,16 @@ router.delete('/employer/jobs/:job', asyncHandler(job.destroy));
 
 router.get('/employer/applications', asyncHandler(application.employerIndex));
 router.patch('/employer/applications/:application/status', asyncHandler(application.updateStatus));
+
+router.get('/employer/staff', asyncHandler(team.listStaff));
+router.post('/employer/staff', asyncHandler(team.storeStaff));
+router.patch('/employer/staff/:staff', asyncHandler(team.updateStaff));
+router.delete('/employer/staff/:staff', asyncHandler(team.destroyStaff));
+
+router.get('/employer/subadmins', asyncHandler(team.listSubAdmins));
+router.post('/employer/subadmins', asyncHandler(team.storeSubAdmin));
+router.patch('/employer/subadmins/:subAdmin', asyncHandler(team.updateSubAdmin));
+router.delete('/employer/subadmins/:subAdmin', asyncHandler(team.destroySubAdmin));
 
 router.patch('/employer/associates/:guard/aadhaar', asyncHandler(aadhaarManual.employerDeclareAssociate));
 

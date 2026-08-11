@@ -13,7 +13,6 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -36,10 +35,28 @@ model User {
 
   employerProfile EmployerProfile?
   guardProfile    GuardProfile?
+  subAdminProfile SubAdminProfile?
   employerWallet  EmployerWallet?
 
   @@index([role])
   @@map("users")
+}
+
+model Role {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  code            String   @unique @db.NVarChar(120)
+  name            String   @unique @db.NVarChar(150)
+  description     String?  @db.NVarChar(Max)
+  permissions     String?  @db.NVarChar(Max)
+  status          String   @default("active")
+  createdByUserId String? @map("created_by_user_id") @db.NVarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  staffMembers    StaffMember[]
+
+  @@index([status])
+  @@map("roles")
 }
 
 model PasswordResetToken {
@@ -566,24 +583,29 @@ model GuardAadhaarVerification {
 }
 
 model SubAdminProfile {
-  id             String   @id @default(uuid()) @db.NVarChar(36)
-  userId         String   @map("user_id") @db.NVarChar(36)
-  branchName     String   @map("branch_name")
-  registrationNo String?  @map("registration_no")
-  gstNumber      String?  @map("gst_number")
-  address        String?
-  contactEmail   String?  @map("contact_email")
-  phone          String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.NVarChar(36)
+  userId            String   @unique @map("user_id") @db.NVarChar(36)
+  employerUserId    String?  @map("employer_user_id") @db.NVarChar(36)
+  branchName        String   @map("branch_name")
+  registrationNo    String?  @map("registration_no")
+  gstNumber         String?  @map("gst_number")
+  address           String?
+  contactEmail      String?  @map("contact_email")
+  phone             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([employerUserId])
   @@map("sub_admin_profiles")
 }
 
 model StaffMember {
   id             String   @id @default(uuid()) @db.NVarChar(36)
   subAdminUserId String   @map("sub_admin_user_id") @db.NVarChar(36)
+  roleId         String?  @map("role_id") @db.NVarChar(36)
   name           String
   role           String
   email          String?
@@ -593,7 +615,10 @@ model StaffMember {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
+  roleMaster    Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
   @@index([subAdminUserId])
+  @@index([roleId])
   @@map("staff_members")
 }
 

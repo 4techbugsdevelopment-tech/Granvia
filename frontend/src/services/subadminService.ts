@@ -32,6 +32,7 @@ export interface StaffMember {
   id: string;
   name: string;
   role: string;
+  role_id: string | null;
   email: string | null;
   mobile: string | null;
   status: 'Active' | 'Inactive';
