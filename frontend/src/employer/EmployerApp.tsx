@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart3, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
-  Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, XCircle,
+  Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle,
   UsersRound,
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -27,6 +27,7 @@ import {
 import { listCompanyDocuments, createDocumentRecord } from '../services/documentService';
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
+import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
 import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
@@ -327,22 +328,30 @@ function Td({ children }: { children: React.ReactNode }) {
   return <td className="px-4 py-3 text-sm text-gray-700 align-top">{children}</td>;
 }
 
-function Input({ label, value, onChange, type = 'text', className = '' }: { label: string; value: string; onChange: (v: string) => void; type?: string; className?: string }) {
+function Input({ label, value, onChange, type = 'text', className = '', error }: { label: string; value: string; onChange: (v: string) => void; type?: string; className?: string; error?: string }) {
   return (
     <label className={`block ${className}`}>
       <span className="form-label">{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="form-input" />
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`form-input ${error ? 'border-red-500 focus:border-red-500' : ''}`}
+        aria-invalid={Boolean(error)}
+      />
+      {error && <span className="mt-1 block text-xs font-medium text-red-600">{error}</span>}
     </label>
   );
 }
 
-function Sel({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void }) {
+function Sel({ label, value, options, labels, onChange, error }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void; error?: string }) {
   return (
     <label className="block">
       <span className="form-label">{label}</span>
-      <select value={value} onChange={e => onChange(e.target.value)} className="form-input">
+      <select value={value} onChange={e => onChange(e.target.value)} className={`form-input ${error ? 'border-red-500 focus:border-red-500' : ''}`} aria-invalid={Boolean(error)}>
         {options.map(o => <option key={o} value={o}>{labels?.[o] ?? o}</option>)}
       </select>
+      {error && <span className="mt-1 block text-xs font-medium text-red-600">{error}</span>}
     </label>
   );
 }
@@ -804,12 +813,74 @@ type SiteFormState = {
   latitude: string; longitude: string; shift_details: string; notes: string; status: string;
 };
 
+function validateSiteForm(form: SiteFormState): ValidationErrors {
+  const errors: ValidationErrors = {};
+  if (!form.site_name.trim()) errors.site_name = 'Site name is required.';
+  if (!form.address.trim()) errors.address = 'Site address is required.';
+  if (!form.contact_mobile.trim()) {
+    errors.contact_mobile = 'Contact mobile is required.';
+  } else if (!/^[6-9]\d{9}$/.test(form.contact_mobile.trim())) {
+    errors.contact_mobile = 'Enter a valid 10 digit Indian mobile number.';
+  }
+  if (form.pincode.trim() && !/^\d{6}$/.test(form.pincode.trim())) {
+    errors.pincode = 'Enter a valid 6 digit pincode.';
+  }
+  const latitude = form.latitude.trim() ? Number(form.latitude) : null;
+  const longitude = form.longitude.trim() ? Number(form.longitude) : null;
+  if (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
+    errors.latitude = 'Latitude must be between -90 and 90.';
+  }
+  if (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
+    errors.longitude = 'Longitude must be between -180 and 180.';
+  }
+  return errors;
+}
+
+function ValidationBanner({ message }: { message: string }) {
+  return <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
+}
+
+function SuccessModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[2000] grid place-items-center px-4"
+      style={{ background: 'rgba(15, 23, 42, 0.55)' }}
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="site-success-title"
+        className="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
+        onClick={event => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close success message"
+          className="absolute right-3 top-3 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+        >
+          <X size={20} />
+        </button>
+        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-green-100 text-green-700">
+          <CheckCircle size={30} />
+        </div>
+        <h3 id="site-success-title" className="text-lg font-bold text-gray-900">Site added successfully</h3>
+        <p className="mt-2 text-sm text-gray-600">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 function SiteLocationSection({
   form,
   setForm,
+  errors = {},
 }: {
   form: SiteFormState;
   setForm: React.Dispatch<React.SetStateAction<SiteFormState>>;
+  errors?: ValidationErrors;
 }) {
   const [geocoding, setGeocoding]       = useState(false);
   const [revGeocoding, setRevGeocoding] = useState(false);
@@ -915,8 +986,10 @@ function SiteLocationSection({
             placeholder="e.g. 19.0760"
             value={form.latitude}
             onChange={e => handleLatInput(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-gray-400"
+            className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${errors.latitude ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-gray-400'}`}
+            aria-invalid={Boolean(errors.latitude)}
           />
+          {errors.latitude && <span className="mt-1 block text-xs font-medium text-red-600">{errors.latitude}</span>}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Longitude</label>
@@ -926,8 +999,10 @@ function SiteLocationSection({
             placeholder="e.g. 72.8777"
             value={form.longitude}
             onChange={e => handleLngInput(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-gray-400"
+            className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${errors.longitude ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-gray-400'}`}
+            aria-invalid={Boolean(errors.longitude)}
           />
+          {errors.longitude && <span className="mt-1 block text-xs font-medium text-red-600">{errors.longitude}</span>}
         </div>
       </div>
 
@@ -975,6 +1050,11 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
   const [saving, setSaving]         = useState(false);
   const [editingSite, setEditingSite] = useState<any | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
+  const [formError, setFormError] = useState('');
+  const [editErrors, setEditErrors] = useState<ValidationErrors>({});
+  const [editError, setEditError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const blankForm = (): SiteFormState => ({
     site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
@@ -991,12 +1071,16 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
   useEffect(() => { reloadSites(); }, [company.id]);
 
   const saveSite = async () => {
-    if (!form.site_name || !form.address || !form.contact_mobile) {
-      alert('Site name, address and contact mobile are required.');
+    const validationErrors = validateSiteForm(form);
+    setFormErrors(validationErrors);
+    setFormError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setFormError('Please correct the highlighted fields.');
       return;
     }
     setSaving(true);
     try {
+      const savedSiteName = form.site_name.trim();
       await createCompanySite({
         company_id: company.id,
         site_name: form.site_name.trim(),
@@ -1015,13 +1099,17 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       });
       setForm(blankForm());
       reloadSites();
-      onChanged();
+      setSuccessMessage(`${savedSiteName} is now available in your site list.`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save site.');
+      const validationErrors = getValidationErrors(err);
+      setFormErrors(validationErrors);
+      setFormError(getErrorMessage(err, 'Failed to save site.'));
     } finally { setSaving(false); }
   };
 
   const openEdit = (site: any) => {
+    setEditErrors({});
+    setEditError('');
     setEditingSite(site);
     setEditForm({
       site_name:       site.site_name ?? '',
@@ -1042,6 +1130,13 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
   const saveEdit = async () => {
     if (!editingSite) return;
+    const validationErrors = validateSiteForm(editForm);
+    setEditErrors(validationErrors);
+    setEditError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setEditError('Please correct the highlighted fields.');
+      return;
+    }
     setEditSaving(true);
     try {
       await updateCompanySite(editingSite.id, {
@@ -1062,32 +1157,44 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       reloadSites();
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update site.');
+      const validationErrors = getValidationErrors(err);
+      setEditErrors(validationErrors);
+      setEditError(getErrorMessage(err, 'Failed to update site.'));
     } finally { setEditSaving(false); }
   };
 
   return (
     <div className="p-6 space-y-5">
+      {successMessage && (
+        <SuccessModal
+          message={successMessage}
+          onClose={() => {
+            setSuccessMessage('');
+            onChanged();
+          }}
+        />
+      )}
       {/* ── Add site form ── */}
       <Card className="p-5">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Add Site / Location</h2>
+        {formError && <ValidationBanner message={formError} />}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Input label="Site Name"      value={form.site_name}       onChange={v => setForm(f => ({ ...f, site_name: v }))} />
-          <Sel   label="Site Type"      value={form.site_type}       options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setForm(f => ({ ...f, site_type: v }))} />
-          <Input label="City"           value={form.city}            onChange={v => setForm(f => ({ ...f, city: v }))} />
-          <Input label="State"          value={form.state}           onChange={v => setForm(f => ({ ...f, state: v }))} />
-          <Input label="Pincode"        value={form.pincode}         onChange={v => setForm(f => ({ ...f, pincode: v }))} />
-          <Input label="Site Contact"   value={form.contact_person}  onChange={v => setForm(f => ({ ...f, contact_person: v }))} />
-          <Input label="Contact Mobile" value={form.contact_mobile}  onChange={v => setForm(f => ({ ...f, contact_mobile: v }))} />
+          <Input label="Site Name"      value={form.site_name}       error={formErrors.site_name} onChange={v => setForm(f => ({ ...f, site_name: v }))} />
+          <Sel   label="Site Type"      value={form.site_type}       error={formErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setForm(f => ({ ...f, site_type: v }))} />
+          <Input label="City"           value={form.city}            error={formErrors.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
+          <Input label="State"          value={form.state}           error={formErrors.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
+          <Input label="Pincode"        value={form.pincode}         error={formErrors.pincode} onChange={v => setForm(f => ({ ...f, pincode: v }))} />
+          <Input label="Site Contact"   value={form.contact_person}  error={formErrors.contact_person} onChange={v => setForm(f => ({ ...f, contact_person: v }))} />
+          <Input label="Contact Mobile" value={form.contact_mobile}  error={formErrors.contact_mobile} onChange={v => setForm(f => ({ ...f, contact_mobile: v }))} />
         </div>
-        <Input className="mt-3" label="Site Address" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
+        <Input className="mt-3" label="Site Address" value={form.address} error={formErrors.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
           <Input label="Shift Details" value={form.shift_details} onChange={v => setForm(f => ({ ...f, shift_details: v }))} />
           <Input label="Notes"         value={form.notes}         onChange={v => setForm(f => ({ ...f, notes: v }))} />
         </div>
 
         {/* Location section with map */}
-        <SiteLocationSection form={form} setForm={setForm} />
+        <SiteLocationSection form={form} setForm={setForm} errors={formErrors} />
 
         <button
           disabled={saving}
@@ -1158,21 +1265,22 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
             </div>
             <div className="px-6 pt-4 pb-8">
               <h3 className="font-bold text-gray-900 text-lg mb-4">Edit Site</h3>
+              {editError && <ValidationBanner message={editError} />}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Input label="Site Name"      value={editForm.site_name}       onChange={v => setEditForm(f => ({ ...f, site_name: v }))} />
+                <Input label="Site Name"      value={editForm.site_name}       error={editErrors.site_name} onChange={v => setEditForm(f => ({ ...f, site_name: v }))} />
                 <Sel   label="Site Type"      value={editForm.site_type}       options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setEditForm(f => ({ ...f, site_type: v }))} />
                 <Input label="City"           value={editForm.city}            onChange={v => setEditForm(f => ({ ...f, city: v }))} />
                 <Input label="State"          value={editForm.state}           onChange={v => setEditForm(f => ({ ...f, state: v }))} />
-                <Input label="Pincode"        value={editForm.pincode}         onChange={v => setEditForm(f => ({ ...f, pincode: v }))} />
+                <Input label="Pincode"        value={editForm.pincode}         error={editErrors.pincode} onChange={v => setEditForm(f => ({ ...f, pincode: v }))} />
                 <Input label="Site Contact"   value={editForm.contact_person}  onChange={v => setEditForm(f => ({ ...f, contact_person: v }))} />
-                <Input label="Contact Mobile" value={editForm.contact_mobile}  onChange={v => setEditForm(f => ({ ...f, contact_mobile: v }))} />
+                <Input label="Contact Mobile" value={editForm.contact_mobile}  error={editErrors.contact_mobile} onChange={v => setEditForm(f => ({ ...f, contact_mobile: v }))} />
                 <Input label="Shift Details"  value={editForm.shift_details}   onChange={v => setEditForm(f => ({ ...f, shift_details: v }))} />
                 <Input label="Notes"          value={editForm.notes}           onChange={v => setEditForm(f => ({ ...f, notes: v }))} />
               </div>
-              <Input className="mt-3" label="Site Address" value={editForm.address} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
+              <Input className="mt-3" label="Site Address" value={editForm.address} error={editErrors.address} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
 
               {/* Location section with map */}
-              <SiteLocationSection form={editForm} setForm={setEditForm} />
+              <SiteLocationSection form={editForm} setForm={setEditForm} errors={editErrors} />
 
               <div className="flex gap-3 mt-5">
                 <button
@@ -1204,6 +1312,9 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   const [sites, setSites] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [creatingSite, setCreatingSite] = useState(false);
+  const [siteErrors, setSiteErrors] = useState<ValidationErrors>({});
+  const [siteError, setSiteError] = useState('');
+  const [siteSuccessMessage, setSiteSuccessMessage] = useState('');
   const [siteForm, setSiteForm] = useState<SiteFormState>({
     site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
     pincode: company.pincode ?? '', contact_person: _employer.contactPersonName,
@@ -1228,12 +1339,16 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   }, [company.id]);
 
   const saveSiteInline = async () => {
-    if (!siteForm.site_name.trim() || !siteForm.address.trim() || !siteForm.contact_mobile.trim()) {
-      alert('Site name, address and contact mobile are required.');
+    const validationErrors = validateSiteForm(siteForm);
+    setSiteErrors(validationErrors);
+    setSiteError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setSiteError('Please correct the highlighted fields.');
       return;
     }
     setCreatingSite(true);
     try {
+      const savedSiteName = siteForm.site_name.trim();
       const created = await createCompanySite({
         company_id: company.id,
         site_name: siteForm.site_name.trim(),
@@ -1260,8 +1375,11 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
         latitude: '', longitude: '', shift_details: '', notes: '', status: 'active',
       });
       setJob(j => ({ ...j, site_id: created?.id ?? nextSites[0]?.id ?? j.site_id }));
+      setSiteSuccessMessage(`${savedSiteName} was added and selected for this job.`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save site.');
+      const validationErrors = getValidationErrors(err);
+      setSiteErrors(validationErrors);
+      setSiteError(getErrorMessage(err, 'Failed to save site.'));
     } finally {
       setCreatingSite(false);
     }
@@ -1307,6 +1425,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   if (sites.length === 0) {
     return (
       <div className="p-6">
+        {siteSuccessMessage && <SuccessModal message={siteSuccessMessage} onClose={() => setSiteSuccessMessage('')} />}
         <Card className="p-5">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
@@ -1314,21 +1433,22 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
               <p className="text-sm text-gray-500 mt-1">Create the site location here, then continue posting the job.</p>
             </div>
           </div>
+          {siteError && <ValidationBanner message={siteError} />}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <Input label="Site Name" value={siteForm.site_name} onChange={v => setSiteForm(f => ({ ...f, site_name: v }))} />
-            <Sel label="Site Type" value={siteForm.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setSiteForm(f => ({ ...f, site_type: v }))} />
+            <Input label="Site Name" value={siteForm.site_name} error={siteErrors.site_name} onChange={v => setSiteForm(f => ({ ...f, site_name: v }))} />
+            <Sel label="Site Type" value={siteForm.site_type} error={siteErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setSiteForm(f => ({ ...f, site_type: v }))} />
             <Input label="City" value={siteForm.city} onChange={v => setSiteForm(f => ({ ...f, city: v }))} />
             <Input label="State" value={siteForm.state} onChange={v => setSiteForm(f => ({ ...f, state: v }))} />
-            <Input label="Pincode" value={siteForm.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v }))} />
+            <Input label="Pincode" value={siteForm.pincode} error={siteErrors.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v }))} />
             <Input label="Site Contact" value={siteForm.contact_person} onChange={v => setSiteForm(f => ({ ...f, contact_person: v }))} />
-            <Input label="Contact Mobile" value={siteForm.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />
+            <Input label="Contact Mobile" value={siteForm.contact_mobile} error={siteErrors.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />
           </div>
-          <Input className="mt-3" label="Site Address" value={siteForm.address} onChange={v => setSiteForm(f => ({ ...f, address: v }))} />
+          <Input className="mt-3" label="Site Address" value={siteForm.address} error={siteErrors.address} onChange={v => setSiteForm(f => ({ ...f, address: v }))} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <Input label="Shift Details" value={siteForm.shift_details} onChange={v => setSiteForm(f => ({ ...f, shift_details: v }))} />
             <Input label="Notes" value={siteForm.notes} onChange={v => setSiteForm(f => ({ ...f, notes: v }))} />
           </div>
-          <SiteLocationSection form={siteForm} setForm={setSiteForm} />
+          <SiteLocationSection form={siteForm} setForm={setSiteForm} errors={siteErrors} />
           <div className="flex justify-end mt-5">
             <button
               onClick={saveSiteInline}
@@ -1346,6 +1466,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
 
   return (
     <div className="p-6">
+      {siteSuccessMessage && <SuccessModal message={siteSuccessMessage} onClose={() => setSiteSuccessMessage('')} />}
       <Card className="p-5">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Post New Job</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

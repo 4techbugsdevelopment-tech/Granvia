@@ -4,7 +4,8 @@ import {
   CheckCircle, XCircle, Briefcase, MapPin, Clock,
   RefreshCw, AlertCircle, ChevronDown, Eye, EyeOff,
 } from 'lucide-react';
-import { listAllJobsForAdmin, updateJobPost } from '../../services/jobService';
+import { approveJob, listAllJobsForAdmin, rejectJob, updateAdminJobStatus } from '../../services/jobService';
+import { getErrorMessage } from '../../services/apiErrors';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
 
@@ -63,13 +64,22 @@ export default function JobApprovals() {
 
   const setStatus = async (jobId: string, status: string, reason?: string) => {
     setActing(jobId);
+    setError(null);
     try {
-      const updates: Record<string, unknown> = { status };
-      if (reason) updates.rejection_reason = reason;
-      await updateJobPost(jobId, updates);
-      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status, ...(reason ? { rejection_reason: reason } : {}) } : j));
-    } catch (e: any) {
-      setError(e.message);
+      if (status === 'active') {
+        await approveJob(jobId);
+      } else if (status === 'rejected') {
+        await rejectJob(jobId, reason);
+      } else if (status === 'pending_approval' || status === 'closed') {
+        await updateAdminJobStatus(jobId, status);
+      } else {
+        throw new Error(`Unsupported job status: ${status}`);
+      }
+      setJobs(prev => prev.map(j => j.id === jobId
+        ? { ...j, status, rejection_reason: status === 'rejected' ? (reason ?? '') : null }
+        : j));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to update the job status.'));
     } finally {
       setActing(null);
     }

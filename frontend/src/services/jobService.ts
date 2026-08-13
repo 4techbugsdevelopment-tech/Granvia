@@ -45,6 +45,11 @@ export async function rejectJob(jobId: string, reason?: string) {
   return data;
 }
 
+export async function updateAdminJobStatus(jobId: string, status: 'pending_approval' | 'closed') {
+  const { data } = await apiClient.patch(`/admin/jobs/${jobId}/status`, { status });
+  return data;
+}
+
 /** Admin: all jobs regardless of status, newest first */
 export async function listAllJobsForAdmin() {
   const { data } = await apiClient.get('/admin/jobs');

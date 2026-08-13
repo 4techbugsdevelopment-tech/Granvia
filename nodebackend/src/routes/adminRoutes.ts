@@ -39,6 +39,7 @@ router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs', asyncHandler(job.all));
 router.patch('/admin/jobs/:job/approve', asyncHandler(job.approve));
 router.patch('/admin/jobs/:job/reject', asyncHandler(job.reject));
+router.patch('/admin/jobs/:job/status', asyncHandler(job.adminUpdateStatus));
 router.delete('/admin/jobs/:job', asyncHandler(job.destroy));
 
 router.get('/admin/employers', asyncHandler(adminEmployer.index));

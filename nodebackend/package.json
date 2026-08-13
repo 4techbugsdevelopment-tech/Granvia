@@ -16,6 +16,7 @@
     "seed:demo-users": "tsx scripts/seed-demo-auth-users.ts"
   },
   "dependencies": {
+    "@prisma/adapter-mssql": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@types/multer": "^2.2.0",
     "@types/nodemailer": "^8.0.1",

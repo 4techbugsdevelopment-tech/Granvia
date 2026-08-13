@@ -1,0 +1,511 @@
+{
+  "generated_at": "2026-08-13T08:39:44.247Z",
+  "prefix": "API_SMOKE_",
+  "warning": "Read-only inventory. Delete dependent records before parent jobs, companies, or users. Review pre-existing demo profile state before restoring fields.",
+  "artifact_reports": [
+    "API_SMOKE_20260813083012.json",
+    "API_SMOKE_20260813083122.json",
+    "API_SMOKE_20260813083301.json"
+  ],
+  "records": {
+    "users": [
+      {
+        "id": "13647e15-a9f4-4068-9dfc-982236f87c80",
+        "email": "api_smoke_20260813083122.guard@example.invalid",
+        "role": "guard",
+        "createdAt": "2026-08-13T08:32:01.643Z"
+      },
+      {
+        "id": "69ee327f-1fe4-4eb4-a8b6-f075fd02290d",
+        "email": "api_smoke_20260813083301.registered-employer@example.invalid",
+        "role": "employer",
+        "createdAt": "2026-08-13T08:34:12.636Z"
+      },
+      {
+        "id": "c12e6ac9-f8bb-4e4e-958a-433015c04f85",
+        "email": "api_smoke_20260813083301.registered-guard@example.invalid",
+        "role": "guard",
+        "createdAt": "2026-08-13T08:34:20.529Z"
+      },
+      {
+        "id": "f3270741-ce35-4cd1-ab73-87554ddbadc9",
+        "email": "api_smoke_20260813083301.guard@example.invalid",
+        "role": "guard",
+        "createdAt": "2026-08-13T08:33:45.725Z"
+      }
+    ],
+    "companies": [
+      {
+        "id": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyName": "API_SMOKE_20260813083301 Company",
+        "createdAt": "2026-08-13T08:33:13.809Z"
+      },
+      {
+        "id": "91f6aa63-b1a5-44b2-bd65-c6115e9c4854",
+        "employerUserId": "69ee327f-1fe4-4eb4-a8b6-f075fd02290d",
+        "companyName": "API_SMOKE_20260813083301 Registered Company",
+        "createdAt": "2026-08-13T08:34:12.856Z"
+      },
+      {
+        "id": "a726fa51-c001-457b-8092-f5c42038ec8a",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyName": "API_SMOKE_20260813083012 Company",
+        "createdAt": "2026-08-13T08:30:26.646Z"
+      },
+      {
+        "id": "ba568193-ba5d-485f-b9a0-7a8c8d6d4aae",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyName": "API_SMOKE_20260813083122 Company",
+        "createdAt": "2026-08-13T08:31:34.119Z"
+      }
+    ],
+    "sites": [
+      {
+        "id": "a0251c83-0a4d-43d5-be18-1d758d1d16c3",
+        "companyId": "a726fa51-c001-457b-8092-f5c42038ec8a",
+        "siteName": "API_SMOKE_20260813083012 Site",
+        "createdAt": "2026-08-13T08:30:28.107Z"
+      },
+      {
+        "id": "b04e1dc1-91e7-4100-b88f-3db6c0749cd7",
+        "companyId": "ba568193-ba5d-485f-b9a0-7a8c8d6d4aae",
+        "siteName": "API_SMOKE_20260813083122 Site",
+        "createdAt": "2026-08-13T08:31:35.650Z"
+      },
+      {
+        "id": "bb6c4dd7-ae59-415d-930b-f00ab5eaabcc",
+        "companyId": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+        "siteName": "API_SMOKE_20260813083301 Site",
+        "createdAt": "2026-08-13T08:33:15.565Z"
+      }
+    ],
+    "jobs": [
+      {
+        "id": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyId": "ba568193-ba5d-485f-b9a0-7a8c8d6d4aae",
+        "siteId": "b04e1dc1-91e7-4100-b88f-3db6c0749cd7",
+        "title": "API_SMOKE_20260813083122 Job",
+        "createdAt": "2026-08-13T08:31:37.746Z"
+      },
+      {
+        "id": "25a55438-2865-4142-ad90-bc2b4b1603fa",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyId": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+        "siteId": "bb6c4dd7-ae59-415d-930b-f00ab5eaabcc",
+        "title": "API_SMOKE_20260813083301 Sales Job",
+        "createdAt": "2026-08-13T08:34:00.253Z"
+      },
+      {
+        "id": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyId": "a726fa51-c001-457b-8092-f5c42038ec8a",
+        "siteId": "a0251c83-0a4d-43d5-be18-1d758d1d16c3",
+        "title": "API_SMOKE_20260813083012 Job",
+        "createdAt": "2026-08-13T08:30:30.217Z"
+      },
+      {
+        "id": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyId": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+        "siteId": "bb6c4dd7-ae59-415d-930b-f00ab5eaabcc",
+        "title": "API_SMOKE_20260813083301 Job",
+        "createdAt": "2026-08-13T08:33:17.804Z"
+      },
+      {
+        "id": "b64c2129-1672-489a-b0ab-26f746f04ec4",
+        "employerUserId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "companyId": "ba568193-ba5d-485f-b9a0-7a8c8d6d4aae",
+        "siteId": "b04e1dc1-91e7-4100-b88f-3db6c0749cd7",
+        "title": "API_SMOKE_20260813083122 Sales Job",
+        "createdAt": "2026-08-13T08:32:17.410Z"
+      }
+    ],
+    "applications": [
+      {
+        "id": "623f9f50-9ee0-4775-9c74-147cdef1999c",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:22.930Z"
+      },
+      {
+        "id": "db50f21c-2c68-416c-a7de-4aaa5fc7ba49",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:42.999Z"
+      },
+      {
+        "id": "e98e93a6-8ce4-4c2a-b596-3e27739d564b",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:35.153Z"
+      }
+    ],
+    "attendance": [
+      {
+        "id": "84a3ef5f-aec4-45f8-ae0e-c08d47525089",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:39.786Z"
+      },
+      {
+        "id": "a241a1f6-de61-43c0-857e-860e594bf918",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:31.351Z"
+      },
+      {
+        "id": "a2d2365d-efb7-4b84-b1b0-fef6c0d9231c",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:47.496Z"
+      }
+    ],
+    "interviews": [
+      {
+        "id": "087b4f9a-f41d-40a7-becf-25477dc9dbe2",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:33.119Z"
+      },
+      {
+        "id": "32fd9b19-de36-4cfd-85a3-044d0a101cf1",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:41.897Z"
+      },
+      {
+        "id": "88fef383-28ef-410c-a6ca-4a504222f3d0",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:49.364Z"
+      }
+    ],
+    "offers": [
+      {
+        "id": "2a9828d9-989a-4b17-b9e4-a49030e60e10",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:43.254Z"
+      },
+      {
+        "id": "97d215a4-2bae-4b92-ace4-0a71f463141b",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:34.525Z"
+      },
+      {
+        "id": "a796f430-f583-4ec8-8daf-005825e99ecd",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:50.715Z"
+      }
+    ],
+    "agreements": [
+      {
+        "id": "5d187256-c4aa-4e6b-a625-e3c2ccd46c0f",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:35.913Z"
+      },
+      {
+        "id": "675752fd-47b7-4adb-9d9f-c5d370a8b6bb",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:44.585Z"
+      },
+      {
+        "id": "f9ca2257-c6cc-48a2-a26d-9e3cdf03f075",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:52.064Z"
+      }
+    ],
+    "payments": [
+      {
+        "id": "4288d8d0-1181-49c4-bf97-b68de5c4cc3d",
+        "jobId": "0b37fe83-cd3e-4312-890d-cb720d7b3af1",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:31:53.388Z"
+      },
+      {
+        "id": "cd050b12-972a-4493-9d8a-f883e319ad50",
+        "jobId": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:33:37.163Z"
+      },
+      {
+        "id": "f442ffd0-8875-470c-ab2f-a4e9553d079f",
+        "jobId": "7aa63aa0-7d37-47cb-bcac-5783337b1b8d",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "createdAt": "2026-08-13T08:30:45.902Z"
+      }
+    ],
+    "companyDocuments": [
+      {
+        "id": "1715d451-8e30-4a5b-ba78-92dafc90fe3d",
+        "companyId": "a726fa51-c001-457b-8092-f5c42038ec8a",
+        "filePath": "company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/3644738f-a81c-4973-b338-f157be30110e.pdf",
+        "createdAt": "2026-08-13T08:30:29.432Z"
+      },
+      {
+        "id": "2f6b6726-7b97-43b2-9349-4aa554dff224",
+        "companyId": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+        "filePath": "company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/ce477394-59b0-43c9-a85d-93aba753d43d.pdf",
+        "createdAt": "2026-08-13T08:33:16.895Z"
+      },
+      {
+        "id": "40af50d3-d531-4ce1-928c-b75347a7b0f7",
+        "companyId": "ba568193-ba5d-485f-b9a0-7a8c8d6d4aae",
+        "filePath": "company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/7712c35f-00ac-4321-8d78-55c9602c30f9.pdf",
+        "createdAt": "2026-08-13T08:31:36.941Z"
+      }
+    ],
+    "guardDocuments": [
+      {
+        "id": "94cea0db-2237-4a8d-90a5-10a3c0bcb783",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "filePath": "guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/510aa5fd-feff-4d24-b301-f11314b86efc.pdf",
+        "createdAt": "2026-08-13T08:31:45.534Z"
+      },
+      {
+        "id": "c7404f97-b56c-4102-9d58-6262fa089369",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "filePath": "guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/f909cd51-5540-4ea0-a52c-af1677e5b5f5.pdf",
+        "createdAt": "2026-08-13T08:33:29.151Z"
+      },
+      {
+        "id": "c74ee298-87f1-407b-bceb-b7e13c03c987",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "filePath": "guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/7e9c9711-d2ff-47fa-bb6b-eb5ac3b41eba.pdf",
+        "createdAt": "2026-08-13T08:30:37.733Z"
+      }
+    ],
+    "tickets": [
+      {
+        "id": "0e41de9d-d0c2-4e81-9682-1c4cfaff99f9",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "subject": "API_SMOKE_20260813083012",
+        "createdAt": "2026-08-13T08:30:24.887Z"
+      },
+      {
+        "id": "242360b4-037f-4239-9965-6e3c386ac2b5",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "subject": "API_SMOKE_20260813083301",
+        "createdAt": "2026-08-13T08:33:11.921Z"
+      },
+      {
+        "id": "7f20f748-7422-4af3-9e6e-c05739e31a20",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "subject": "API_SMOKE_20260813083122",
+        "createdAt": "2026-08-13T08:31:32.346Z"
+      },
+      {
+        "id": "df05b09d-bcb2-4292-bcc6-0f31addfb00d",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "subject": "API_SMOKE_20260813082849",
+        "createdAt": "2026-08-13T08:29:00.082Z"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "9038cd40-0e03-4679-a6de-c6abeae8c792",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "title": "API_SMOKE_20260813082849",
+        "createdAt": "2026-08-13T08:28:58.837Z"
+      },
+      {
+        "id": "950efa0f-1844-4463-bcad-34ac0275ccb2",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "title": "API_SMOKE_20260813083301",
+        "createdAt": "2026-08-13T08:33:10.681Z"
+      },
+      {
+        "id": "9573e9ff-d2f0-42dc-9c17-ed34d0d1fa82",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "title": "API_SMOKE_20260813083012",
+        "createdAt": "2026-08-13T08:30:22.902Z"
+      },
+      {
+        "id": "f8b4d120-f991-4e61-87dd-00a2ba8598d2",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "title": "API_SMOKE_20260813083122",
+        "createdAt": "2026-08-13T08:31:31.120Z"
+      }
+    ],
+    "employerAadhaarVerifications": [],
+    "guardAadhaarVerifications": [
+      {
+        "id": "92ecb13b-5eca-4041-9f09-4d762fd42d65",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "verificationStatus": "verified",
+        "providerName": "manual_employer",
+        "createdAt": "2026-08-13T08:30:37.259Z"
+      },
+      {
+        "id": "a5c06e62-4921-405a-9b8d-9c8e42186918",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "verificationStatus": "verified",
+        "providerName": "manual_employer",
+        "createdAt": "2026-08-13T08:31:45.072Z"
+      },
+      {
+        "id": "b4b9237c-adbf-4a0e-9d41-8ab752385eee",
+        "guardUserId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "verificationStatus": "verified",
+        "providerName": "manual_employer",
+        "createdAt": "2026-08-13T08:33:28.327Z"
+      }
+    ],
+    "emailOtps": [
+      {
+        "id": "2c1ee2a3-90e4-43f1-9ac7-fe9db08da0c0",
+        "email": "api_smoke_20260813083301.registered-guard@example.invalid",
+        "userId": "c12e6ac9-f8bb-4e4e-958a-433015c04f85",
+        "purpose": "signup_verification",
+        "referenceId": null,
+        "createdAt": "2026-08-13T08:34:21.880Z"
+      },
+      {
+        "id": "589f4930-3ae0-489c-96b3-2d6d177da466",
+        "email": "api_smoke_20260813083301.registered-employer@example.invalid",
+        "userId": "69ee327f-1fe4-4eb4-a8b6-f075fd02290d",
+        "purpose": "signup_verification",
+        "referenceId": null,
+        "createdAt": "2026-08-13T08:34:13.762Z"
+      },
+      {
+        "id": "5dfa16ae-cda0-4ca1-9248-10ca4bdd0c52",
+        "email": "guard@granvia.test",
+        "userId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "purpose": "cash_payment",
+        "referenceId": "f442ffd0-8875-470c-ab2f-a4e9553d079f",
+        "createdAt": "2026-08-13T08:30:47.316Z"
+      },
+      {
+        "id": "661a5ca9-21a1-43fc-aa22-f625bfb69c3f",
+        "email": "guard@granvia.test",
+        "userId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "purpose": "cash_payment",
+        "referenceId": "4288d8d0-1181-49c4-bf97-b68de5c4cc3d",
+        "createdAt": "2026-08-13T08:31:54.931Z"
+      },
+      {
+        "id": "c4a28bce-e579-4a6e-b8c3-ed6c8eb26547",
+        "email": "guard@granvia.test",
+        "userId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "purpose": "cash_payment",
+        "referenceId": "cd050b12-972a-4493-9d8a-f883e319ad50",
+        "createdAt": "2026-08-13T08:33:38.502Z"
+      }
+    ],
+    "emailDeliveryLogs": [
+      {
+        "id": "27ca7a54-0513-45f4-ab56-2efe70ee2bd0",
+        "kind": "signup_verification_employer",
+        "status": "sent",
+        "toEmail": "api_smoke_20260813083301.registered-employer@example.invalid",
+        "subject": "Verify your Granvia email",
+        "createdAt": "2026-08-13T08:34:17.377Z"
+      },
+      {
+        "id": "65a9b133-5816-403a-927e-80c12236fc48",
+        "kind": "admin_employer_welcome",
+        "status": "error",
+        "toEmail": "api_smoke_20260813083301.employer@example.invalid",
+        "subject": "Welcome to Granvia",
+        "createdAt": "2026-08-13T08:33:53.911Z"
+      },
+      {
+        "id": "7ff80f06-6ad1-4b17-b090-c53e41a4783c",
+        "kind": "unknown",
+        "status": "error",
+        "toEmail": "guard@granvia.test",
+        "subject": "Your Granvia cash payment code",
+        "createdAt": "2026-08-13T08:31:57.002Z"
+      },
+      {
+        "id": "80a53fe4-187b-4e3e-bb9e-52435c5ebd3e",
+        "kind": "signup_verification_guard",
+        "status": "sent",
+        "toEmail": "api_smoke_20260813083301.registered-guard@example.invalid",
+        "subject": "Verify your Granvia email",
+        "createdAt": "2026-08-13T08:34:25.291Z"
+      },
+      {
+        "id": "9cd3b338-6a15-41d5-b24c-c1cfae0a333d",
+        "kind": "smtp_test",
+        "status": "error",
+        "toEmail": "api_smoke_20260813083301@example.invalid",
+        "subject": "Granvia SMTP test email",
+        "createdAt": "2026-08-13T08:34:11.722Z"
+      },
+      {
+        "id": "b3e65f1c-2519-4ff1-807b-cacc4c72cbb7",
+        "kind": "admin_employer_welcome",
+        "status": "error",
+        "toEmail": "api_smoke_20260813083122.employer@example.invalid",
+        "subject": "Welcome to Granvia",
+        "createdAt": "2026-08-13T08:32:11.158Z"
+      },
+      {
+        "id": "c57e2242-e0a1-44b3-906c-89574e477d3d",
+        "kind": "unknown",
+        "status": "error",
+        "toEmail": "guard@granvia.test",
+        "subject": "Your Granvia cash payment code",
+        "createdAt": "2026-08-13T08:33:41.249Z"
+      },
+      {
+        "id": "f8874bfc-fa9a-4130-ae61-a603efa9d9b6",
+        "kind": "unknown",
+        "status": "error",
+        "toEmail": "guard@granvia.test",
+        "subject": "Your Granvia cash payment code",
+        "createdAt": "2026-08-13T08:30:51.748Z"
+      }
+    ]
+  },
+  "pre_existing_demo_profiles_modified_during_smoke_window": {
+    "employerProfiles": [
+      {
+        "id": "741ea347-b6ee-4f4c-b740-4ac7745b3fb6",
+        "userId": "b1cb5676-25e9-42fa-8dc0-0802db583ecf",
+        "isAadhaarVerified": true,
+        "aadhaarVerificationStatus": "verified",
+        "aadhaarLastFour": null,
+        "updatedAt": "2026-08-13T08:34:06.990Z"
+      }
+    ],
+    "guardProfiles": [
+      {
+        "id": "809cd128-97c7-4b3b-823f-c0173359cb4d",
+        "userId": "a6692184-4793-4a7b-83c9-f8ef68fa165c",
+        "aadhaarStatus": "verified",
+        "avatarUrl": null,
+        "updatedAt": "2026-08-13T08:34:07.304Z"
+      }
+    ]
+  },
+  "uploaded_files_created_during_smoke_window": [
+    "storage/app/company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/3644738f-a81c-4973-b338-f157be30110e.pdf",
+    "storage/app/company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/7712c35f-00ac-4321-8d78-55c9602c30f9.pdf",
+    "storage/app/company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/ce477394-59b0-43c9-a85d-93aba753d43d.pdf",
+    "storage/app/guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/510aa5fd-feff-4d24-b301-f11314b86efc.pdf",
+    "storage/app/guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/7e9c9711-d2ff-47fa-bb6b-eb5ac3b41eba.pdf",
+    "storage/app/guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/f909cd51-5540-4ea0-a52c-af1677e5b5f5.pdf",
+    "storage/public/company-logos/0faff557-34b2-44ed-9c32-3627a862a9ed/4020d974-6e48-4965-8115-e28dc0e05892.png",
+    "storage/public/company-logos/a726fa51-c001-457b-8092-f5c42038ec8a/8dcd00e6-1da4-4a66-b601-e930bd3fbfd9.png",
+    "storage/public/company-logos/ba568193-ba5d-485f-b9a0-7a8c8d6d4aae/3134cf22-68f8-4c80-9700-90fc6b42a989.png",
+    "storage/public/profile-images/b1cb5676-25e9-42fa-8dc0-0802db583ecf/6bc1eb5b-a021-40e0-8a2a-283108a33912.png",
+    "storage/public/profile-images/b1cb5676-25e9-42fa-8dc0-0802db583ecf/788911cc-38d9-4a50-85b5-14085b04e3e8.png",
+    "storage/public/profile-images/b1cb5676-25e9-42fa-8dc0-0802db583ecf/953fa28d-588e-41d3-b187-346ec86cd36c.png",
+    "storage/public/profile-images/b1cb5676-25e9-42fa-8dc0-0802db583ecf/a936d8fe-502e-493d-92f9-736ebb98418c.png"
+  ],
+  "counts": {
+    "database_records": 64,
+    "pre_existing_demo_profiles_to_review": 2,
+    "uploaded_files": 13
+  }
+}

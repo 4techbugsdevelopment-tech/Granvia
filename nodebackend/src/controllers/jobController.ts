@@ -148,7 +148,10 @@ export async function all(_req: Request, res: Response) {
 export async function approve(req: Request, res: Response) {
   const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
   if (!job) throw new HttpError(404, 'Not found.');
-  const updated = await prisma.jobPost.update({ where: { id: job.id }, data: { status: 'active' } });
+  const updated = await prisma.jobPost.update({
+    where: { id: job.id },
+    data: { status: 'active', rejectionReason: null },
+  });
   return res.json(serializeOut(updated, OUT_JSON));
 }
 
@@ -160,6 +163,22 @@ export async function reject(req: Request, res: Response) {
   const updated = await prisma.jobPost.update({
     where: { id: job.id },
     data: { status: 'rejected', rejectionReason: reason },
+  });
+  return res.json(serializeOut(updated, OUT_JSON));
+}
+
+/** PATCH /admin/jobs/:job/status — admin-only non-approval status changes. */
+export async function adminUpdateStatus(req: Request, res: Response) {
+  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
+  if (!job) throw new HttpError(404, 'Not found.');
+
+  const { status } = z.object({
+    status: z.enum(['pending_approval', 'closed']),
+  }).parse(req.body);
+
+  const updated = await prisma.jobPost.update({
+    where: { id: job.id },
+    data: { status, rejectionReason: null },
   });
   return res.json(serializeOut(updated, OUT_JSON));
 }

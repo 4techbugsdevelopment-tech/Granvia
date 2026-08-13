@@ -1,0 +1,1049 @@
+{
+  "marker": "API_SMOKE_20260813083301",
+  "base_url": "http://127.0.0.1:8000/api",
+  "generated_at": "2026-08-13T08:34:31.478Z",
+  "counts": {
+    "total": 150,
+    "pass": 117,
+    "expected": 13,
+    "fail": 11,
+    "skip": 9
+  },
+  "results": [
+    {
+      "method": "GET",
+      "route": "/jobs",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/auth/me",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/auth/me",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/auth/me",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/auth/me",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/auth/me",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/me/profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/me/profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/me/avatar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/me/employer-profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/me/employer-profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/me/guard-profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/me/guard-profile",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/me/roles",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "GET",
+      "route": "/me/notifications",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/me/notifications/:notification/read",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/me/support-tickets",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/me/support-tickets",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/roles",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "POST",
+      "route": "/admin/roles",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/roles/:role",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "role create fixture failed"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/companies",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/companies",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/companies/:company",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/companies/:company/logo",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/sites",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/companies/:company/sites",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/sites/:site",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/companies/:company/documents",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/companies/:company/documents",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/jobs",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/jobs",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/jobs/:job",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/jobs/pending",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/jobs",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/jobs/:job/approve",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/jobs/:job/status",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/jobs/:job/reject",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/jobs/:job/approve",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/jobs",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "DELETE",
+      "route": "/admin/jobs/:job",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/guard/jobs/:job/apply",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/guard/applications",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/guard/applications/job-ids",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/applications",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/applications/:application/status",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/associates/:guard/aadhaar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/guard/documents",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/guard/documents",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/guards/:guard/documents",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/guard-documents/:document",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/guard/attendance",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/guard/attendance/check-in",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/guard/attendance/:record/check-out",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/attendance/:record/status",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/attendance",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/interview-requests",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/interview-requests",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/interview-requests/:interviewRequest",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/job-offers",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/job-offers",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/job-offers/:jobOffer",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/agreements",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/agreements",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/agreements/:agreement",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/payments",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/payments",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/payments/:payment/request-otp",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/payments/:payment/confirm-otp",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "No development OTP returned; no real mailbox access used"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/invoices",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/wallet",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/wallet/transactions",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/reports/counts",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/staff",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "POST",
+      "route": "/employer/staff",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/staff/:staff",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "staff create fixture failed"
+    },
+    {
+      "method": "DELETE",
+      "route": "/employer/staff/:staff",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "staff create fixture failed"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/subadmins",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "POST",
+      "route": "/employer/subadmins",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "PATCH",
+      "route": "/employer/subadmins/:subAdmin",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "sub-admin create fixture failed"
+    },
+    {
+      "method": "DELETE",
+      "route": "/employer/subadmins/:subAdmin",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "sub-admin create fixture failed"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/guards",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/admin/guards",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/guards/:guard",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/guards/:guard/aadhaar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/employers/:employer/aadhaar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/reports/counts",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/reports/analytics",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/attendance",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/hiring",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/email-logs",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/admin/employers",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/admin/employers",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/admin/employers/:employer",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "DELETE",
+      "route": "/admin/employers/:employer",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/reports/counts",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/activity",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/clients",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/clients/:employer",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/sales/jobs/request-otp",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/sales/jobs",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/discounts",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/sales/discounts",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/sales/discounts/:discount",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "DELETE",
+      "route": "/sales/discounts/:discount",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/sales/manpower",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/reports/counts",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/company",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "PATCH",
+      "route": "/subadmin/company",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/staff",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "POST",
+      "route": "/subadmin/staff",
+      "status": 500,
+      "outcome": "fail",
+      "detail": "Server error."
+    },
+    {
+      "method": "PATCH",
+      "route": "/subadmin/staff/:staff",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "staff create fixture failed"
+    },
+    {
+      "method": "DELETE",
+      "route": "/subadmin/staff/:staff",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "staff create fixture failed"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/verification",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "PATCH",
+      "route": "/subadmin/guard-documents/:document",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/clients",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/guards",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/reports/skills",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/subadmin/reports/commission",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "GET",
+      "route": "/employer/aadhaar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/employer/aadhaar/verify-instant",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "POST",
+      "route": "/employer/aadhaar/send-otp",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "POST",
+      "route": "/employer/aadhaar/verify-otp",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "GET",
+      "route": "/guard/aadhaar",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/guard/aadhaar/mock-session",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "POST",
+      "route": "/guard/aadhaar/verify-instant",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "POST",
+      "route": "/guard/aadhaar/send-otp",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "POST",
+      "route": "/guard/aadhaar/verify-otp",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Aadhaar self-verification is currently disabled. Verification is done manually by your administrator."
+    },
+    {
+      "method": "GET",
+      "route": "/files/download",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Invalid or expired link."
+    },
+    {
+      "method": "GET",
+      "route": "/email/verify/:id/:hash",
+      "status": 403,
+      "outcome": "expected",
+      "detail": "Invalid or expired verification link."
+    },
+    {
+      "method": "POST",
+      "route": "/auth/login/verify-otp",
+      "status": 422,
+      "outcome": "expected",
+      "detail": "No verification code found. Please request a new one."
+    },
+    {
+      "method": "POST",
+      "route": "/auth/email/verify-otp",
+      "status": 422,
+      "outcome": "expected",
+      "detail": "No verification code found. Please request a new one."
+    },
+    {
+      "method": "POST",
+      "route": "/auth/email/resend-otp",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/email/verification-notification",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/password/request-otp",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/password/reset",
+      "status": 422,
+      "outcome": "expected",
+      "detail": "No verification code found. Please request a new one."
+    },
+    {
+      "method": "POST",
+      "route": "/auth/test-email",
+      "status": 502,
+      "outcome": "expected",
+      "detail": "SMTP test failed."
+    },
+    {
+      "method": "POST",
+      "route": "/auth/register/employer",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/register/guard",
+      "status": 201,
+      "outcome": "pass"
+    },
+    {
+      "method": "DELETE",
+      "route": "/admin/roles/:role",
+      "status": 0,
+      "outcome": "skip",
+      "detail": "role create fixture failed"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/logout",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/logout",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/logout",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/logout",
+      "status": 200,
+      "outcome": "pass"
+    },
+    {
+      "method": "POST",
+      "route": "/auth/logout",
+      "status": 200,
+      "outcome": "pass"
+    }
+  ],
+  "created_records": [
+    {
+      "type": "uploaded_avatar",
+      "marker": "http://127.0.0.1:8000/storage/profile-images/b1cb5676-25e9-42fa-8dc0-0802db583ecf/a936d8fe-502e-493d-92f9-736ebb98418c.png"
+    },
+    {
+      "type": "notification",
+      "id": "950efa0f-1844-4463-bcad-34ac0275ccb2"
+    },
+    {
+      "type": "support_ticket",
+      "id": "242360b4-037f-4239-9965-6e3c386ac2b5"
+    },
+    {
+      "type": "company",
+      "id": "0faff557-34b2-44ed-9c32-3627a862a9ed",
+      "marker": "API_SMOKE_20260813083301 Company"
+    },
+    {
+      "type": "site",
+      "id": "bb6c4dd7-ae59-415d-930b-f00ab5eaabcc",
+      "marker": "API_SMOKE_20260813083301 Site"
+    },
+    {
+      "type": "company_document",
+      "id": "2f6b6726-7b97-43b2-9349-4aa554dff224",
+      "marker": "company-documents/b1cb5676-25e9-42fa-8dc0-0802db583ecf/ce477394-59b0-43c9-a85d-93aba753d43d.pdf"
+    },
+    {
+      "type": "job",
+      "id": "801e57b2-ac41-499b-b02f-e90b5e94602f",
+      "marker": "API_SMOKE_20260813083301 Job"
+    },
+    {
+      "type": "job_delete_fixture",
+      "id": "796dc2dc-3079-4b1b-9e3c-cb825b2cc978",
+      "marker": "API_SMOKE_20260813083301 Delete Job",
+      "deleted": true
+    },
+    {
+      "type": "job_application",
+      "id": "623f9f50-9ee0-4775-9c74-147cdef1999c"
+    },
+    {
+      "type": "guard_document",
+      "id": "c7404f97-b56c-4102-9d58-6262fa089369",
+      "marker": "guard-documents/a6692184-4793-4a7b-83c9-f8ef68fa165c/f909cd51-5540-4ea0-a52c-af1677e5b5f5.pdf"
+    },
+    {
+      "type": "attendance",
+      "id": "a241a1f6-de61-43c0-857e-860e594bf918"
+    },
+    {
+      "type": "interview_request",
+      "id": "087b4f9a-f41d-40a7-becf-25477dc9dbe2"
+    },
+    {
+      "type": "job_offer",
+      "id": "97d215a4-2bae-4b92-ace4-0a71f463141b"
+    },
+    {
+      "type": "agreement",
+      "id": "5d187256-c4aa-4e6b-a625-e3c2ccd46c0f"
+    },
+    {
+      "type": "payment",
+      "id": "cd050b12-972a-4493-9d8a-f883e319ad50"
+    },
+    {
+      "type": "admin_guard",
+      "id": "f3270741-ce35-4cd1-ab73-87554ddbadc9",
+      "marker": "api_smoke_20260813083301.guard@example.invalid",
+      "note": "No admin guard delete endpoint exists"
+    },
+    {
+      "type": "admin_employer",
+      "id": "f7c73ef3-7e61-4f04-8f7c-03ad5bbf77de",
+      "deleted": true
+    },
+    {
+      "type": "sales_job",
+      "id": "25a55438-2865-4142-ad90-bc2b4b1603fa",
+      "marker": "API_SMOKE_20260813083301 Sales Job"
+    },
+    {
+      "type": "sales_discount",
+      "id": "5063fc09-a649-4fc9-9014-c8aa32e15304",
+      "deleted": true
+    },
+    {
+      "type": "registered_user",
+      "id": "69ee327f-1fe4-4eb4-a8b6-f075fd02290d",
+      "marker": "api_smoke_20260813083301.registered-employer@example.invalid",
+      "note": "Registration endpoint fixture"
+    },
+    {
+      "type": "registered_user",
+      "id": "c12e6ac9-f8bb-4e4e-958a-433015c04f85",
+      "marker": "api_smoke_20260813083301.registered-guard@example.invalid",
+      "note": "Registration endpoint fixture"
+    }
+  ]
+}

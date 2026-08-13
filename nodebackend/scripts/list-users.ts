@@ -1,7 +1,11 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaMssql } from '@prisma/adapter-mssql';
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('Missing required environment variable: DATABASE_URL');
+
+const prisma = new PrismaClient({ adapter: new PrismaMssql(databaseUrl) });
 
 async function main() {
   const users = await prisma.user.findMany({
