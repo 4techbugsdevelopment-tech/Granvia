@@ -836,6 +836,13 @@ function validateSiteForm(form: SiteFormState): ValidationErrors {
   return errors;
 }
 
+function clearValidationError(errors: ValidationErrors, field: string): ValidationErrors {
+  if (!errors[field]) return errors;
+  const nextErrors = { ...errors };
+  delete nextErrors[field];
+  return nextErrors;
+}
+
 function ValidationBanner({ message }: { message: string }) {
   return <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
 }
@@ -1187,7 +1194,16 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
           <Input label="Site Contact"   value={form.contact_person}  error={formErrors.contact_person} onChange={v => setForm(f => ({ ...f, contact_person: v }))} />
           <Input label="Contact Mobile" value={form.contact_mobile}  error={formErrors.contact_mobile} onChange={v => setForm(f => ({ ...f, contact_mobile: v }))} />
         </div>
-        <Input className="mt-3" label="Site Address" value={form.address} error={formErrors.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
+        <Input
+          className="mt-3"
+          label="Site Address"
+          value={form.address}
+          error={formErrors.address}
+          onChange={v => {
+            setForm(f => ({ ...f, address: v }));
+            setFormErrors(errors => clearValidationError(errors, 'address'));
+          }}
+        />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
           <Input label="Shift Details" value={form.shift_details} onChange={v => setForm(f => ({ ...f, shift_details: v }))} />
           <Input label="Notes"         value={form.notes}         onChange={v => setForm(f => ({ ...f, notes: v }))} />
@@ -1277,7 +1293,16 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
                 <Input label="Shift Details"  value={editForm.shift_details}   onChange={v => setEditForm(f => ({ ...f, shift_details: v }))} />
                 <Input label="Notes"          value={editForm.notes}           onChange={v => setEditForm(f => ({ ...f, notes: v }))} />
               </div>
-              <Input className="mt-3" label="Site Address" value={editForm.address} error={editErrors.address} onChange={v => setEditForm(f => ({ ...f, address: v }))} />
+              <Input
+                className="mt-3"
+                label="Site Address"
+                value={editForm.address}
+                error={editErrors.address}
+                onChange={v => {
+                  setEditForm(f => ({ ...f, address: v }));
+                  setEditErrors(errors => clearValidationError(errors, 'address'));
+                }}
+              />
 
               {/* Location section with map */}
               <SiteLocationSection form={editForm} setForm={setEditForm} errors={editErrors} />
@@ -1443,7 +1468,16 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
             <Input label="Site Contact" value={siteForm.contact_person} onChange={v => setSiteForm(f => ({ ...f, contact_person: v }))} />
             <Input label="Contact Mobile" value={siteForm.contact_mobile} error={siteErrors.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />
           </div>
-          <Input className="mt-3" label="Site Address" value={siteForm.address} error={siteErrors.address} onChange={v => setSiteForm(f => ({ ...f, address: v }))} />
+          <Input
+            className="mt-3"
+            label="Site Address"
+            value={siteForm.address}
+            error={siteErrors.address}
+            onChange={v => {
+              setSiteForm(f => ({ ...f, address: v }));
+              setSiteErrors(errors => clearValidationError(errors, 'address'));
+            }}
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <Input label="Shift Details" value={siteForm.shift_details} onChange={v => setSiteForm(f => ({ ...f, shift_details: v }))} />
             <Input label="Notes" value={siteForm.notes} onChange={v => setSiteForm(f => ({ ...f, notes: v }))} />
