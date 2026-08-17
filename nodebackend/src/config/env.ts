@@ -39,4 +39,16 @@ export const env = {
     bearerToken: process.env.SUREPASS_BEARER_TOKEN?.trim() ?? '',
     timeoutMs: Number(process.env.SUREPASS_TIMEOUT_MS ?? 15_000),
   },
+  esign: {
+    provider: (process.env.ESIGN_PROVIDER ?? 'unconfigured').trim().toLowerCase(),
+    sandboxMode: /^(1|true|yes|on)$/i.test(process.env.ESIGN_SANDBOX_MODE ?? ''),
+    agreementVersion: process.env.ESIGN_AGREEMENT_VERSION ?? 'AP-2026-V1',
+    templateVersion: process.env.ESIGN_TEMPLATE_VERSION ?? 'AP-TEMPLATE-2026-V1',
+    callbackUrl: process.env.ESIGN_CALLBACK_URL ?? `${process.env.APP_URL ?? `http://127.0.0.1:${port}`}/api/esign/callback`,
+    returnUrl: process.env.ESIGN_RETURN_URL ?? `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/universal-app/associate?esign_return=1`,
+    requiredDocumentTypes: (process.env.ESIGN_REQUIRED_DOCUMENT_TYPES ?? 'id_proof,bank_proof')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  },
 };

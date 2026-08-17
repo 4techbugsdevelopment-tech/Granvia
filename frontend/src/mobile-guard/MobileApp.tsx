@@ -12,6 +12,7 @@ import NotificationsScreen from './screens/NotificationsScreen';
 import SupportScreen from './screens/SupportScreen';
 import MobilePlaceholder from './screens/MobilePlaceholder';
 import AadhaarMockTestScreen from './screens/AadhaarMockTestScreen';
+import AgreementScreen from './screens/AgreementScreen';
 import { signOut } from '../services/authService';
 
 interface MobileAppProps {
@@ -24,7 +25,9 @@ type Screen =
   | 'aadhaar-mock-test';
 
 function initialScreen(): Screen {
-  return window.location.pathname === '/guard/aadhaar/mock-test' ? 'aadhaar-mock-test' : 'dashboard';
+  if (window.location.pathname === '/guard/aadhaar/mock-test') return 'aadhaar-mock-test';
+  if (new URLSearchParams(window.location.search).has('esign_return')) return 'agreement';
+  return 'dashboard';
 }
 
 const NAV_ITEMS = [
@@ -59,6 +62,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       case 'notifications': return <NotificationsScreen />;
       case 'support': return <SupportScreen />;
       case 'aadhaar-mock-test': return <AadhaarMockTestScreen />;
+      case 'agreement': return <AgreementScreen />;
       default: return <MobilePlaceholder screen={screen} />;
     }
   };

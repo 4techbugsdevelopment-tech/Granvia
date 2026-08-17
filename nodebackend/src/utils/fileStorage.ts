@@ -64,7 +64,8 @@ export function storeFile(category: string, ownerId: string, file: IncomingFile)
 /** Resolves a PRIVATE stored path to an absolute path, guarding against traversal. */
 export function absolutePathFor(storedPath: string): string {
   const abs = path.resolve(PRIVATE_ROOT, storedPath);
-  if (!abs.startsWith(PRIVATE_ROOT)) {
+  const relative = path.relative(PRIVATE_ROOT, abs);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new Error('Invalid path.');
   }
   return abs;

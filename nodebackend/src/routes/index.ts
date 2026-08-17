@@ -7,6 +7,7 @@ import salesRoutes from './salesRoutes';
 import subadminRoutes from './subadminRoutes';
 import sharedRoutes from './sharedRoutes';
 import fileRoutes from './fileRoutes';
+import associateAgreementRoutes from './associateAgreementRoutes';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use(salesRoutes); // routes/api/sales.php
 router.use(subadminRoutes); // routes/api/subadmin.php
 router.use(sharedRoutes); // routes/api/shared.php
 router.use(fileRoutes); // signed file downloads
+router.use(associateAgreementRoutes); // Associate Partner onboarding agreement + ESP callback
 
 export default router;

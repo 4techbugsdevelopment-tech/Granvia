@@ -123,6 +123,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
     { label: 'My Profile', icon: '👤', screen: 'profile', color: '#7c2d12' },
     { label: 'Notifications', icon: '🔔', screen: 'notifications', color: '#1d4ed8' },
     { label: 'Support', icon: '🎧', screen: 'support', color: '#1e3a5f' },
+    { label: 'Agreement', icon: '✍️', screen: 'agreement', color: '#8b1a1a' },
   ];
 
   const greeting = () => {

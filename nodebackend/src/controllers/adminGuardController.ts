@@ -128,6 +128,15 @@ export async function update(req: Request, res: Response) {
   const data = guardSchema.partial().parse(req.body);
   await assertUnique(data.email, data.mobile ?? undefined, guard.id);
 
+  if (data.account_status === 'active') {
+    const onboardingAgreement = await prisma.associatePartnerAgreement.findFirst({ where: { associatePartnerId: guard.id, currentKey: guard.id } });
+    if (onboardingAgreement && (onboardingAgreement.status !== 'SIGNED' || !onboardingAgreement.productionVerified)) {
+      throw new HttpError(409, 'Associate activation requires a production-verified digital agreement.', {
+        code: onboardingAgreement.status === 'SANDBOX_SIGNED' ? 'sandbox_signature_not_accepted' : 'agreement_signature_required',
+      });
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     const userFields: Record<string, unknown> = {};
     if (data.full_name !== undefined) userFields.fullName = data.full_name;

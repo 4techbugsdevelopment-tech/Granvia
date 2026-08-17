@@ -5,7 +5,7 @@ import {
   Phone, Mail, MapPin, XCircle, User, AlertCircle
 } from 'lucide-react';
 import { Guard } from '../../lib/storage';
-import { listGuards, setGuardAccountStatus, declareGuardAadhaar } from '../../services/adminGuardService';
+import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 
 interface GuardListProps {
@@ -21,6 +21,8 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   const [selectedGuard, setSelectedGuard] = useState<Guard | null>(null);
   const [docs, setDocs] = useState<any[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [agreement, setAgreement] = useState<any | null>(null);
+  const [agreementLoading, setAgreementLoading] = useState(false);
 
   useEffect(() => {
     listGuards()
@@ -37,6 +39,22 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       .catch(() => setDocs([]))
       .finally(() => setDocsLoading(false));
   }, [selectedGuard]);
+
+  useEffect(() => {
+    if (!selectedGuard) { setAgreement(null); return; }
+    setAgreementLoading(true);
+    getAdminGuardAgreement(selectedGuard.id).then(setAgreement).catch(() => setAgreement(null)).finally(() => setAgreementLoading(false));
+  }, [selectedGuard]);
+
+  const viewAgreement = async () => {
+    if (!selectedGuard || !agreement) return;
+    try {
+      const blob = await fetchAdminGuardAgreementPdf(selectedGuard.id, agreement.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e: any) { setError(e?.response?.data?.message || e.message); }
+  };
 
   const reviewDoc = async (docId: string, status: 'verified' | 'rejected') => {
     try {
@@ -413,6 +431,27 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Associate onboarding agreement and eSign audit */}
+              <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+                <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Associate Partner Agreement</div>
+                {agreementLoading ? <p className="text-sm text-gray-400">Loading agreement…</p> : !agreement ? <p className="text-sm text-gray-400">No onboarding agreement generated.</p> : (
+                  <div className="rounded-xl p-3 space-y-3" style={{ background: '#f8fafc' }}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div><span className="text-gray-400 block">Status</span><b className={agreement.production_verified ? 'text-green-700' : 'text-amber-700'}>{String(agreement.status).replace(/_/g, ' ')}</b></div>
+                      <div><span className="text-gray-400 block">Agreement No.</span><b className="break-all">{agreement.agreement_number}</b></div>
+                      <div><span className="text-gray-400 block">Version</span><b>{agreement.agreement_version}</b></div>
+                      <div><span className="text-gray-400 block">Generated</span><b>{agreement.agreement_generated_at ? new Date(agreement.agreement_generated_at).toLocaleDateString('en-IN') : '—'}</b></div>
+                      <div><span className="text-gray-400 block">Consent</span><b>{agreement.consent_given_at ? new Date(agreement.consent_given_at).toLocaleString('en-IN') : 'Pending'}</b></div>
+                      <div><span className="text-gray-400 block">Signed</span><b>{agreement.esign_completed_at ? new Date(agreement.esign_completed_at).toLocaleString('en-IN') : 'Pending'}</b></div>
+                      <div><span className="text-gray-400 block">Verification</span><b>{agreement.production_verified ? 'Production verified' : agreement.status === 'SANDBOX_SIGNED' ? 'Sandbox only' : 'Pending'}</b></div>
+                      <div><span className="text-gray-400 block">Transaction</span><b className="break-all">{agreement.esign_transaction_id || '—'}</b></div>
+                    </div>
+                    <button onClick={viewAgreement} className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-blue-50 text-blue-700">View / Download Agreement</button>
+                    {!!agreement.audit_events?.length && <details><summary className="text-xs font-semibold text-gray-600 cursor-pointer">View eSign Audit Trail ({agreement.audit_events.length})</summary><div className="mt-2 max-h-28 overflow-y-auto space-y-1">{agreement.audit_events.map((event: any) => <div key={event.id} className="text-[11px] flex justify-between gap-3 border-b border-gray-200 py-1"><span>{event.event_type}</span><span className="text-gray-400">{new Date(event.created_at).toLocaleString('en-IN')}</span></div>)}</div></details>}
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

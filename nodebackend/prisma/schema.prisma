@@ -37,6 +37,7 @@ model User {
   guardProfile    GuardProfile?
   subAdminProfile SubAdminProfile?
   employerWallet  EmployerWallet?
+  associatePartnerAgreements AssociatePartnerAgreement[]
 
   @@index([role])
   @@map("users")
@@ -600,6 +601,73 @@ model SubAdminProfile {
   @@index([userId])
   @@index([employerUserId])
   @@map("sub_admin_profiles")
+}
+
+// Versioned onboarding agreement signed by an Associate Partner. This is
+// intentionally separate from Agreement, which is the employer/job agreement.
+model AssociatePartnerAgreement {
+  id                         String    @id @default(uuid()) @db.NVarChar(36)
+  associatePartnerId         String    @map("associate_partner_id") @db.NVarChar(36)
+  currentKey                 String?   @map("current_key") @db.NVarChar(36)
+  agreementNumber            String    @unique @map("agreement_number") @db.NVarChar(100)
+  agreementVersion           String    @map("agreement_version") @db.NVarChar(50)
+  templateVersion            String    @map("template_version") @db.NVarChar(50)
+  status                     String    @default("DRAFT") @db.NVarChar(40)
+  agreementGeneratedAt       DateTime? @map("agreement_generated_at")
+  originalDocumentPath       String?   @map("original_document_path") @db.NVarChar(Max)
+  originalDocumentHash       String?   @map("original_document_hash") @db.NVarChar(64)
+  signedDocumentPath         String?   @map("signed_document_path") @db.NVarChar(Max)
+  signedDocumentHash         String?   @map("signed_document_hash") @db.NVarChar(64)
+  esignProvider              String?   @map("esign_provider") @db.NVarChar(100)
+  esignTransactionId         String?   @map("esign_transaction_id") @db.NVarChar(255)
+  esignRequestId             String?   @map("esign_request_id") @db.NVarChar(255)
+  signerName                 String?   @map("signer_name")
+  signerReference            String?   @map("signer_reference")
+  certificateSerialNumber    String?   @map("certificate_serial_number")
+  certificateIssuer          String?   @map("certificate_issuer")
+  certificateSubject         String?   @map("certificate_subject")
+  consentGiven               Boolean   @default(false) @map("consent_given")
+  consentGivenAt             DateTime? @map("consent_given_at")
+  consentIpAddress           String?   @map("consent_ip_address") @db.NVarChar(100)
+  consentUserAgent           String?   @map("consent_user_agent") @db.NVarChar(1000)
+  esignInitiatedAt           DateTime? @map("esign_initiated_at")
+  esignCompletedAt           DateTime? @map("esign_completed_at")
+  signatureVerifiedAt        DateTime? @map("signature_verified_at")
+  transactionExpiresAt       DateTime? @map("transaction_expires_at")
+  callbackProcessedAt        DateTime? @map("callback_processed_at")
+  correlationHash            String?   @map("correlation_hash") @db.NVarChar(64)
+  failureCode                String?   @map("failure_code") @db.NVarChar(100)
+  failureReason              String?   @map("failure_reason") @db.NVarChar(2000)
+  providerResponseReference  String?   @map("provider_response_reference") @db.NVarChar(500)
+  productionVerified         Boolean   @default(false) @map("production_verified")
+  lockedAt                   DateTime? @map("locked_at")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  associatePartner User                         @relation(fields: [associatePartnerId], references: [id], onDelete: NoAction)
+  auditEvents       AssociatePartnerAgreementAudit[]
+
+  @@index([associatePartnerId, status])
+  @@index([esignTransactionId])
+  @@map("associate_partner_agreements")
+}
+
+model AssociatePartnerAgreementAudit {
+  id                  String   @id @default(uuid()) @db.NVarChar(36)
+  agreementId         String   @map("agreement_id") @db.NVarChar(36)
+  associatePartnerId  String   @map("associate_partner_id") @db.NVarChar(36)
+  eventType           String   @map("event_type") @db.NVarChar(80)
+  transactionId       String?  @map("transaction_id") @db.NVarChar(255)
+  ipAddress            String?  @map("ip_address") @db.NVarChar(100)
+  userAgent            String?  @map("user_agent") @db.NVarChar(1000)
+  metadata             String?  @db.NVarChar(Max)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  agreement AssociatePartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@index([agreementId, createdAt])
+  @@index([associatePartnerId, eventType])
+  @@map("associate_partner_agreement_audits")
 }
 
 model StaffMember {

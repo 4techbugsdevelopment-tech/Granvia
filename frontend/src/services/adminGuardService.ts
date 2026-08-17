@@ -76,3 +76,13 @@ export async function declareGuardAadhaar(userId: string, status: AadhaarDecl, r
   const { data } = await apiClient.patch(`/admin/guards/${userId}/aadhaar`, { status, remarks });
   return data;
 }
+
+export async function getAdminGuardAgreement(userId: string) {
+  const { data } = await apiClient.get(`/admin/guards/${userId}/agreement`);
+  return data;
+}
+
+export async function fetchAdminGuardAgreementPdf(userId: string, agreementId: string): Promise<Blob> {
+  const { data } = await apiClient.get(`/admin/guards/${userId}/agreement/${agreementId}/download`, { responseType: 'blob' });
+  return data;
+}

@@ -11,6 +11,7 @@ import * as adminReport from '../controllers/adminReportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
 import * as emailLog from '../controllers/emailLogController';
 import * as roles from '../controllers/roleController';
+import * as associateAgreement from '../controllers/adminAssociateAgreementController';
 
 const router = Router();
 
@@ -23,6 +24,9 @@ router.patch('/admin/guards/:guard', asyncHandler(adminGuard.update));
 router.patch('/admin/guards/:guard/aadhaar', asyncHandler(aadhaarManual.adminDeclareGuard));
 router.get('/admin/guards/:guard/documents', asyncHandler(guardDoc.adminIndex));
 router.patch('/admin/guard-documents/:document', asyncHandler(guardDoc.adminUpdateStatus));
+router.get('/admin/guards/:guard/agreement', asyncHandler(associateAgreement.show));
+router.get('/admin/guards/:guard/agreement/:agreement/download', asyncHandler(associateAgreement.download));
+router.post('/admin/guards/:guard/agreement/:agreement/supersede', asyncHandler(associateAgreement.supersede));
 
 router.get('/admin/reports/counts', asyncHandler(report.adminCounts));
 router.get('/admin/reports/analytics', asyncHandler(adminReport.analytics));
