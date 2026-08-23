@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
+import { autoCheckoutExpiredAttendance } from '../services/attendanceAutoCheckout';
 
 // Platform-wide admin views for the Super Admin panel:
 //   GET /admin/attendance            — all attendance + today stats
@@ -12,7 +13,8 @@ const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined'];
 const COMMISSION_RATE = 0.1;
 
 function todayDateOnly(): Date {
-  const iso = new Date().toISOString().slice(0, 10);
+  const indiaNow = new Date(Date.now() + 330 * 60_000);
+  const iso = indiaNow.toISOString().slice(0, 10);
   return new Date(`${iso}T00:00:00.000Z`);
 }
 
@@ -29,6 +31,7 @@ const jobInclude = {
 
 /** GET /admin/attendance */
 export async function attendance(req: Request, res: Response) {
+  await autoCheckoutExpiredAttendance();
   const today = todayDateOnly();
 
   const [records, checkedInToday, activeToday, verified, pending] = await Promise.all([

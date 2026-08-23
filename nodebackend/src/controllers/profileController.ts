@@ -70,15 +70,18 @@ export async function uploadAvatar(req: Request, res: Response) {
   if (!file) {
     throw new HttpError(422, 'The file field is required.', { errors: { file: ['The file field is required.'] } });
   }
-  if (!file.mimetype.startsWith('image/')) {
-    throw new HttpError(422, 'The file must be an image.', { errors: { file: ['The file must be an image.'] } });
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+    throw new HttpError(422, 'The photo must be a JPG, PNG, or WebP image.', { errors: { file: ['The photo must be a JPG, PNG, or WebP image.'] } });
   }
   if (file.size > 5 * 1024 * 1024) {
     throw new HttpError(422, 'The file must not be greater than 5120 kilobytes.', { errors: { file: ['The file must not be greater than 5120 kilobytes.'] } });
   }
 
   const stored = storeFile('profile-images', req.user!.id, file);
-  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { avatarUrl: stored.url } });
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({ where: { id: req.user!.id }, data: { avatarUrl: stored.url } }),
+    prisma.guardProfile.updateMany({ where: { userId: req.user!.id }, data: { avatarUrl: stored.url } }),
+  ]);
   return res.json(serializeUserRow(updated as unknown as Record<string, unknown>));
 }
 
@@ -94,10 +97,19 @@ export async function updateGuardProfile(req: Request, res: Response) {
   const profile = await prisma.guardProfile.findUnique({ where: { userId: req.user!.id } });
   if (!profile) throw new HttpError(404, 'Associate profile not found.');
 
-  const updated = await prisma.guardProfile.update({
-    where: { userId: req.user!.id },
-    data: toPrismaData(data, GUARD_JSON) as never,
-  });
+  const userData = {
+    ...(data.full_name !== undefined ? { fullName: data.full_name } : {}),
+    ...(data.mobile !== undefined ? { mobile: data.mobile } : {}),
+  };
+  const [updated] = await prisma.$transaction([
+    prisma.guardProfile.update({
+      where: { userId: req.user!.id },
+      data: toPrismaData(data, GUARD_JSON) as never,
+    }),
+    ...(Object.keys(userData).length
+      ? [prisma.user.update({ where: { id: req.user!.id }, data: userData })]
+      : []),
+  ]);
   return res.json(serializeGuardProfile(updated as unknown as Record<string, unknown>));
 }
 

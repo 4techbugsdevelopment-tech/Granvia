@@ -94,13 +94,47 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{
 }
 
 /** Browser geolocation as a promise — resolves with LatLng or null on error/denial */
-export function getCurrentPosition(): Promise<LatLng | null> {
+type NativeBridgeWindow = Window & {
+  __GRANVIA_APK__?: boolean;
+  ReactNativeWebView?: { postMessage: (message: string) => void };
+};
+
+/** Ask the Android shell for runtime permission before using WebView geolocation. */
+function requestNativeLocationPermission(): Promise<boolean | null> {
+  const nativeWindow = window as NativeBridgeWindow;
+  if (!nativeWindow.__GRANVIA_APK__ || !nativeWindow.ReactNativeWebView) {
+    return Promise.resolve(null);
+  }
+
   return new Promise(resolve => {
-    if (!navigator.geolocation) { resolve(null); return; }
+    const onResult = (event: Event) => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('granvia-location-permission', onResult);
+      const detail = (event as CustomEvent<{ granted?: boolean }>).detail;
+      resolve(detail?.granted === true);
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('granvia-location-permission', onResult);
+      resolve(null);
+    }, 15000);
+
+    window.addEventListener('granvia-location-permission', onResult);
+    nativeWindow.ReactNativeWebView!.postMessage(JSON.stringify({
+      type: 'GRANVIA_REQUEST_LOCATION',
+    }));
+  });
+}
+
+export async function getCurrentPosition(): Promise<LatLng | null> {
+  const nativePermission = await requestNativeLocationPermission();
+  if (nativePermission === false || !navigator.geolocation) return null;
+
+  return new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => resolve(null),
-      { timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
   });
 }

@@ -9,6 +9,8 @@ import * as attendance from '../controllers/attendanceController';
 import * as documents from '../controllers/guardDocumentController';
 import * as aadhaar from '../controllers/guardAadhaarController';
 import * as surepassTest from '../controllers/surepassTestController';
+import * as availability from '../controllers/availabilityController';
+import * as wallet from '../controllers/walletController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -21,8 +23,17 @@ router.post('/guard/jobs/:job/apply', asyncHandler(applications.apply));
 router.get('/guard/applications', asyncHandler(applications.mine));
 router.get('/guard/applications/job-ids', asyncHandler(applications.myAppliedJobIds));
 
+router.get('/guard/availability', asyncHandler(availability.index));
+router.post('/guard/availability', asyncHandler(availability.store));
+router.patch('/guard/availability/:availability', asyncHandler(availability.update));
+router.delete('/guard/availability/:availability', asyncHandler(availability.destroy));
+
+router.get('/guard/wallet', asyncHandler(wallet.guardShow));
+router.get('/guard/wallet/transactions', asyncHandler(wallet.guardTransactions));
+
 router.get('/guard/attendance', asyncHandler(attendance.guardIndex));
 router.post('/guard/attendance/check-in', asyncHandler(attendance.checkIn));
+router.post('/guard/attendance/history', asyncHandler(attendance.saveHistorical));
 router.patch('/guard/attendance/:record/check-out', asyncHandler(attendance.checkOut));
 
 router.get('/guard/documents', asyncHandler(documents.index));

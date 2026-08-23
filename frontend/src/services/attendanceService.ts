@@ -25,17 +25,55 @@ export async function listMyAttendance() {
   return (data ?? []).map(remap);
 }
 
-export async function checkInAttendance(jobId?: string, guardRemarks?: string) {
+export async function checkInAttendance(input: {
+  latitude: number;
+  longitude: number;
+  jobId?: string;
+  guardRemarks?: string;
+}) {
   const { data } = await apiClient.post('/guard/attendance/check-in', {
-    job_id: jobId,
-    guard_remarks: guardRemarks,
+    job_id: input.jobId,
+    guard_remarks: input.guardRemarks,
+    latitude: input.latitude,
+    longitude: input.longitude,
   });
   return remap(data);
 }
 
-export async function checkOutAttendance(recordId: string, guardRemarks?: string) {
+export async function checkOutAttendance(recordId: string, input: {
+  latitude: number;
+  longitude: number;
+  guardRemarks?: string;
+}) {
   const { data } = await apiClient.patch(`/guard/attendance/${recordId}/check-out`, {
-    guard_remarks: guardRemarks,
+    guard_remarks: input.guardRemarks,
+    latitude: input.latitude,
+    longitude: input.longitude,
+  });
+  return remap(data);
+}
+
+export async function saveHistoricalAttendance(input: {
+  attendanceDate: string;
+  inTime: string;
+  outTime: string;
+  checkInLatitude: number;
+  checkInLongitude: number;
+  checkOutLatitude: number;
+  checkOutLongitude: number;
+  jobId?: string;
+  guardRemarks?: string;
+}) {
+  const { data } = await apiClient.post('/guard/attendance/history', {
+    attendance_date: input.attendanceDate,
+    in_time: input.inTime,
+    out_time: input.outTime,
+    check_in_latitude: input.checkInLatitude,
+    check_in_longitude: input.checkInLongitude,
+    check_out_latitude: input.checkOutLatitude,
+    check_out_longitude: input.checkOutLongitude,
+    job_id: input.jobId,
+    guard_remarks: input.guardRemarks,
   });
   return remap(data);
 }

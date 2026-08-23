@@ -7,7 +7,7 @@ import { storeFile, urlFor, IncomingFile } from '../utils/fileStorage';
 
 // Port of the guard-facing methods of App\Http\Controllers\GuardDocumentController.
 
-const DOCUMENT_TYPES = ['id_proof', 'police_verification', 'bank_proof', 'other'] as const;
+const DOCUMENT_TYPES = ['id_proof', 'police_verification', 'bank_proof', 'skill_training_certificate', 'other'] as const;
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf'];
 
 const storeSchema = z.object({

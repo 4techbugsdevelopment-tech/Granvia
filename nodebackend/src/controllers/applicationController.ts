@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
-import { snakeKeys } from '../utils/serialize';
+import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 
 // Guard-facing application controller.
@@ -51,24 +51,22 @@ export async function mine(req: Request, res: Response) {
     where: { guardUserId: req.user!.id },
     include: {
       job: {
-        select: {
-          id: true,
-          title: true,
-          salaryAmount: true,
-          paymentType: true,
-          shiftType: true,
-          dutyHours: true,
-          companyId: true,
-          siteId: true,
+        include: {
           company: { select: { id: true, companyName: true } },
-          site: { select: { id: true, siteName: true, city: true } },
+          site: true,
         },
       },
     },
     orderBy: { appliedAt: 'desc' },
   });
 
-  return res.json(snakeKeys(applications));
+  const rows = snakeKeys(applications) as Array<Record<string, any>>;
+  for (const application of rows) {
+    if (!application.job) continue;
+    application.job.required_skills = parseJsonField(application.job.required_skills);
+    application.job.language_requirements = parseJsonField(application.job.language_requirements);
+  }
+  return res.json(rows);
 }
 
 /** GET /guard/applications/job-ids */

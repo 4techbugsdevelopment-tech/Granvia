@@ -1,8 +1,14 @@
 // AttendanceScreen — guard check-in/check-out backed by the API
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, CheckCircle, LogIn, LogOut, Calendar, AlertCircle } from 'lucide-react';
-import { listMyAttendance, checkInAttendance, checkOutAttendance } from '../../services/attendanceService';
+import { MapPin, Clock, CheckCircle, LogIn, LogOut, Calendar, AlertCircle, History, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  listMyAttendance,
+  checkInAttendance,
+  checkOutAttendance,
+  saveHistoricalAttendance,
+} from '../../services/attendanceService';
+import { getCurrentPosition } from '../../lib/geoUtils';
 
 function formatTime(value: string | null | undefined) {
   if (!value) return null;
@@ -24,6 +30,37 @@ function isToday(dateValue: string) {
   return new Date(dateValue).toDateString() === new Date().toDateString();
 }
 
+function localDateValue(date: Date) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function yesterdayValue() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return localDateValue(date);
+}
+
+function coordinateLink(lat: number | string | null, lng: number | string | null) {
+  if (lat == null || lng == null) return null;
+  return `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}`;
+}
+
+function attendanceDateKey(value: string) {
+  return value.slice(0, 10);
+}
+
+function calendarCells(month: Date) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const mondayOffset = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+  return [
+    ...Array.from({ length: mondayOffset }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, monthIndex, index + 1)),
+  ];
+}
+
 export default function AttendanceScreen() {
   const now = new Date();
 
@@ -33,12 +70,23 @@ export default function AttendanceScreen() {
   const [marking, setMarking] = useState(false);
   const [pulseActive, setPulseActive] = useState(false);
   const [successType, setSuccessType] = useState<'in' | 'out' | null>(null);
+  const [showHistoryForm, setShowHistoryForm] = useState(false);
+  const [historySaving, setHistorySaving] = useState(false);
+  const [historyDate, setHistoryDate] = useState(yesterdayValue);
+  const [historyIn, setHistoryIn] = useState('09:00');
+  const [historyOut, setHistoryOut] = useState('17:00');
+  const [historyRemarks, setHistoryRemarks] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(() => localDateValue(now));
 
   useEffect(() => {
-    listMyAttendance()
+    const load = () => listMyAttendance()
       .then(setRecords)
       .catch(e => setError(e?.response?.data?.message || e.message))
       .finally(() => setLoading(false));
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const todayRecord = records.find(r => isToday(r.attendance_date));
@@ -50,11 +98,13 @@ export default function AttendanceScreen() {
     setMarking(true);
     setError(null);
     try {
+      const position = await getCurrentPosition();
+      if (!position) throw new Error('Location access is required to mark attendance. Please enable location and try again.');
       if (type === 'in') {
-        const record = await checkInAttendance();
+        const record = await checkInAttendance({ latitude: position.lat, longitude: position.lng });
         setRecords(prev => [record, ...prev]);
       } else if (todayRecord) {
-        const record = await checkOutAttendance(todayRecord.id);
+        const record = await checkOutAttendance(todayRecord.id, { latitude: position.lat, longitude: position.lng });
         setRecords(prev => prev.map(r => (r.id === record.id ? record : r)));
       }
       setSuccessType(type);
@@ -67,7 +117,61 @@ export default function AttendanceScreen() {
     }
   };
 
+  const saveHistory = async () => {
+    setHistorySaving(true);
+    setError(null);
+    try {
+      const inTime = new Date(`${historyDate}T${historyIn}:00`);
+      const outTime = new Date(`${historyDate}T${historyOut}:00`);
+      if (outTime <= inTime) outTime.setDate(outTime.getDate() + 1);
+      if (outTime > new Date()) throw new Error('Historical check-out cannot be in the future.');
+
+      const position = await getCurrentPosition();
+      if (!position) throw new Error('Location access is required to submit a historical attendance correction.');
+      const record = await saveHistoricalAttendance({
+        attendanceDate: historyDate,
+        inTime: inTime.toISOString(),
+        outTime: outTime.toISOString(),
+        checkInLatitude: position.lat,
+        checkInLongitude: position.lng,
+        checkOutLatitude: position.lat,
+        checkOutLongitude: position.lng,
+        guardRemarks: historyRemarks || undefined,
+      });
+      setRecords(prev => [record, ...prev.filter(r => r.id !== record.id)]);
+      setShowHistoryForm(false);
+      setHistoryRemarks('');
+      setSuccessType('out');
+      setTimeout(() => setSuccessType(null), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    } finally {
+      setHistorySaving(false);
+    }
+  };
+
   const recentDays = records.slice(0, 7);
+  const recordsByDate = records.reduce<Record<string, any[]>>((grouped, record) => {
+    const key = attendanceDateKey(record.attendance_date);
+    (grouped[key] ||= []).push(record);
+    return grouped;
+  }, {});
+  const monthPrefix = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}`;
+  const monthRecords = records.filter(record => attendanceDateKey(record.attendance_date).startsWith(monthPrefix));
+  const monthDays = new Set(monthRecords.map(record => attendanceDateKey(record.attendance_date))).size;
+  const monthHours = monthRecords.reduce((sum, record) => sum + Number(record.total_hours ?? 0), 0);
+  const monthPending = monthRecords.filter(record => !['verified', 'approved'].includes(record.status)).length;
+  const monthIncomplete = monthRecords.filter(record => !record.out_time).length;
+  const selectedRecords = recordsByDate[selectedDate] ?? [];
+  const isCurrentCalendarMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
+
+  const moveCalendarMonth = (amount: number) => {
+    const target = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + amount, 1);
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (target > currentMonth) return;
+    setCalendarMonth(target);
+    setSelectedDate(target.getTime() === currentMonth.getTime() ? localDateValue(now) : localDateValue(target));
+  };
 
   return (
     <div className="pb-4">
@@ -202,6 +306,144 @@ export default function AttendanceScreen() {
         </motion.div>
       </div>
 
+      {/* Monthly attendance calendar */}
+      <div className="px-4 mt-4">
+        <div className="rounded-3xl bg-white p-4" style={{ boxShadow: '0 4px 18px rgba(0,0,0,0.07)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-gray-800">Attendance Summary</h2>
+              <p className="text-[11px] text-gray-400">Tap a marked date to view details</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button aria-label="Previous month" onClick={() => moveCalendarMonth(-1)} className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-600 mobile-touch-interactive"><ChevronLeft size={16} /></button>
+              <p className="w-28 text-center text-sm font-bold text-slate-800">{calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+              <button aria-label="Next month" disabled={isCurrentCalendarMonth} onClick={() => moveCalendarMonth(1)} className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-600 disabled:opacity-30 mobile-touch-interactive"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="rounded-xl bg-blue-50 p-2 text-center"><p className="text-lg font-bold text-blue-900">{monthDays}</p><p className="text-[10px] text-blue-700">Days</p></div>
+            <div className="rounded-xl bg-green-50 p-2 text-center"><p className="text-lg font-bold text-green-800">{Math.round(monthHours * 10) / 10}</p><p className="text-[10px] text-green-700">Hours</p></div>
+            <div className="rounded-xl bg-amber-50 p-2 text-center"><p className="text-lg font-bold text-amber-800">{monthPending}</p><p className="text-[10px] text-amber-700">Pending</p></div>
+            <div className="rounded-xl bg-red-50 p-2 text-center"><p className="text-lg font-bold text-red-700">{monthIncomplete}</p><p className="text-[10px] text-red-600">Incomplete</p></div>
+          </div>
+
+          <div className="grid grid-cols-7 mb-1">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => <div key={day} className="py-1 text-center text-[10px] font-semibold text-gray-400">{day}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-y-1">
+            {calendarCells(calendarMonth).map((date, index) => {
+              if (!date) return <div key={`blank-${index}`} className="h-10" />;
+              const key = localDateValue(date);
+              const dayRecords = recordsByDate[key] ?? [];
+              const hasIncomplete = dayRecords.some(record => !record.out_time);
+              const hasPending = dayRecords.some(record => !['verified', 'approved'].includes(record.status));
+              const statusColor = hasIncomplete ? '#dc2626' : hasPending ? '#d97706' : dayRecords.length ? '#16a34a' : null;
+              const selected = selectedDate === key;
+              const today = key === localDateValue(now);
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedDate(key)}
+                  className="h-10 rounded-xl flex flex-col items-center justify-center text-xs font-semibold mobile-touch-interactive"
+                  style={{ background: selected ? '#0f1e3c' : today ? '#eff6ff' : 'transparent', color: selected ? 'white' : '#334155' }}
+                >
+                  <span>{date.getDate()}</span>
+                  <span className="w-1.5 h-1.5 rounded-full mt-0.5" style={{ background: statusColor ?? 'transparent' }} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t border-gray-100 text-[10px] text-gray-500">
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-green-600" />Verified</span>
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-amber-600" />Pending</span>
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-red-600" />Incomplete</span>
+          </div>
+
+          {selectedRecords.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-bold text-gray-700 mb-2">{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+              <div className="space-y-2">
+                {selectedRecords.map(record => (
+                  <div key={record.id} className="rounded-xl bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{record.job_posts?.title ?? 'Attendance'}</p>
+                      <p className="text-[11px] text-gray-500">{formatTime(record.in_time) ?? '--'} – {formatTime(record.out_time) ?? 'Not checked out'}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs font-bold text-blue-900">{formatHours(record.total_hours) ?? '--'}</p>
+                      <p className={`text-[10px] ${['verified', 'approved'].includes(record.status) ? 'text-green-700' : 'text-amber-700'}`}>{['verified', 'approved'].includes(record.status) ? 'Verified' : 'Pending'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedRecords.length === 0 && selectedDate.startsWith(monthPrefix) && (
+            <p className="mt-3 pt-3 border-t border-gray-100 text-center text-xs text-gray-400">No attendance recorded for this date.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Past-date attendance correction */}
+      <div className="px-4 mt-4">
+        {!showHistoryForm ? (
+          <button
+            onClick={() => setShowHistoryForm(true)}
+            className="w-full py-3.5 rounded-2xl border border-blue-100 bg-blue-50 text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mobile-touch-interactive"
+          >
+            <History size={16} /> Add or correct past attendance
+          </button>
+        ) : (
+          <div className="rounded-2xl bg-white p-4" style={{ boxShadow: '0 3px 14px rgba(0,0,0,0.07)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">Past attendance</h3>
+                <p className="text-xs text-gray-400">Submitted changes require employer verification.</p>
+              </div>
+              <button onClick={() => setShowHistoryForm(false)} className="p-2 rounded-lg bg-gray-50 text-gray-500"><X size={15} /></button>
+            </div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Attendance date</label>
+            <input
+              type="date"
+              value={historyDate}
+              max={yesterdayValue()}
+              onChange={e => setHistoryDate(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm mb-3"
+            />
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <label className="text-xs font-semibold text-gray-600">
+                Check-in time
+                <input type="time" value={historyIn} onChange={e => setHistoryIn(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-gray-600">
+                Check-out time
+                <input type="time" value={historyOut} onChange={e => setHistoryOut(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm" />
+              </label>
+            </div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Reason / remarks</label>
+            <textarea
+              value={historyRemarks}
+              onChange={e => setHistoryRemarks(e.target.value)}
+              rows={2}
+              placeholder="Why is this attendance being added or corrected?"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+            />
+            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-2 mt-2">
+              GPS records your current correction-submission location; it is labelled as a historical manual entry for reviewers.
+            </p>
+            <button
+              onClick={saveHistory}
+              disabled={historySaving || !historyDate || !historyIn || !historyOut}
+              className="w-full mt-3 py-3 rounded-xl bg-blue-900 text-white text-sm font-bold disabled:opacity-50"
+            >
+              {historySaving ? 'Saving with GPS…' : 'Submit past attendance'}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Attendance history */}
       <div className="px-4 mt-6">
         <div className="flex items-center gap-2 mb-3">
@@ -242,6 +484,16 @@ export default function AttendanceScreen() {
                         {formatTime(rec.in_time) ?? '--'} {rec.out_time ? `→ ${formatTime(rec.out_time)}` : '(not checked out)'}
                         {rec.job_posts?.title && <span className="ml-1">· {rec.job_posts.title}</span>}
                       </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {coordinateLink(rec.check_in_latitude, rec.check_in_longitude) && (
+                          <a href={coordinateLink(rec.check_in_latitude, rec.check_in_longitude)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600">Check-in GPS</a>
+                        )}
+                        {coordinateLink(rec.check_out_latitude, rec.check_out_longitude) && (
+                          <a href={coordinateLink(rec.check_out_latitude, rec.check_out_longitude)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600">Check-out GPS</a>
+                        )}
+                        {rec.checkout_method === 'automatic' && <span className="text-[10px] text-purple-600">Auto checkout</span>}
+                        {rec.entry_mode === 'historical_manual' && <span className="text-[10px] text-amber-600">Manual past entry</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">

@@ -2,12 +2,13 @@ import { apiClient } from '../lib/apiClient';
 
 // Guard documents
 
-export type GuardDocumentType = 'id_proof' | 'police_verification' | 'bank_proof' | 'other';
+export type GuardDocumentType = 'id_proof' | 'police_verification' | 'bank_proof' | 'skill_training_certificate' | 'other';
 
 export const GUARD_DOCUMENT_LABELS: Record<GuardDocumentType, string> = {
   id_proof: 'ID Proof',
   police_verification: 'Police Verification',
   bank_proof: 'Bank Proof',
+  skill_training_certificate: 'Skill Training Certificate',
   other: 'Other',
 };
 

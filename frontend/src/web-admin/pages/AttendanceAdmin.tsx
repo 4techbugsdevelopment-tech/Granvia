@@ -24,6 +24,23 @@ function fmtHours(h: number | null): string {
   return `${hours}h ${mins}m`;
 }
 
+function gpsLink(lat: number | string | null, lng: number | string | null, fallback = '—') {
+  if (lat == null || lng == null) return <span className="text-gray-400">{fallback}</span>;
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+      target="_blank"
+      rel="noreferrer"
+      title={`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`}
+      className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+    >
+      {latitude.toFixed(5)}, {longitude.toFixed(5)}
+    </a>
+  );
+}
+
 export default function AttendanceAdmin() {
   const [data, setData] = useState<AdminAttendance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +84,7 @@ export default function AttendanceAdmin() {
             <StatTile label="Pending Verification" value={String(stats?.pending ?? 0)} color="#854d0e" />
           </div>
 
-          <Table headers={['Associate', 'Site', 'Date', 'In', 'Out', 'Hours', 'Status']}>
+          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in GPS', 'Out', 'Check-out GPS', 'Hours', 'Status']}>
             {records.map((r) => (
               <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                 <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard_profile?.full_name ?? '—'}</td>
@@ -76,13 +93,19 @@ export default function AttendanceAdmin() {
                   {r.attendance_date ? new Date(r.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.in_time)}</td>
+                <td className="px-4 py-3.5">{gpsLink(r.check_in_latitude, r.check_in_longitude)}</td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.out_time)}</td>
+                <td className="px-4 py-3.5">{gpsLink(r.check_out_latitude, r.check_out_longitude, r.checkout_method === 'automatic' ? 'Auto — unavailable' : '—')}</td>
                 <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#0f1e3c' }}>{fmtHours(r.total_hours)}</td>
-                <td className="px-4 py-3.5"><Pill label={statusLabel(r.status)} tone={tone(r.status) as any} /></td>
+                <td className="px-4 py-3.5">
+                  <Pill label={statusLabel(r.status)} tone={tone(r.status) as any} />
+                  {r.checkout_method === 'automatic' && <div className="text-[10px] text-purple-600 mt-1">Auto checkout</div>}
+                  {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Historical correction</div>}
+                </td>
               </tr>
             ))}
             {records.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
             )}
           </Table>
         </>

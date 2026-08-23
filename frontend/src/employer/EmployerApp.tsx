@@ -1996,6 +1996,23 @@ function AgreementsPage({ employer: _employer, company, onChanged }: { employer:
 
 // ── Attendance ────────────────────────────────────────────────────────────────
 
+function AttendanceGps({ lat, lng, fallback = '--' }: { lat: any; lng: any; fallback?: string }) {
+  if (lat == null || lng == null) return <span className="text-xs text-gray-400">{fallback}</span>;
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+      target="_blank"
+      rel="noreferrer"
+      className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+      title={`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`}
+    >
+      {latitude.toFixed(5)}, {longitude.toFixed(5)}
+    </a>
+  );
+}
+
 function AttendancePage({ company, onChanged }: { company: any; onChanged: () => void }) {
   const [records, setRecords] = useState<any[]>([]);
 
@@ -2013,15 +2030,21 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     <div className="p-6">
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Attendance Verification</h2>
-        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Hours', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in GPS', 'Check-out GPS', 'Hours', 'Status', 'Actions']}>
           {records.map((r: any) => (
             <tr key={r.id} className="border-b border-gray-50">
               <Td>{r.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{r.job_posts?.title}</Td>
               <Td>{r.attendance_date}</Td>
               <Td>{r.in_time ? new Date(r.in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'} / {r.out_time ? new Date(r.out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</Td>
+              <Td><AttendanceGps lat={r.check_in_latitude} lng={r.check_in_longitude} /></Td>
+              <Td><AttendanceGps lat={r.check_out_latitude} lng={r.check_out_longitude} fallback={r.checkout_method === 'automatic' ? 'Auto checkout — unavailable' : '--'} /></Td>
               <Td>{r.total_hours ?? '--'}</Td>
-              <Td>{statusBadge(r.status)}</Td>
+              <Td>
+                {statusBadge(r.status)}
+                {r.checkout_method === 'automatic' && <div className="text-[10px] text-purple-600 mt-1">Auto checkout</div>}
+                {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Historical correction</div>}
+              </Td>
               <Td>
                 <button onClick={() => update(r.id, 'approved', 'Approved by employer')} className="table-action tone-green">Approve</button>
                 <button onClick={() => update(r.id, 'rejected', 'Rejected by employer')} className="table-action tone-red">Reject</button>

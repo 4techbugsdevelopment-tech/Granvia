@@ -10,9 +10,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   BackHandler, SafeAreaView, StyleSheet, ActivityIndicator, View, Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewNavigation,
+} from 'react-native-webview';
 import Constants from 'expo-constants';
 
 // The deployed universal-app URL. Configured in app.json → extra.appUrl.
@@ -51,6 +55,57 @@ export default function App() {
 
   const onNav = (nav: WebViewNavigation) => setCanGoBack(nav.canGoBack);
 
+  const sendLocationPermissionResult = (granted: boolean) => {
+    webRef.current?.injectJavaScript(`
+      window.dispatchEvent(new CustomEvent('granvia-location-permission', {
+        detail: ${JSON.stringify({ granted })}
+      }));
+      true;
+    `);
+  };
+
+  // Android WebViews do not reliably surface the system location prompt on
+  // their own. The map asks the native shell to request runtime permission,
+  // then retries browser geolocation as soon as this result is dispatched.
+  const requestLocationPermission = async () => {
+    if (Platform.OS !== 'android') {
+      sendLocationPermissionResult(true);
+      return;
+    }
+
+    try {
+      const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+      const coarse = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
+      const alreadyGranted =
+        (await PermissionsAndroid.check(fine)) ||
+        (await PermissionsAndroid.check(coarse));
+
+      if (alreadyGranted) {
+        sendLocationPermissionResult(true);
+        return;
+      }
+
+      const results = await PermissionsAndroid.requestMultiple([fine, coarse]);
+      const granted =
+        results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
+        results[coarse] === PermissionsAndroid.RESULTS.GRANTED;
+      sendLocationPermissionResult(granted);
+    } catch {
+      sendLocationPermissionResult(false);
+    }
+  };
+
+  const onMessage = (event: { nativeEvent: { data: string } }) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data) as { type?: string };
+      if (message.type === 'GRANVIA_REQUEST_LOCATION') {
+        void requestLocationPermission();
+      }
+    } catch {
+      // Ignore messages that are not part of the native bridge.
+    }
+  };
+
   return (
     <SafeAreaView
       style={[
@@ -64,6 +119,7 @@ export default function App() {
         source={{ uri: APP_URL }}
         injectedJavaScriptBeforeContentLoaded={INJECT_BEFORE_LOAD}
         onNavigationStateChange={onNav}
+        onMessage={onMessage}
         onLoadEnd={() => setLoading(false)}
         originWhitelist={['*']}
         domStorageEnabled

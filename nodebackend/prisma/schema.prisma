@@ -410,7 +410,14 @@ model AttendanceRecord {
   attendanceDate DateTime  @map("attendance_date") @db.Date
   inTime         DateTime? @map("in_time")
   outTime        DateTime? @map("out_time")
+  scheduledOutTime DateTime? @map("scheduled_out_time")
   totalHours     Decimal?  @map("total_hours") @db.Decimal(6, 2)
+  checkInLatitude  Decimal? @map("check_in_latitude") @db.Decimal(10, 6)
+  checkInLongitude Decimal? @map("check_in_longitude") @db.Decimal(10, 6)
+  checkOutLatitude  Decimal? @map("check_out_latitude") @db.Decimal(10, 6)
+  checkOutLongitude Decimal? @map("check_out_longitude") @db.Decimal(10, 6)
+  entryMode      String    @default("live") @map("entry_mode")
+  checkoutMethod String?   @map("checkout_method")
   status         String    @default("pending_verification")
   employerRemarks String?  @map("employer_remarks") @db.NVarChar(Max)
   guardRemarks   String?   @map("guard_remarks") @db.NVarChar(Max)
@@ -421,6 +428,7 @@ model AttendanceRecord {
 
   @@index([guardUserId])
   @@index([companyId])
+  @@index([scheduledOutTime])
   @@map("attendance_records")
 }
 
@@ -560,6 +568,21 @@ model GuardDocument {
 
   @@index([guardUserId, documentType])
   @@map("guard_documents")
+}
+
+model GuardAvailability {
+  id            String   @id @default(uuid()) @db.NVarChar(36)
+  guardUserId   String   @map("guard_user_id") @db.NVarChar(36)
+  durationHours Int      @map("duration_hours")
+  frequency     String
+  days          String   @db.NVarChar(Max)
+  startTime     String   @map("start_time") @db.NVarChar(5)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([guardUserId, active])
+  @@map("guard_availability")
 }
 
 model GuardAadhaarVerification {

@@ -4,6 +4,7 @@ import { env } from './config/env';
 import apiRoutes from './routes';
 import { errorHandler, notFound } from './middleware/error';
 import { PUBLIC_ROOT } from './utils/fileStorage';
+import { startAttendanceAutoCheckout } from './services/attendanceAutoCheckout';
 
 const app = express();
 
@@ -34,4 +35,5 @@ app.use(errorHandler);
 app.listen(env.port, () => {
   // eslint-disable-next-line no-console
   console.log(`Granvia Node backend listening on http://127.0.0.1:${env.port}/api`);
+  startAttendanceAutoCheckout();
 });

@@ -30,6 +30,12 @@ export type AdminAttendanceRecord = {
   attendance_date: string;
   in_time: string | null;
   out_time: string | null;
+  check_in_latitude: number | string | null;
+  check_in_longitude: number | string | null;
+  check_out_latitude: number | string | null;
+  check_out_longitude: number | string | null;
+  entry_mode: string;
+  checkout_method: string | null;
   total_hours: number | null;
   status: string;
 };

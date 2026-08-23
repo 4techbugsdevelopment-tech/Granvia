@@ -218,7 +218,7 @@ export default function JobSearch() {
                       <MapPin size={10} />{site.site_name ?? site.city ?? '—'}
                     </span>
                     <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Clock size={10} />{job.shift_type} Shift
+                      <Clock size={10} />{job.shift_type} Shift{job.duty_hours ? ` · ${job.duty_hours}` : ''}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -276,7 +276,7 @@ export default function JobSearch() {
       <AnimatePresence>
         {applyError && (
           <motion.div
-            className="fixed bottom-24 left-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-red-600 text-white text-sm shadow-lg"
+            className="fixed bottom-24 left-4 right-4 z-[90] flex items-center gap-2 px-4 py-3 rounded-2xl bg-red-600 text-white text-sm shadow-lg"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
           >
             <AlertCircle size={16} />
@@ -290,14 +290,14 @@ export default function JobSearch() {
       <AnimatePresence>
         {selectedJob && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end"
+            className="fixed inset-0 z-[80] flex items-end"
             style={{ background: 'rgba(0,0,0,0.4)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setSelectedJob(null)}
           >
             <motion.div
-              className="w-full rounded-t-3xl overflow-hidden"
-              style={{ background: 'white', maxHeight: '85vh', overflow: 'auto', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+              className="w-full rounded-t-3xl overflow-hidden flex flex-col"
+              style={{ background: 'white', maxHeight: '85dvh', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               onClick={e => e.stopPropagation()}
@@ -305,17 +305,25 @@ export default function JobSearch() {
               <div className="flex justify-center pt-3 pb-1">
                 <div className="w-10 h-1 rounded-full bg-gray-200" />
               </div>
-              <div className="px-5 pb-6">
+              <div className="px-5 pb-2 overflow-y-auto mobile-scroll flex-1 min-h-0">
                 <div className="flex justify-between items-start py-3">
                   <div className="flex-1 min-w-0 mr-2">
                     <h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2>
                     <p className="text-gray-500 text-sm mt-0.5">{selectedJob.employer_companies?.company_name}</p>
                   </div>
+                  <button
+                    onClick={() => setSelectedJob(null)}
+                    className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0"
+                    aria-label="Close job details"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 mb-4">
                   {[
                     { label: 'Salary', value: `₹${selectedJob.salary_amount}/${selectedJob.payment_type === 'Monthly' ? 'mo' : 'day'}`, color: '#166534' },
                     { label: 'Shift', value: selectedJob.shift_type, color: '#0f1e3c' },
+                    { label: 'Shift Hours', value: selectedJob.duty_hours ?? '—', color: '#0f1e3c' },
                     { label: 'Duration', value: selectedJob.duration_type, color: '#0f1e3c' },
                     { label: 'Openings', value: `${selectedJob.guards_required} posts`, color: '#7c2d12' },
                     { label: 'Experience', value: selectedJob.experience_required, color: '#0f1e3c' },
@@ -343,6 +351,8 @@ export default function JobSearch() {
                     </div>
                   </div>
                 )}
+              </div>
+              <div className="px-5 pt-3 bg-white border-t border-gray-100 flex-shrink-0">
                 <motion.button
                   onClick={() => handleApply(selectedJob)}
                   disabled={appliedIds.has(selectedJob.id) || applyingId === selectedJob.id}

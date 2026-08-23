@@ -19,6 +19,15 @@ export async function updateMyProfile(updates: { full_name?: string; mobile?: st
   return data;
 }
 
+export async function uploadMyAvatar(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post('/me/avatar', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
 export async function getMyGuardProfile() {
   try {
     const { data } = await apiClient.get('/me/guard-profile');
