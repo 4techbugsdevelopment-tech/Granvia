@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Banknote, X, CheckCircle, ShieldCheck } from 'lucide-react';
 import { demoCashPayments, demoAvailableGuards, DemoCashPayment } from '../lib/demoData';
+import { useAppLayout } from '../subadmin/ui';
 
 export default function CashPaymentPage() {
+  const layout = useAppLayout();
   const [payments, setPayments] = useState<DemoCashPayment[]>(demoCashPayments);
   const [paying, setPaying] = useState(false);
   const [guard, setGuard] = useState(demoAvailableGuards[0].name);
@@ -21,8 +23,8 @@ export default function CashPaymentPage() {
   const reset = () => { setPaying(false); setStep('form'); setAmount(''); setOtp(''); };
 
   return (
-    <motion.div className="p-6 max-w-4xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-center justify-between mb-5">
+    <motion.div className="p-4 md:p-6 max-w-4xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Cash Payments</h1>
           <p className="text-sm text-gray-500 mt-0.5">Pay associates in cash with OTP confirmation</p>
@@ -32,8 +34,17 @@ export default function CashPaymentPage() {
         </button>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        <div className="overflow-x-auto">
+      <div className={layout === 'mobile' ? 'space-y-3' : 'hidden'}>
+        {payments.map(p => (
+          <div key={p.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-gray-900">{p.guard}</p><p className="text-xs text-gray-500">{p.site}</p></div><p className="font-bold text-green-700">{inr(p.amount)}</p></div>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3"><p className="text-xs text-gray-500">{new Date(p.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p><span className="flex w-fit items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"><ShieldCheck size={12} /> OTP Confirmed</span></div>
+          </div>
+        ))}
+      </div>
+
+      <div className={layout === 'mobile' ? 'hidden' : 'rounded-2xl overflow-hidden'} style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div>
           <table className="w-full">
             <thead><tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>{['Associate', 'Site', 'Amount', 'Date', 'Status'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}</tr></thead>
             <tbody>

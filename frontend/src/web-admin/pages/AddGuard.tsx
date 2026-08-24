@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2 } from 'lucide-react';
 import { createGuard } from '../../services/adminGuardService';
 import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
+import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 
 interface AddGuardProps {
   onSuccess: () => void;
@@ -133,6 +134,10 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const geoReqId = useRef(0);
 
   const set = (key: string) => (v: string) => setForm(f => ({ ...f, [key]: v }));
+
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   // Auto-fill lat/lng from address + city + state + pincode using the free
   // Nominatim (OpenStreetMap) geocoder — the same one the employer site form uses.
@@ -271,7 +276,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
             <FloatingInput label="Address" value={form.address} onChange={set('address')} placeholder="Full address" />
           </div>
           <FloatingInput label="City" value={form.city} onChange={set('city')} required error={errors.city} placeholder="City" />
-          <SelectInput label="State" value={form.state} onChange={set('state')} options={STATES} required />
+          <SelectInput label="State" value={form.state} onChange={set('state')} options={form.state && !STATES.includes(form.state) ? [form.state, ...STATES] : STATES} required />
           <div className="sm:col-span-2">
             <FloatingInput
               label="Pincode"

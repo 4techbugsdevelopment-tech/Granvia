@@ -60,20 +60,33 @@ export function TapButton({
 }
 
 /** Frosted "glassmorphism" stat widget. */
-export function GlassStat({ label, value, sub, icon, accent = NAVY }: {
-  label: string; value: string; sub?: string; icon?: ReactNode; accent?: string;
+export function GlassStat({ label, value, sub, icon, accent = NAVY, onClick }: {
+  label: string; value: string; sub?: string; icon?: ReactNode; accent?: string; onClick?: () => void;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-2xl p-5"
+      whileHover={onClick ? { y: -3, scale: 1.01 } : undefined}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Open ${label}` : undefined}
+      onKeyDown={event => {
+        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className={`relative overflow-hidden rounded-2xl p-5 ${onClick ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2' : ''}`}
       style={{
         background: 'rgba(255,255,255,0.55)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         border: '1px solid rgba(255,255,255,0.7)',
         boxShadow: '0 8px 30px rgba(26,43,86,0.10)',
+        ...(onClick ? { outlineColor: accent } : {}),
       }}
     >
       <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full" style={{ background: accent, opacity: 0.10 }} />

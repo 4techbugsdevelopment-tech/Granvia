@@ -11,6 +11,7 @@ import {
   GUARD_DOCUMENT_LABELS, GuardDocumentType,
   listMyDocuments, uploadMyDocument,
 } from '../../services/guardVerificationService';
+import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 
 const QUALIFICATION_OPTIONS = ['Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate'];
 
@@ -98,6 +99,10 @@ export default function ProfileScreen() {
     height: window.visualViewport?.height ?? window.innerHeight,
     top: window.visualViewport?.offsetTop ?? 0,
   }));
+
+  usePincodeAutofill(form.pincode ?? '', result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -538,7 +543,7 @@ export default function ProfileScreen() {
                     <SheetInput label="City" value={form.city ?? ''} onChange={set('city')} />
                     <SheetInput label="State" value={form.state ?? ''} onChange={set('state')} />
                   </div>
-                  <SheetInput label="Pincode" value={form.pincode ?? ''} onChange={set('pincode')} placeholder="6-digit pincode" error={profileErrors.pincode} />
+                  <SheetInput label="Pincode" value={form.pincode ?? ''} onChange={value => set('pincode')(value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" error={profileErrors.pincode} />
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 mb-1">Qualification</label>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BadgeCheck, Briefcase, Building2, ClipboardList, Eye, EyeOff, HardHat, Lock, Mail, MapPin, Phone, Shield, User, UserCheck, Users, Wallet } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -7,7 +7,7 @@ import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
 import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
-import { lookupIndianPincode } from '../services/pincodeService';
+import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 
 interface EmployerAuthProps {
   onLogin: () => void;
@@ -90,31 +90,9 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
   const [showForgot, setShowForgot] = useState(false);
   const [verify, setVerify] = useState<{ email: string; devOtp?: string } | null>(null);
 
-  useEffect(() => {
-    const pincode = register.pincode.trim();
-    if (pincode.length !== 6) return;
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    lookupIndianPincode(pincode, controller.signal)
-      .then(result => {
-        if (cancelled || !result) return;
-        setRegister(current => ({
-          ...current,
-          city: result.city,
-          state: result.state,
-        }));
-      })
-      .catch(() => {
-        // Keep the form usable if the external lookup fails.
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [register.pincode]);
+  usePincodeAutofill(register.pincode, result => {
+    setRegister(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   const updateRegister = (key: keyof typeof initialRegister, value: string, kind: EmployerFieldKind = 'text') => {
     setRegister(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));

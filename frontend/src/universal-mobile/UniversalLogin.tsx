@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, CheckCircle, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, User, UserCheck } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -10,7 +10,7 @@ import {
 } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
-import { lookupIndianPincode } from '../services/pincodeService';
+import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 
 interface UniversalLoginProps {
   onLogin: () => void;
@@ -176,31 +176,9 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [registerOtp, setRegisterOtp] = useState<{ email: string; devOtp?: string } | null>(null);
   const [register, setRegister] = useState(emptyRegister);
 
-  useEffect(() => {
-    const pincode = register.pincode.trim();
-    if (pincode.length !== 6) return;
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    lookupIndianPincode(pincode, controller.signal)
-      .then(result => {
-        if (cancelled || !result) return;
-        setRegister(current => ({
-          ...current,
-          city: result.city,
-          state: result.state,
-        }));
-      })
-      .catch(() => {
-        // Keep manual entry available if the lookup fails.
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [register.pincode]);
+  usePincodeAutofill(register.pincode, result => {
+    setRegister(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   const triggerShake = () => {
     setShake(true);

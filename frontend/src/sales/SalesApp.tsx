@@ -34,7 +34,7 @@ function Loading() {
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 
-function DashboardPage() {
+function DashboardPage({ onNavigate }: { onNavigate: (page: SalesPage) => void }) {
   const [counts, setCounts] = useState<SalesCounts | null>(null);
   const [activity, setActivity] = useState<SalesActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,11 +47,11 @@ function DashboardPage() {
 
   if (loading || !counts) return <Page><PageHeader title="Sales Dashboard" subtitle="Your client portfolio at a glance" /><Loading /></Page>;
 
-  const stats = [
-    { label: 'Managed Clients', value: String(counts.managed_clients), icon: <Users size={18} />, accent: NAVY },
-    { label: 'Active Site Jobs', value: String(counts.active_jobs), icon: <Briefcase size={18} />, accent: BURGUNDY },
-    { label: 'Conversion Rate', value: `${counts.conversion_rate}%`, icon: <TrendingUp size={18} />, accent: BROWN },
-    { label: 'Active Discounts', value: String(counts.active_discounts), icon: <BadgePercent size={18} />, accent: NAVY },
+  const stats: Array<{ label: string; value: string; icon: React.ReactNode; accent: string; page: SalesPage }> = [
+    { label: 'Managed Clients', value: String(counts.managed_clients), icon: <Users size={18} />, accent: NAVY, page: 'clients' },
+    { label: 'Active Site Jobs', value: String(counts.active_jobs), icon: <Briefcase size={18} />, accent: BURGUNDY, page: 'clients' },
+    { label: 'Conversion Rate', value: `${counts.conversion_rate}%`, icon: <TrendingUp size={18} />, accent: BROWN, page: 'clients' },
+    { label: 'Active Discounts', value: String(counts.active_discounts), icon: <BadgePercent size={18} />, accent: NAVY, page: 'discounts' },
   ];
 
   return (
@@ -60,7 +60,7 @@ function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-            <GlassStat label={s.label} value={s.value} icon={s.icon} accent={s.accent} />
+            <GlassStat label={s.label} value={s.value} icon={s.icon} accent={s.accent} onClick={() => onNavigate(s.page)} />
           </motion.div>
         ))}
       </div>
@@ -482,7 +482,7 @@ export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: (
 
   const render = () => {
     switch (page) {
-      case 'dashboard': return <DashboardPage />;
+      case 'dashboard': return <DashboardPage onNavigate={setPage} />;
       case 'clients': return <ClientsPage />;
       case 'post-job': return <PostJobPage />;
       case 'discounts': return <DiscountsPage />;

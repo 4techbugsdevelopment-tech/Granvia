@@ -15,6 +15,7 @@ import {
   EmployerSubAdmin,
 } from '../services/teamService';
 import type { ReactNode } from 'react';
+import { useAppLayout } from '../subadmin/ui';
 
 type Tab = 'staff' | 'subadmins';
 type Modal = { kind: 'staff' | 'subadmin'; id?: string } | null;
@@ -40,6 +41,7 @@ const EMPTY_STAFF: StaffDraft = { name: '', role_id: '', email: '', mobile: '', 
 const EMPTY_SUBADMIN: SubAdminDraft = { full_name: '', email: '', mobile: '', branch_name: '', password: '', status: 'active' };
 
 export default function TeamPage() {
+  const layout = useAppLayout();
   const [tab, setTab] = useState<Tab>('staff');
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -159,7 +161,7 @@ export default function TeamPage() {
           <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
           <p className="text-sm text-gray-500 mt-0.5">Use the shared role master to assign staff roles. Manage sub-admin access separately.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <button onClick={() => setTab('staff')} className={`px-3.5 py-2 rounded-xl text-sm font-semibold border ${tab === 'staff' ? 'text-white border-transparent' : 'text-gray-700 border-gray-200'}`} style={tab === 'staff' ? { background: '#0f1e3c' } : { background: 'white' }}>
             <Users size={15} className="inline mr-1.5" /> Staff
           </button>
@@ -177,7 +179,28 @@ export default function TeamPage() {
       {loading && <div className="rounded-xl bg-white border border-gray-100 px-4 py-3 text-sm text-gray-500">Loading team data...</div>}
 
       {tab === 'staff' ? (
-        <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
+        <>
+        <div className={layout === 'mobile' ? 'space-y-3' : 'hidden'}>
+          {staff.map((row) => (
+            <div key={row.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><p className="font-semibold text-gray-900 break-words">{row.name}</p><p className="text-xs text-gray-500">{row.role}</p></div>
+                <StatusPill status={row.status} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-gray-400">Email</p><p className="break-words text-gray-700">{row.email ?? '--'}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase text-gray-400">Mobile</p><p className="text-gray-700">{row.mobile ?? '--'}</p></div>
+                <div className="col-span-2"><p className="text-[10px] font-semibold uppercase text-gray-400">Permissions</p><div className="mt-1 flex flex-wrap gap-1.5">{(row.permissions ?? []).length === 0 ? <span className="text-xs text-gray-400">None</span> : (row.permissions ?? []).map((perm) => <span key={perm} className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{perm}</span>)}</div></div>
+              </div>
+              <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
+                <button onClick={() => startEditStaff(row)} className="flex-1 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Edit</button>
+                <button onClick={() => removeStaff(row.id)} className="flex-1 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Remove</button>
+              </div>
+            </div>
+          ))}
+          {staff.length === 0 && <div className="rounded-2xl border border-gray-100 bg-white px-4 py-10 text-center text-sm text-gray-400">No staff members yet.</div>}
+        </div>
+        <div className={layout === 'mobile' ? 'hidden' : 'rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm'}>
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -214,8 +237,20 @@ export default function TeamPage() {
             </tbody>
           </table>
         </div>
+        </>
       ) : (
-        <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
+        <>
+        <div className={layout === 'mobile' ? 'space-y-3' : 'hidden'}>
+          {subAdmins.map((row) => (
+            <div key={row.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold text-gray-900 break-words">{row.full_name}</p><p className="text-xs text-gray-500">{row.branch_name || '--'}</p></div><StatusPill status={row.account_status} /></div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-gray-400">Email</p><p className="break-words text-gray-700">{row.email}</p></div><div><p className="text-[10px] font-semibold uppercase text-gray-400">Mobile</p><p className="text-gray-700">{row.mobile ?? '--'}</p></div></div>
+              <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3"><button onClick={() => startEditSubAdmin(row)} className="flex-1 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Edit</button><button onClick={() => removeSubAdmin(row.id)} className="flex-1 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Remove</button></div>
+            </div>
+          ))}
+          {subAdmins.length === 0 && <div className="rounded-2xl border border-gray-100 bg-white px-4 py-10 text-center text-sm text-gray-400">No sub admins yet.</div>}
+        </div>
+        <div className={layout === 'mobile' ? 'hidden' : 'rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm'}>
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -245,6 +280,7 @@ export default function TeamPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {modal?.kind === 'staff' && (

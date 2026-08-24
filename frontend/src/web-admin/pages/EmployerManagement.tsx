@@ -13,6 +13,7 @@ import {
   declareEmployerAadhaar,
 } from '../../services/adminEmployerService';
 import { getErrorMessage } from '../../services/apiErrors';
+import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],
@@ -316,6 +317,10 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   });
   const [error, setError] = useState('');
 
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
+
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const submit = async () => {
     setError('');
@@ -412,6 +417,10 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
     rejectionReason: employer.rejectionReason,
   });
   const [error, setError] = useState('');
+
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const save = async () => {

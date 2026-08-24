@@ -28,7 +28,7 @@ export default function FlipCard({ icon, label, value, color, onTap, small = fal
 
   return (
     <div
-      className={`relative w-full ${cardHeight} rounded-2xl cursor-pointer`}
+      className={`relative w-full ${cardHeight} rounded-2xl cursor-pointer ${onTap ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2' : ''}`}
       style={{
         perspective: '1000px',
         pointerEvents: 'auto',
@@ -36,6 +36,15 @@ export default function FlipCard({ icon, label, value, color, onTap, small = fal
       onMouseEnter={() => handleFlipHover(true)}
       onMouseLeave={() => handleFlipHover(false)}
       onClick={handleFlipTap}
+      role={onTap ? 'button' : undefined}
+      tabIndex={onTap ? 0 : undefined}
+      aria-label={onTap ? `Open ${label}` : undefined}
+      onKeyDown={event => {
+        if (onTap && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onTap();
+        }
+      }}
     >
       {/* Front side */}
       <motion.div

@@ -223,9 +223,9 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
       {/* Stats strip with Flip */}
       <div className="grid grid-cols-3 gap-2.5 px-4 -mt-4 relative z-10">
         {[
-          { label: 'Days Present', value: attendance.length, icon: <Clock size={14} />, color: '#0f1e3c' },
-          { label: 'Applied Jobs', value: applications.length, icon: <FileText size={14} />, color: '#8b1a1a' },
-          { label: 'Hrs Logged', value: Math.round(totalHours), icon: <TrendingUp size={14} />, color: '#166534' },
+          { label: 'Days Present', value: attendance.length, icon: <Clock size={14} />, color: '#0f1e3c', screen: 'attendance' },
+          { label: 'Applied Jobs', value: applications.length, icon: <FileText size={14} />, color: '#8b1a1a', screen: 'applications' },
+          { label: 'Hrs Logged', value: Math.round(totalHours), icon: <TrendingUp size={14} />, color: '#166534', screen: 'attendance' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -233,7 +233,7 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 + i * 0.05 }}
           >
-            <FlipCard icon={stat.icon} label={stat.label} value={<AnimatedNum val={stat.value} />} color={stat.color} />
+            <FlipCard icon={stat.icon} label={stat.label} value={<AnimatedNum val={stat.value} />} color={stat.color} onTap={() => onNavigate(stat.screen)} />
           </motion.div>
         ))}
       </div>

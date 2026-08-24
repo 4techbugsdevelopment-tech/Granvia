@@ -37,7 +37,7 @@ export default function SubAdminApp({ onLogout, layout = 'desktop' }: { onLogout
 
   const render = () => {
     switch (page) {
-      case 'dashboard': return <DashboardPage />;
+      case 'dashboard': return <DashboardPage onNavigate={(destination) => setPage(destination)} />;
       case 'company': return <CompanyPage />;
       case 'staff': return <StaffPage />;
       case 'verification': return <VerificationPage />;

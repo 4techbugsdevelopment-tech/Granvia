@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
@@ -33,6 +33,8 @@ import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import CashPaymentPage from './CashPaymentPage';
 import TeamPage from './TeamPage';
+import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
+import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -202,7 +204,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
           </select>
         ) : undefined}
       >
-        {renderPage()}
+        <AppLayoutProvider value="mobile">{renderPage()}</AppLayoutProvider>
       </MobileChrome>
     );
   }
@@ -295,9 +297,9 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   return <div className={`rounded-2xl bg-white shadow-sm border border-gray-100 ${className}`}>{children}</div>;
 }
 
-function MetricCard({ label, value, icon, color }: { label: string; value: React.ReactNode; icon: React.ReactNode; color: string }) {
-  return (
-    <Card className="p-5">
+function MetricCard({ label, value, icon, color, onClick }: { label: string; value: React.ReactNode; icon: React.ReactNode; color: string; onClick?: () => void }) {
+  const content = (
+    <>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 font-semibold uppercase">{label}</p>
@@ -305,11 +307,61 @@ function MetricCard({ label, value, icon, color }: { label: string; value: React
         </div>
         <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${color}14`, color }}>{icon}</div>
       </div>
-    </Card>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <motion.button
+        type="button"
+        onClick={onClick}
+        whileHover={{ y: -3, scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
+        aria-label={`Open ${label}`}
+        className="w-full rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
+      >
+        {content}
+      </motion.button>
+    );
+  }
+
+  return <Card className="p-5">{content}</Card>;
 }
 
 function DataTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  const layout = useAppLayout();
+  const rows = Children.toArray(children);
+
+  if (layout === 'mobile') {
+    return (
+      <div className="space-y-3">
+        {rows.map((row, rowIndex) => {
+          const cells = isValidElement<{ children?: React.ReactNode }>(row)
+            ? Children.toArray(row.props.children)
+            : [];
+          const cellValue = (cell: React.ReactNode) => isValidElement<{ children?: React.ReactNode }>(cell) ? cell.props.children : cell;
+          return (
+            <div key={isValidElement(row) && row.key != null ? row.key : rowIndex} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              {cells[0] && <div className="mb-3 text-sm font-bold text-gray-900 break-words">{cellValue(cells[0])}</div>}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                {cells.slice(1).map((cell, cellIndex) => {
+                  const header = headers[cellIndex + 1] ?? '';
+                  const isActions = header.toLowerCase().includes('action');
+                  return (
+                    <div key={cellIndex} className={`min-w-0 ${isActions ? 'col-span-2 border-t border-gray-100 pt-3' : ''}`}>
+                      {!isActions && <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{header}</div>}
+                      <div className={`text-sm text-gray-700 break-words ${isActions ? '[&>div]:flex-wrap' : ''}`}>{cellValue(cell)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -473,17 +525,17 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
         </button>
       </div>
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard label="Total Jobs"          value={jobs.length}          icon={<Briefcase size={20} />}      color="#0f1e3c" />
-        <MetricCard label="Total Companies"     value={companies.length}     icon={<Building2 size={20} />}      color="#334155" />
-        <MetricCard label="Active Companies"    value={companies.filter(c => c.account_status === 'active').length} icon={<CheckCircle size={20} />} color="#166534" />
-        <MetricCard label="Total Sites"         value={sites.length}         icon={<MapPin size={20} />}         color="#1d4ed8" />
-        <MetricCard label="Active Jobs"         value={activeJobs.length}    icon={<CheckCircle size={20} />}    color="#166534" />
-        <MetricCard label="Applicants"          value={apps.length}          icon={<ClipboardList size={20} />}  color="#1d4ed8" />
-        <MetricCard label="Selected Associates" value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" />
-        <MetricCard label="Pending Attendance"  value={pendingAttendance.length} icon={<CalendarCheck size={20} />} color="#854d0e" />
-        <MetricCard label="Pending Payments"    value={pendingPayments.length}   icon={<CreditCard size={20} />}    color="#7c2d12" />
-        <MetricCard label="Wallet Balance"      value={`Rs ${wallet?.balance ?? 0}`} icon={<Wallet size={20} />} color="#065f46" />
-        <MetricCard label="Closed Jobs"         value={jobs.filter(j => j.status === 'closed').length} icon={<XCircle size={20} />} color="#7c2d12" />
+        <MetricCard label="Total Jobs"          value={jobs.length}          icon={<Briefcase size={20} />}      color="#0f1e3c" onClick={() => onNavigate('jobs')} />
+        <MetricCard label="Total Companies"     value={companies.length}     icon={<Building2 size={20} />}      color="#334155" onClick={() => onNavigate('companies')} />
+        <MetricCard label="Active Companies"    value={companies.filter(c => c.account_status === 'active').length} icon={<CheckCircle size={20} />} color="#166534" onClick={() => onNavigate('companies')} />
+        <MetricCard label="Total Sites"         value={sites.length}         icon={<MapPin size={20} />}         color="#1d4ed8" onClick={() => onNavigate('sites')} />
+        <MetricCard label="Active Jobs"         value={activeJobs.length}    icon={<CheckCircle size={20} />}    color="#166534" onClick={() => onNavigate('jobs')} />
+        <MetricCard label="Applicants"          value={apps.length}          icon={<ClipboardList size={20} />}  color="#1d4ed8" onClick={() => onNavigate('applicants')} />
+        <MetricCard label="Selected Associates" value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" onClick={() => onNavigate('selected')} />
+        <MetricCard label="Pending Attendance"  value={pendingAttendance.length} icon={<CalendarCheck size={20} />} color="#854d0e" onClick={() => onNavigate('attendance')} />
+        <MetricCard label="Pending Payments"    value={pendingPayments.length}   icon={<CreditCard size={20} />}    color="#7c2d12" onClick={() => onNavigate('payments')} />
+        <MetricCard label="Wallet Balance"      value={`Rs ${wallet?.balance ?? 0}`} icon={<Wallet size={20} />} color="#065f46" onClick={() => onNavigate('wallet')} />
+        <MetricCard label="Closed Jobs"         value={jobs.filter(j => j.status === 'closed').length} icon={<XCircle size={20} />} color="#7c2d12" onClick={() => onNavigate('jobs')} />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card className="p-5">
@@ -574,6 +626,10 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
   const [docs, setDocs] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
+
   useEffect(() => {
     if (activeCompany?.id) listCompanyDocuments(activeCompany.id).then(setDocs).catch(() => setDocs([]));
   }, [activeCompany?.id]);
@@ -614,7 +670,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
           <Input label="Email" value={employer.email} onChange={() => {}} />
           <Input label="City" value={form.city} onChange={v => setForm({ ...form, city: v })} />
           <Input label="State" value={form.state} onChange={v => setForm({ ...form, state: v })} />
-          <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v })} />
+          <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} />
         </div>
       </Card>
 
@@ -652,10 +708,15 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
 function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { employer: EmployerInfo; activeCompanyId: string | null; onSwitch: (id: string) => void; onChanged: () => void }) {
   const [companies, setCompanies] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({
     company_name: '', business_type: '', registration_type: 'Private Limited', gst_number: '', pan_number: '',
     company_email: employer.email, company_phone: employer.mobile, website: '', registered_address: '', billing_address: '',
     city: employer.city, state: employer.state, pincode: employer.pincode, description: '',
+  });
+
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
   });
 
   useEffect(() => {
@@ -685,9 +746,11 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
         pincode: form.pincode.trim(),
         description: form.description.trim(),
       });
-      onSwitch(company.id);
       setForm({ ...form, company_name: '', business_type: '', gst_number: '', pan_number: '', website: '', registered_address: '', billing_address: '', description: '' });
-      listMyCompanies().then(setCompanies).catch(console.error);
+      setShowAddForm(false);
+      const updatedCompanies = await listMyCompanies();
+      setCompanies(updatedCompanies);
+      onSwitch(company.id);
       onChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create company.');
@@ -695,9 +758,28 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
   };
 
   return (
-    <div className="p-6 space-y-5">
-      <Card className="p-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Add Company</h2>
+    <div className="p-4 md:p-6 space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Companies</h2>
+          <p className="mt-0.5 text-sm text-gray-500">Manage registered companies and switch the active workspace.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddForm(open => !open)}
+          className="flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white"
+          style={{ background: showAddForm ? '#64748b' : '#0f1e3c' }}
+        >
+          {showAddForm ? <X size={16} /> : <Plus size={16} />}
+          {showAddForm ? 'Close' : 'Add Company'}
+        </button>
+      </div>
+
+      {showAddForm && <Card className="p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Add Company</h2>
+          <button type="button" onClick={() => setShowAddForm(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close add company form"><X size={18} /></button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Company Name" value={form.company_name} onChange={v => setForm({ ...form, company_name: v })} />
           <Input label="Business Type" value={form.business_type} onChange={v => setForm({ ...form, business_type: v })} />
@@ -709,7 +791,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
           <Input label="Website" value={form.website} onChange={v => setForm({ ...form, website: v })} />
           <Input label="City" value={form.city} onChange={v => setForm({ ...form, city: v })} />
           <Input label="State" value={form.state} onChange={v => setForm({ ...form, state: v })} />
-          <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v })} />
+          <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} />
         </div>
         <Input className="mt-3" label="Registered Address" value={form.registered_address} onChange={v => setForm({ ...form, registered_address: v })} />
         <Input className="mt-3" label="Billing Address" value={form.billing_address} onChange={v => setForm({ ...form, billing_address: v })} />
@@ -718,7 +800,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
           <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="form-input min-h-20" />
         </label>
         <button disabled={saving} onClick={saveCompany} className="mt-4 px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : 'Save Company'}</button>
-      </Card>
+      </Card>}
 
       <Card className="p-5">
         <h3 className="font-bold text-gray-900 mb-4">Company List</h3>
@@ -739,7 +821,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
             </tr>
           ))}
         </DataTable>
-        {companies.length === 0 && <EmptyState text="No companies yet. Add your first company above." />}
+        {companies.length === 0 && <EmptyState text="No companies yet. Use Add Company to create your first company." />}
       </Card>
     </div>
   );
@@ -1055,6 +1137,7 @@ function SiteLocationSection({
 function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [sites, setSites]           = useState<any[]>([]);
   const [saving, setSaving]         = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [editingSite, setEditingSite] = useState<any | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationErrors>({});
@@ -1072,6 +1155,13 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
   const [form, setForm] = useState<SiteFormState>(blankForm);
   const [editForm, setEditForm] = useState<SiteFormState>(blankForm);
+
+  usePincodeAutofill(form.pincode, result => {
+    setForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
+  usePincodeAutofill(editForm.pincode, result => {
+    setEditForm(current => ({ ...current, city: result.city, state: result.state }));
+  });
 
   const reloadSites = () => listCompanySites(company.id).then(setSites).catch(console.error);
 
@@ -1105,7 +1195,8 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
         status: 'active',
       });
       setForm(blankForm());
-      reloadSites();
+      await reloadSites();
+      setShowAddForm(false);
       setSuccessMessage(`${savedSiteName} is now available in your site list.`);
     } catch (err) {
       const validationErrors = getValidationErrors(err);
@@ -1161,7 +1252,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
         notes:          editForm.notes.trim(),
       });
       setEditingSite(null);
-      reloadSites();
+      await reloadSites();
       onChanged();
     } catch (err) {
       const validationErrors = getValidationErrors(err);
@@ -1171,7 +1262,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
   };
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
       {successMessage && (
         <SuccessModal
           message={successMessage}
@@ -1181,16 +1272,34 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
           }}
         />
       )}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Sites</h2>
+          <p className="mt-0.5 text-sm text-gray-500">Manage locations for {company.company_name}.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddForm(open => !open)}
+          className="flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white"
+          style={{ background: showAddForm ? '#64748b' : '#0f1e3c' }}
+        >
+          {showAddForm ? <X size={16} /> : <Plus size={16} />}
+          {showAddForm ? 'Close' : 'Add Site'}
+        </button>
+      </div>
       {/* ── Add site form ── */}
-      <Card className="p-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Add Site / Location</h2>
+      {showAddForm && <Card className="p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Add Site / Location</h2>
+          <button type="button" onClick={() => setShowAddForm(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close add site form"><X size={18} /></button>
+        </div>
         {formError && <ValidationBanner message={formError} />}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Site Name"      value={form.site_name}       error={formErrors.site_name} onChange={v => setForm(f => ({ ...f, site_name: v }))} />
           <Sel   label="Site Type"      value={form.site_type}       error={formErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setForm(f => ({ ...f, site_type: v }))} />
           <Input label="City"           value={form.city}            error={formErrors.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
           <Input label="State"          value={form.state}           error={formErrors.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
-          <Input label="Pincode"        value={form.pincode}         error={formErrors.pincode} onChange={v => setForm(f => ({ ...f, pincode: v }))} />
+          <Input label="Pincode"        value={form.pincode}         error={formErrors.pincode} onChange={v => setForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
           <Input label="Site Contact"   value={form.contact_person}  error={formErrors.contact_person} onChange={v => setForm(f => ({ ...f, contact_person: v }))} />
           <Input label="Contact Mobile" value={form.contact_mobile}  error={formErrors.contact_mobile} onChange={v => setForm(f => ({ ...f, contact_mobile: v }))} />
         </div>
@@ -1220,7 +1329,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
         >
           {saving ? 'Saving…' : 'Save Site'}
         </button>
-      </Card>
+      </Card>}
 
       {/* ── Sites table ── */}
       <Card className="p-5">
@@ -1287,7 +1396,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
                 <Sel   label="Site Type"      value={editForm.site_type}       options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setEditForm(f => ({ ...f, site_type: v }))} />
                 <Input label="City"           value={editForm.city}            onChange={v => setEditForm(f => ({ ...f, city: v }))} />
                 <Input label="State"          value={editForm.state}           onChange={v => setEditForm(f => ({ ...f, state: v }))} />
-                <Input label="Pincode"        value={editForm.pincode}         error={editErrors.pincode} onChange={v => setEditForm(f => ({ ...f, pincode: v }))} />
+                <Input label="Pincode"        value={editForm.pincode}         error={editErrors.pincode} onChange={v => setEditForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
                 <Input label="Site Contact"   value={editForm.contact_person}  onChange={v => setEditForm(f => ({ ...f, contact_person: v }))} />
                 <Input label="Contact Mobile" value={editForm.contact_mobile}  error={editErrors.contact_mobile} onChange={v => setEditForm(f => ({ ...f, contact_mobile: v }))} />
                 <Input label="Shift Details"  value={editForm.shift_details}   onChange={v => setEditForm(f => ({ ...f, shift_details: v }))} />
@@ -1353,6 +1462,10 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
     police_verification_required: true, uniform_required: true, food_facility: false, accommodation_facility: false,
     description: '', special_instructions: '', status: 'pending_approval',
+  });
+
+  usePincodeAutofill(siteForm.pincode, result => {
+    setSiteForm(current => ({ ...current, city: result.city, state: result.state }));
   });
 
   useEffect(() => {
@@ -1464,7 +1577,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
             <Sel label="Site Type" value={siteForm.site_type} error={siteErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setSiteForm(f => ({ ...f, site_type: v }))} />
             <Input label="City" value={siteForm.city} onChange={v => setSiteForm(f => ({ ...f, city: v }))} />
             <Input label="State" value={siteForm.state} onChange={v => setSiteForm(f => ({ ...f, state: v }))} />
-            <Input label="Pincode" value={siteForm.pincode} error={siteErrors.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v }))} />
+            <Input label="Pincode" value={siteForm.pincode} error={siteErrors.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
             <Input label="Site Contact" value={siteForm.contact_person} onChange={v => setSiteForm(f => ({ ...f, contact_person: v }))} />
             <Input label="Contact Mobile" value={siteForm.contact_mobile} error={siteErrors.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />
           </div>

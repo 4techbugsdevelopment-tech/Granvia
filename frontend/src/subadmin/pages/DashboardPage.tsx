@@ -12,7 +12,9 @@ import { NAVY, BURGUNDY, BROWN } from '../theme';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
-export default function DashboardPage() {
+type DashboardDestination = 'clients' | 'guards' | 'reports';
+
+export default function DashboardPage({ onNavigate }: { onNavigate: (page: DashboardDestination) => void }) {
   const { profile } = useAuth();
   const [counts, setCounts] = useState<SubAdminCounts | null>(null);
   const [commission, setCommission] = useState<CommissionReport | null>(null);
@@ -43,10 +45,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <GlassStat label="Active Jobs" value={loading ? '…' : String(counts?.active_jobs ?? 0)} icon={<Briefcase size={18} />} accent={NAVY} />
-          <GlassStat label="Associates" value={loading ? '…' : String(counts?.service_partners ?? 0)} sub="Manpower in branch" icon={<Users size={18} />} accent={BURGUNDY} />
-          <GlassStat label="Commission" value={loading ? '…' : inr(counts?.commission ?? 0)} sub="From settlements" icon={<IndianRupee size={18} />} accent={BROWN} />
-          <GlassStat label="Clients" value={loading ? '…' : String(counts?.clients ?? 0)} sub={`${counts?.staff ?? 0} staff`} icon={<MapPinned size={18} />} accent={NAVY} />
+          <GlassStat label="Active Jobs" value={loading ? '…' : String(counts?.active_jobs ?? 0)} icon={<Briefcase size={18} />} accent={NAVY} onClick={() => onNavigate('clients')} />
+          <GlassStat label="Associates" value={loading ? '…' : String(counts?.service_partners ?? 0)} sub="Manpower in branch" icon={<Users size={18} />} accent={BURGUNDY} onClick={() => onNavigate('guards')} />
+          <GlassStat label="Commission" value={loading ? '…' : inr(counts?.commission ?? 0)} sub="From settlements" icon={<IndianRupee size={18} />} accent={BROWN} onClick={() => onNavigate('reports')} />
+          <GlassStat label="Clients" value={loading ? '…' : String(counts?.clients ?? 0)} sub={`${counts?.staff ?? 0} staff`} icon={<MapPinned size={18} />} accent={NAVY} onClick={() => onNavigate('clients')} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
