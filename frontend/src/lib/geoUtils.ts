@@ -99,6 +99,9 @@ type NativeBridgeWindow = Window & {
   ReactNativeWebView?: { postMessage: (message: string) => void };
 };
 
+export type LocationFailureReason = 'permission_denied' | 'services_disabled' | 'timeout' | 'unavailable' | 'unsupported';
+export type CurrentPositionResult = { position: LatLng | null; error: LocationFailureReason | null };
+
 /** Ask the Android shell for runtime permission before using WebView geolocation. */
 function requestNativeLocationPermission(): Promise<boolean | null> {
   const nativeWindow = window as NativeBridgeWindow;
@@ -126,15 +129,59 @@ function requestNativeLocationPermission(): Promise<boolean | null> {
   });
 }
 
-export async function getCurrentPosition(): Promise<LatLng | null> {
-  const nativePermission = await requestNativeLocationPermission();
-  if (nativePermission === false || !navigator.geolocation) return null;
+/** Ask the Android shell to prompt the user and open Location Services settings. */
+function requestNativeLocationSettings(): Promise<boolean> {
+  const nativeWindow = window as NativeBridgeWindow;
+  if (!nativeWindow.__GRANVIA_APK__ || !nativeWindow.ReactNativeWebView) return Promise.resolve(false);
 
   return new Promise(resolve => {
+    const onResult = (event: Event) => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('granvia-location-settings-return', onResult);
+      resolve((event as CustomEvent<{ retry?: boolean }>).detail?.retry === true);
+    };
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('granvia-location-settings-return', onResult);
+      resolve(false);
+    }, 120000);
+    window.addEventListener('granvia-location-settings-return', onResult);
+    nativeWindow.ReactNativeWebView!.postMessage(JSON.stringify({ type: 'GRANVIA_OPEN_LOCATION_SETTINGS' }));
+  });
+}
+
+function browserPosition(): Promise<CurrentPositionResult> {
+  if (!navigator.geolocation) return Promise.resolve({ position: null, error: 'unsupported' });
+  return new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      pos => resolve({ position: { lat: pos.coords.latitude, lng: pos.coords.longitude }, error: null }),
+      error => resolve({
+        position: null,
+        error: error.code === error.PERMISSION_DENIED
+          ? 'permission_denied'
+          : error.code === error.TIMEOUT
+            ? 'timeout'
+            : error.code === error.POSITION_UNAVAILABLE
+              ? 'services_disabled'
+              : 'unavailable',
+      }),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
     );
   });
+}
+
+export async function getCurrentPositionResult(): Promise<CurrentPositionResult> {
+  const nativePermission = await requestNativeLocationPermission();
+  if (nativePermission === false) return { position: null, error: 'permission_denied' };
+
+  const first = await browserPosition();
+  if (first.position || (first.error !== 'services_disabled' && first.error !== 'timeout')) return first;
+
+  // A packaged Android WebView reports POSITION_UNAVAILABLE when the device's
+  // location service is switched off. Open settings, then retry after return.
+  const retry = await requestNativeLocationSettings();
+  return retry ? browserPosition() : first;
+}
+
+export async function getCurrentPosition(): Promise<LatLng | null> {
+  return (await getCurrentPositionResult()).position;
 }

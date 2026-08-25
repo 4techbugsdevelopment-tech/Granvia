@@ -429,9 +429,9 @@ export async function testEmail(req: Request, res: Response) {
 }
 
 export async function logout(req: Request, res: Response) {
-  if (req.bearerToken) {
-    await revokeToken(req.bearerToken);
-  }
+  const authorization = req.header('authorization') ?? '';
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (token) await revokeToken(token);
   return res.json({ message: 'Logged out.' });
 }
 

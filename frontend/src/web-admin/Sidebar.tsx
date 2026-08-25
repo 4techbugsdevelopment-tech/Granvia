@@ -28,7 +28,7 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-interface NavItem {
+export interface NavItem {
   id: AdminPage;
   label: string;
   icon: React.ReactNode;
@@ -36,23 +36,17 @@ interface NavItem {
   badge?: number;
 }
 
-const navItems: NavItem[] = [
+export const adminNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  {
-    id: 'guards', label: 'Associate Management', icon: <Shield size={18} />,
-    children: [
-      { id: 'guards', label: 'Associate List' },
-      { id: 'add-guard', label: 'Add Associate' },
-    ],
-  },
-  { id: 'employers', label: 'Employer Management', icon: <Building2 size={18} /> },
-  { id: 'jobs', label: 'Job Management', icon: <Briefcase size={18} /> },
+  { id: 'guards', label: 'Manage Associates', icon: <Shield size={18} /> },
+  { id: 'employers', label: 'Manage Employers', icon: <Building2 size={18} /> },
+  { id: 'jobs', label: 'Manage Jobs', icon: <Briefcase size={18} /> },
   { id: 'attendance', label: 'Attendance', icon: <Clock size={18} /> },
   { id: 'hiring', label: 'Hiring Workflow', icon: <GitBranch size={18} /> },
   { id: 'wallet', label: 'Wallet & Payments', icon: <Wallet size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
-  { id: 'roles', label: 'Role Master', icon: <Shield size={18} /> },
+  { id: 'roles', label: 'Manage Roles', icon: <Shield size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
@@ -111,7 +105,7 @@ export default function Sidebar({ currentPage, onNavigate, onLogout, collapsed, 
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
-        {navItems.map(item => (
+        {adminNavItems.map(item => (
           <div key={item.id}>
             <motion.button
               onClick={() => {

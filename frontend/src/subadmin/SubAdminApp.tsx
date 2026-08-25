@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Building2, UsersRound, BadgeCheck, Briefcase, Shield, BarChart3, LogOut,
+  LayoutDashboard, Building2, UsersRound, BadgeCheck, Briefcase, Shield, BarChart3, LogOut, CalendarCheck,
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import { signOut } from '../services/authService';
@@ -17,17 +17,19 @@ import VerificationPage from './pages/VerificationPage';
 import ClientsPage from './pages/ClientsPage';
 import GuardsPage from './pages/GuardsPage';
 import ReportsPage from './pages/ReportsPage';
+import AttendancePage from './pages/AttendancePage';
 
-type SubPage = 'dashboard' | 'company' | 'staff' | 'verification' | 'clients' | 'guards' | 'reports';
+type SubPage = 'dashboard' | 'company' | 'staff' | 'verification' | 'clients' | 'guards' | 'attendance' | 'reports';
 
 // `master: true` → setup / master-data entries shown in the top-left drawer on mobile.
 const NAV: { id: SubPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'company', label: 'Company Details', icon: <Building2 size={18} />, master: true },
-  { id: 'staff', label: 'Staff', icon: <UsersRound size={18} />, master: true },
+  { id: 'staff', label: 'Manage Staff', icon: <UsersRound size={18} />, master: true },
   { id: 'verification', label: 'Verification Desk', icon: <BadgeCheck size={18} />, master: true },
-  { id: 'clients', label: 'My Clients', icon: <Briefcase size={18} /> },
-  { id: 'guards', label: 'Associates', icon: <Shield size={18} /> },
+  { id: 'clients', label: 'Manage Clients', icon: <Briefcase size={18} /> },
+  { id: 'guards', label: 'Manage Associates', icon: <Shield size={18} /> },
+  { id: 'attendance', label: 'Attendance', icon: <CalendarCheck size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
 ];
 
@@ -43,6 +45,7 @@ export default function SubAdminApp({ onLogout, layout = 'desktop' }: { onLogout
       case 'verification': return <VerificationPage />;
       case 'clients': return <ClientsPage />;
       case 'guards': return <GuardsPage />;
+      case 'attendance': return <AttendancePage />;
       case 'reports': return <ReportsPage />;
     }
   };

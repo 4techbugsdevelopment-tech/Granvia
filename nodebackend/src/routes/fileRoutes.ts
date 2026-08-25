@@ -1,4 +1,5 @@
 import fs from 'fs';
+import pathModule from 'path';
 import { Router, Request, Response } from 'express';
 import { verifySignature, absolutePathFor } from '../utils/fileStorage';
 
@@ -26,7 +27,12 @@ router.get('/files/download', (req: Request, res: Response) => {
     return res.status(404).json({ message: 'File not found.' });
   }
 
-  return res.download(abs);
+  // PDF and image documents should open in the browser so every portal can
+  // provide a real "View" action. The browser still offers its normal download
+  // control from the preview.
+  res.setHeader('Content-Disposition', `inline; filename="${pathModule.basename(abs).replace(/"/g, '')}"`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.sendFile(abs);
 });
 
 export default router;

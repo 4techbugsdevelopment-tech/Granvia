@@ -8,7 +8,7 @@
 // See docs/UNIVERSAL_APP_UI_GUIDE.md.
 import { createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { BROWN, NAVY, statusTone } from './theme';
 
@@ -105,7 +105,7 @@ export function GlassStat({ label, value, sub, icon, accent = NAVY, onClick }: {
 /** Plain white content card. */
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl p-6 ${className}`} style={{ background: 'white', boxShadow: '0 2px 16px rgba(26,43,86,0.06)', border: '1px solid #ece7e3' }}>
+    <div className={`rounded-2xl p-4 md:p-6 ${className}`} style={{ background: 'white', boxShadow: '0 2px 16px rgba(26,43,86,0.06)', border: '1px solid #ece7e3' }}>
       {children}
     </div>
   );
@@ -124,7 +124,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
   if (layout === 'mobile') {
     if (!subtitle && !action) return null;
     return (
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col items-stretch justify-between gap-3 mb-4 sm:flex-row sm:items-center [&_button]:w-full sm:[&_button]:w-auto">
         {subtitle ? (
           <p className="text-xs leading-snug" style={{ color: 'rgba(75,46,42,0.6)' }}>{subtitle}</p>
         ) : <span />}
@@ -222,13 +222,13 @@ export function DataTable<T>({ columns, rows, rowKey, empty }: {
                 {bodyCols.map((c, ci) => (
                   <div key={ci} className={`min-w-0 ${c.wide ? 'col-span-2' : ''}`}>
                     <div className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'rgba(75,46,42,0.45)' }}>{c.header}</div>
-                    <div className="text-sm" style={{ color: BROWN }}>{c.cell(row)}</div>
+                    <div className="break-words text-sm" style={{ color: BROWN }}>{c.cell(row)}</div>
                   </div>
                 ))}
               </div>
             )}
             {actionCols.length > 0 && (
-              <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid #f1ece8' }}>
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid #f1ece8' }}>
                 {actionCols.map((c, ci) => <div key={ci} className="flex-1">{c.cell(row)}</div>)}
               </div>
             )}
@@ -259,15 +259,34 @@ export function DataTable<T>({ columns, rows, rowKey, empty }: {
  * "Information Sliding" right-hand panel — used for CRUD forms and document viewers.
  * Slides in from the right over a dimmed backdrop.
  */
-export function SlideOver({ open, onClose, title, subtitle, width = 460, children }: {
+export function SlideOver({ open, onClose, title, subtitle, width = 460, page = false, children }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
   width?: number;
+  page?: boolean;
   children: ReactNode;
 }) {
   const layout = useAppLayout();
+
+  if (page) {
+    return (
+      <AnimatePresence>
+        {open && (
+          <motion.section className="fixed inset-0 z-[60] overflow-y-auto bg-[#f5f1ee] mobile-scroll" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 18 }}>
+            <div className="mx-auto w-full max-w-4xl p-4 md:p-6">
+              <button type="button" onClick={onClose} className="mb-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold shadow-sm" style={{ color: NAVY }}><ArrowLeft size={17} /> Back to List</button>
+              <Card>
+                <div className="mb-5"><h1 className="text-xl font-bold" style={{ color: NAVY }}>{title}</h1>{subtitle && <p className="mt-1 text-sm" style={{ color: 'rgba(75,46,42,0.6)' }}>{subtitle}</p>}</div>
+                {children}
+              </Card>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+    );
+  }
 
   // Mobile: the "Information Sliding" panel becomes a bottom sheet (guide §5.6) —
   // grab handle, spring-up, tap-scrim-to-close, safe-area bottom padding.

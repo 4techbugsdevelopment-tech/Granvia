@@ -4,6 +4,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { parseJsonField, snakeKeys, serializeOut, toPrismaData } from '../utils/serialize';
 import { urlFor } from '../utils/fileStorage';
+import { attachGuardProfiles } from '../utils/enrich';
 
 // Port of App\Http\Controllers\SubAdminController (role: sub_admin).
 
@@ -328,6 +329,40 @@ export async function guards(req: Request, res: Response) {
       experience: g.experience,
     }))
   );
+}
+
+/** GET /subadmin/attendance — attendance connected to this branch or its parent employer. */
+export async function attendance(req: Request, res: Response) {
+  const [cIds, gIds, profile] = await Promise.all([
+    clientIds(req.user!.id),
+    guardIds(req.user!.id),
+    prisma.subAdminProfile.findUnique({ where: { userId: req.user!.id }, select: { employerUserId: true } }),
+  ]);
+  const employerIds = [...new Set([...cIds, ...(profile?.employerUserId ? [profile.employerUserId] : [])])];
+
+  const records = await prisma.attendanceRecord.findMany({
+    where: {
+      OR: [
+        ...(employerIds.length ? [{ employerUserId: { in: employerIds } }] : []),
+        ...(gIds.length ? [{ guardUserId: { in: gIds } }] : []),
+      ],
+    },
+    include: {
+      job: {
+        select: {
+          id: true,
+          title: true,
+          site: { select: { id: true, siteName: true } },
+          company: { select: { id: true, companyName: true } },
+        },
+      },
+    },
+    orderBy: [{ attendanceDate: 'desc' }, { inTime: 'desc' }],
+    take: 200,
+  });
+
+  const rows = snakeKeys(records) as Array<Record<string, unknown> & { guard_user_id?: string }>;
+  return res.json(await attachGuardProfiles(rows));
 }
 
 /** GET /subadmin/reports/skills */

@@ -57,10 +57,10 @@ export async function saveHistoricalAttendance(input: {
   attendanceDate: string;
   inTime: string;
   outTime: string;
-  checkInLatitude: number;
-  checkInLongitude: number;
-  checkOutLatitude: number;
-  checkOutLongitude: number;
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkOutLatitude?: number;
+  checkOutLongitude?: number;
   jobId?: string;
   guardRemarks?: string;
 }) {

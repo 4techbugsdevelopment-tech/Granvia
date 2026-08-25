@@ -32,6 +32,11 @@ export async function updateCompany(companyId: string, input: Partial<CompanyInp
   return data;
 }
 
+export async function deleteCompany(companyId: string) {
+  const { data } = await apiClient.delete(`/employer/companies/${companyId}`);
+  return data;
+}
+
 export async function uploadCompanyLogo(companyId: string, file: File) {
   const formData = new FormData();
   formData.append('file', file);

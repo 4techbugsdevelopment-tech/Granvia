@@ -1,29 +1,29 @@
 // Shared mobile chrome for the universal app.
 //
 // Layout rules (per product spec):
-//  - Nav items flagged `master: true` are "master entry" links → they move into
-//    a top-left breadcrumb / drawer menu (opened via the hamburger).
-//  - All remaining items live in the fixed bottom navigation bar, which scrolls
-//    horizontally when the items exceed the screen width.
-//  - Logout always lives in the drawer.
+//  - Four primary links live in a floating card-style bottom navigation bar.
+//  - A fifth "More" action opens a touch-first icon-card menu for every
+//    remaining/master link and Logout.
+//  - The top-left app-grid button opens that same mobile menu; no desktop-style
+//    side drawer is used in the app shell.
 //
 // Every role's existing App reuses this component in its `layout="mobile"`
 // branch, so no page markup is duplicated — only the chrome is swapped.
 import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, ChevronRight } from 'lucide-react';
+import { Grid3X3, MoreHorizontal, X, LogOut } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 
 export interface MobileNavItem {
   id: string;
   label: string;
   icon: ReactNode;
-  /** When true, the item is a "master entry" and is shown in the top-left drawer. */
+  /** When true, the item is shown in the More icon-card menu. */
   master?: boolean;
 }
 
 interface MobileChromeProps {
-  /** Short role label shown in the top bar / drawer header (e.g. "Sub Admin"). */
+  /** Short role label shown in the top bar / app-menu header (e.g. "Sub Admin"). */
   brandLabel: string;
   /** Title of the currently active page. */
   title: string;
@@ -52,19 +52,22 @@ export default function MobileChrome({
   headerRight,
   children,
 }: MobileChromeProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const masterItems = navItems.filter(i => i.master);
   const bottomItems = navItems.filter(i => !i.master);
+  const primaryItems = bottomItems.slice(0, 4);
+  const menuItems = [...bottomItems.slice(4), ...masterItems];
+  const menuIsActive = menuItems.some(item => item.id === activeId);
 
   const go = (id: string) => {
     onNavigate(id);
-    setDrawerOpen(false);
+    setMenuOpen(false);
   };
 
   return (
     <div className="granvia-mobile flex flex-col w-full h-full" style={{ background: '#f1f5f9' }}>
-      {/* Top bar with breadcrumb menu button */}
+      {/* Compact app top bar; the grid button opens the same menu as More. */}
       <header
         className="flex items-center gap-2 px-3 flex-shrink-0 z-40"
         style={{
@@ -76,13 +79,13 @@ export default function MobileChrome({
         }}
       >
         <motion.button
-          onClick={() => setDrawerOpen(true)}
+          onClick={() => setMenuOpen(true)}
           whileTap={{ scale: 0.9 }}
           className="flex items-center justify-center rounded-xl mobile-touch-interactive"
           style={{ width: 38, height: 38, background: '#f4f6fa', color: '#0f1e3c' }}
-          aria-label="Open menu"
+          aria-label="Open app menu"
         >
-          <Menu size={19} />
+          <Grid3X3 size={18} />
         </motion.button>
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-bold truncate" style={{ color: '#0f1e3c' }}>{title}</div>
@@ -94,7 +97,7 @@ export default function MobileChrome({
       </header>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden mobile-scroll" style={{ paddingBottom: bottomItems.length ? 78 : 12 }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden mobile-scroll" style={{ paddingBottom: primaryItems.length ? 94 : 12 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeId}
@@ -108,132 +111,91 @@ export default function MobileChrome({
         </AnimatePresence>
       </div>
 
-      {/* Bottom navigation — horizontally scrollable when items overflow */}
-      {bottomItems.length > 0 && (
+      {/* Floating app-style bottom navigation. */}
+      {primaryItems.length > 0 && (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-40 flex items-center overflow-x-auto mobile-scroll no-scrollbar"
+          className="fixed bottom-2 left-3 right-3 z-40 flex items-center rounded-3xl border border-white/80 bg-white/95 px-1.5 py-1.5 backdrop-blur-xl"
           style={{
-            background: 'white',
-            boxShadow: '0 -2px 16px rgba(0,0,0,0.08)',
-            borderTop: '1px solid #f1f5f9',
-            paddingTop: 6,
+            boxShadow: '0 10px 32px rgba(15,30,60,0.18)',
             paddingBottom: 'max(env(safe-area-inset-bottom, 6px), 6px)',
-            minHeight: 64,
           }}
         >
-          <div className="flex items-center gap-0.5 px-1 mx-auto" style={{ minWidth: '100%', justifyContent: bottomItems.length <= 5 ? 'space-around' : 'flex-start' }}>
-            {bottomItems.map(item => {
-              const active = activeId === item.id;
-              return (
-                <motion.button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id)}
-                  whileTap={{ scale: 0.88 }}
-                  className="flex flex-col items-center justify-center gap-0.5 rounded-2xl relative flex-shrink-0 mobile-touch-interactive"
-                  style={{
-                    minWidth: 60,
-                    minHeight: 48,
-                    background: active ? 'rgba(15,30,60,0.07)' : 'transparent',
-                    borderRadius: 16,
-                    padding: '6px 8px',
-                  }}
+          {primaryItems.map(item => {
+            const active = activeId === item.id;
+            return (
+              <motion.button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                whileTap={{ scale: 0.9 }}
+                className="mobile-touch-interactive flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
+              >
+                <span
+                  className="grid h-8 w-8 place-items-center rounded-xl"
+                  style={{ background: active ? `${accent}14` : '#f8fafc', color: active ? accent : '#94a3b8' }}
                 >
-                  <span style={{ color: active ? accent : '#94a3b8', transition: 'color 0.15s' }}>{item.icon}</span>
-                  <span className="font-semibold text-center leading-tight" style={{ color: active ? '#0f1e3c' : '#94a3b8', fontSize: 10 }}>
-                    {item.label}
-                  </span>
-                  {active && (
-                    <motion.div
-                      className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                      style={{ background: accent }}
-                      layoutId="universalNavDot"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
+                  {item.icon}
+                </span>
+                <span className="max-w-full truncate text-[9px] font-bold" style={{ color: active ? '#0f1e3c' : '#94a3b8' }}>{item.label}</span>
+              </motion.button>
+            );
+          })}
+          <motion.button
+            onClick={() => setMenuOpen(true)}
+            whileTap={{ scale: 0.9 }}
+            className="mobile-touch-interactive flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: menuIsActive ? `${accent}14` : '#f8fafc', color: menuIsActive ? accent : '#94a3b8' }}>
+              <MoreHorizontal size={20} />
+            </span>
+            <span className="text-[9px] font-bold" style={{ color: menuIsActive ? '#0f1e3c' : '#94a3b8' }}>More</span>
+          </motion.button>
         </nav>
       )}
 
-      {/* Top-left breadcrumb / master-entry drawer */}
+      {/* Mobile app menu — icon cards instead of a desktop-style side drawer. */}
       <AnimatePresence>
-        {drawerOpen && (
-          <div className="fixed inset-0 z-[70]">
-            <motion.div
-              className="absolute inset-0"
-              style={{ background: 'rgba(10,22,40,0.5)', backdropFilter: 'blur(2px)' }}
+        {menuOpen && (
+          <div className="fixed inset-0 z-[70] flex items-end">
+            <motion.button
+              aria-label="Close menu"
+              className="absolute inset-0 h-full w-full"
+              style={{ background: 'rgba(10,22,40,0.48)', backdropFilter: 'blur(3px)' }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setDrawerOpen(false)}
+              onClick={() => setMenuOpen(false)}
             />
-            <motion.aside
-              className="absolute top-0 left-0 h-full flex flex-col"
-              style={{ width: 'min(82%, 320px)', background: 'linear-gradient(180deg, #0a1628, #0f1e3c 60%, #120a0a)' }}
-              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            <motion.section
+              className="relative w-full overflow-y-auto rounded-t-[28px] bg-[#f8fafc] px-4 pb-4"
+              style={{ maxHeight: '86vh', paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', boxShadow: '0 -18px 50px rgba(15,30,60,0.22)' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
-              <div className="flex items-center justify-between px-4 py-4 border-b border-white/10" style={{ paddingTop: 'max(env(safe-area-inset-top, 16px), 16px)' }}>
-                <div>
-                  <GranviaLogo size={26} textColor="white" accentColor={accent} />
-                  <p className="text-[11px] text-white/50 mt-1.5 pl-0.5">{brandLabel}</p>
-                </div>
-                <button onClick={() => setDrawerOpen(false)} className="text-white/60 hover:text-white -mr-1"><X size={20} /></button>
+              <div className="flex justify-center py-3"><div className="h-1 w-10 rounded-full bg-slate-300" /></div>
+              <div className="mb-4 flex items-center justify-between">
+                <div><GranviaLogo size={25} accentColor={accent} /><p className="mt-1 text-xs text-slate-500">{brandLabel} options</p></div>
+                <button onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-500 shadow-sm"><X size={19} /></button>
               </div>
-
-              <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                {masterItems.length > 0 && (
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/35 px-2 pt-1 pb-1">Master Entry</p>
-                )}
-                {masterItems.map(item => {
+              <div className="grid grid-cols-3 gap-3">
+                {menuItems.map(item => {
                   const active = activeId === item.id;
                   return (
-                    <button
+                    <motion.button
                       key={item.id}
                       onClick={() => go(item.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
-                      style={{
-                        color: active ? 'white' : 'rgba(255,255,255,0.6)',
-                        background: active ? `linear-gradient(135deg, ${accent}, ${accent}88)` : 'transparent',
-                      }}
+                      whileTap={{ scale: 0.96 }}
+                      className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border bg-white p-3 text-center shadow-sm"
+                      style={{ borderColor: active ? `${accent}55` : '#eef2f7' }}
                     >
-                      <span className="flex-shrink-0">{item.icon}</span>
-                      <span className="truncate text-left flex-1">{item.label}</span>
-                      <ChevronRight size={15} className="opacity-40" />
-                    </button>
+                      <span className="grid h-11 w-11 place-items-center rounded-2xl" style={{ background: active ? `${accent}14` : '#f1f5f9', color: active ? accent : '#475569' }}>{item.icon}</span>
+                      <span className="line-clamp-2 text-[11px] font-bold leading-tight text-slate-700">{item.label}</span>
+                    </motion.button>
                   );
                 })}
-
-                {bottomItems.length > 0 && (
-                  <>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/35 px-2 pt-3 pb-1">Quick Access</p>
-                    {bottomItems.map(item => {
-                      const active = activeId === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => go(item.id)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
-                          style={{
-                            color: active ? 'white' : 'rgba(255,255,255,0.55)',
-                            background: active ? `linear-gradient(135deg, ${accent}, ${accent}88)` : 'transparent',
-                          }}
-                        >
-                          <span className="flex-shrink-0">{item.icon}</span>
-                          <span className="truncate text-left flex-1">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
+                <motion.button onClick={onLogout} whileTap={{ scale: 0.96 }} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white p-3 text-center shadow-sm">
+                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-700"><LogOut size={20} /></span>
+                  <span className="text-[11px] font-bold text-red-700">Logout</span>
+                </motion.button>
               </div>
-
-              <div className="p-3 border-t border-white/10" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
-                <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:bg-red-900/30">
-                  <LogOut size={18} /> Logout
-                </button>
-              </div>
-            </motion.aside>
+            </motion.section>
           </div>
         )}
       </AnimatePresence>

@@ -12,3 +12,12 @@ export async function createDocumentRecord(companyId: string, documentType: stri
   const { data } = await apiClient.post(`/employer/companies/${companyId}/documents`, formData);
   return data;
 }
+
+export async function updateDocumentRecord(companyId: string, documentId: string, documentType: string) {
+  const { data } = await apiClient.patch(`/employer/companies/${companyId}/documents/${documentId}`, { document_type: documentType });
+  return data;
+}
+
+export async function deleteDocumentRecord(companyId: string, documentId: string) {
+  await apiClient.delete(`/employer/companies/${companyId}/documents/${documentId}`);
+}

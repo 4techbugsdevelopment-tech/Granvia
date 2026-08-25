@@ -125,9 +125,6 @@ export async function destroy(req: Request, res: Response) {
   const role = await prisma.role.findUnique({ where: { id: req.params.role } });
   if (!role) throw new HttpError(404, 'Role not found.');
 
-  const updated = await prisma.role.update({
-    where: { id: role.id },
-    data: { status: 'inactive' },
-  });
-  return res.json(serializeOut(updated, ['permissions']));
+  await prisma.role.delete({ where: { id: role.id } });
+  return res.json({ message: 'Role deleted successfully.' });
 }

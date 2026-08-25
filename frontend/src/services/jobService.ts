@@ -26,7 +26,7 @@ export async function listEmployerJobs(companyId?: string) {
 
 export async function createJobPost(input: Record<string, unknown> & { company_id: string; site_id: string; title: string }) {
   const { data } = await apiClient.post('/employer/jobs', input);
-  return data;
+  return remapJob(data);
 }
 
 /** Admin: jobs awaiting approval */
@@ -56,11 +56,25 @@ export async function listAllJobsForAdmin() {
   return remapJobs(data);
 }
 
+export async function createAdminJob(input: Record<string, unknown> & { company_id: string; title: string }) {
+  const { data } = await apiClient.post('/admin/jobs', input);
+  return remapJob(data);
+}
+
+export async function updateAdminJob(jobId: string, updates: Record<string, unknown>) {
+  const { data } = await apiClient.patch(`/admin/jobs/${jobId}`, updates);
+  return remapJob(data);
+}
+
+export async function deleteAdminJob(jobId: string) {
+  await apiClient.delete(`/admin/jobs/${jobId}`);
+}
+
 export async function deleteJobPost(jobId: string) {
   await apiClient.delete(`/employer/jobs/${jobId}`);
 }
 
 export async function updateJobPost(jobId: string, updates: Record<string, unknown>) {
   const { data } = await apiClient.patch(`/employer/jobs/${jobId}`, updates);
-  return data;
+  return remapJob(data);
 }

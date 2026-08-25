@@ -6,10 +6,10 @@
  * Job pins = orange briefcase teardrop.
  * Selected job = highlighted larger pin + blue route line.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MapPin, AlertCircle, Navigation, Briefcase, Loader } from 'lucide-react';
 import MapView from './MapView';
-import { distanceKm, getCurrentPosition, geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
+import { distanceKm, getCurrentPositionResult, geocodeAddress, buildSiteAddress, type LocationFailureReason } from '../../lib/geoUtils';
 import type { LatLng, MapMarker } from './types';
 
 export interface MappableJob {
@@ -46,18 +46,23 @@ export default function JobRadiusMap({
   const [guardPos, setGuardPos]       = useState<LatLng | null>(null);
   const [locating, setLocating]       = useState(true);
   const [denied, setDenied]           = useState(false);
+  const [locationError, setLocationError] = useState<LocationFailureReason | null>(null);
   // markers built from coords + geocoded addresses
   const [markers, setMarkers]         = useState<MapMarker[]>([]);
   const [geocoding, setGeocoding]     = useState(false);
 
   // 1. Get guard location
-  useEffect(() => {
-    getCurrentPosition().then(pos => {
-      if (pos) setGuardPos(pos);
-      else setDenied(true);
-      setLocating(false);
-    });
+  const locate = useCallback(async () => {
+    setLocating(true);
+    setDenied(false);
+    const result = await getCurrentPositionResult();
+    setGuardPos(result.position);
+    setLocationError(result.error);
+    setDenied(!result.position);
+    setLocating(false);
   }, []);
+
+  useEffect(() => { void locate(); }, [locate]);
 
   // Stable key: only re-run when the set of job IDs actually changes
   const jobsKey = jobs.map(j => j.id).join(',');
@@ -208,6 +213,7 @@ export default function JobRadiusMap({
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs">
           <AlertCircle size={13} />
           Location access denied — routing unavailable. Enable location to see routes.
+          <button title={locationError ?? undefined} onClick={() => void locate()} className="ml-auto rounded-lg bg-amber-100 px-2.5 py-1 font-bold text-amber-900">Retry</button>
         </div>
       )}
 
@@ -225,7 +231,7 @@ export default function JobRadiusMap({
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden border border-gray-100" style={{ height: mapHeight }}>
+      <div className="granvia-map rounded-2xl overflow-hidden border border-gray-100" style={{ height: mapHeight, position: 'relative', zIndex: 0 }}>
         <MapView
           center={center}
           zoom={selectedMarker ? 14 : guardPos ? 12 : 10}

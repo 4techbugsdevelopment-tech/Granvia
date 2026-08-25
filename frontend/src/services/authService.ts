@@ -1,4 +1,4 @@
-import { apiClient, setStoredToken } from '../lib/apiClient';
+import { apiClient, getStoredToken, setStoredToken } from '../lib/apiClient';
 import { notifyAuthChange } from '../lib/authBus';
 import { EmployerProfileRow, GuardProfileRow, ProfileRow, UserRole } from '../lib/apiTypes';
 
@@ -188,8 +188,9 @@ export async function resetPassword(email: string, otp: string, password: string
 }
 
 export async function signOut() {
+  const token = getStoredToken();
   try {
-    await apiClient.post('/auth/logout');
+    await apiClient.post('/auth/logout', undefined, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
   } catch {
     // Token may already be invalid/expired — clearing it locally is enough.
   }

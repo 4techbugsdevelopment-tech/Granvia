@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, Users, UserCog, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Users, UserCog, ShieldCheck } from 'lucide-react';
 import { listActiveRoles, RoleOption } from '../services/roleService';
 import {
   createEmployerStaff,
@@ -155,7 +155,7 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
@@ -284,7 +284,7 @@ export default function TeamPage() {
       )}
 
       {modal?.kind === 'staff' && (
-        <ModalShell title={modal.id ? 'Edit Staff' : 'Add Staff'} onClose={() => setModal(null)}>
+        <ModalShell title={modal.id ? 'Edit Staff' : 'Add Staff'} onClose={() => setModal(null)} page={!modal.id}>
           <label className="block mb-4">
             <span className="text-xs font-semibold text-gray-500">Staff Name</span>
             <input value={staffDraft.name} onChange={(e) => setStaffDraft((cur) => ({ ...cur, name: e.target.value }))} className="form-input mt-1" />
@@ -335,7 +335,7 @@ export default function TeamPage() {
       )}
 
       {modal?.kind === 'subadmin' && (
-        <ModalShell title={modal.id ? 'Edit Sub Admin' : 'Add Sub Admin'} onClose={() => setModal(null)}>
+        <ModalShell title={modal.id ? 'Edit Sub Admin' : 'Add Sub Admin'} onClose={() => setModal(null)} page={!modal.id}>
           <label className="block mb-4">
             <span className="text-xs font-semibold text-gray-500">Full Name</span>
             <input value={subAdminDraft.full_name} onChange={(e) => setSubAdminDraft((cur) => ({ ...cur, full_name: e.target.value }))} className="form-input mt-1" />
@@ -383,7 +383,22 @@ function StatusPill({ status }: { status: string }) {
   return <span className="text-xs font-semibold px-2.5 py-1 rounded-full capitalize" style={{ background: bg, color }}>{status}</span>;
 }
 
-function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+function ModalShell({ title, onClose, children, page = false }: { title: string; onClose: () => void; children: ReactNode; page?: boolean }) {
+  if (page) {
+    return (
+      <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-50">
+        <div className="mx-auto min-h-full w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+          <button type="button" onClick={onClose} className="mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white">
+            <ArrowLeft size={18} /> Back to Team
+          </button>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <h3 className="mb-5 text-xl font-bold text-gray-900">{title}</h3>
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(15,27,56,0.45)' }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-lg rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>

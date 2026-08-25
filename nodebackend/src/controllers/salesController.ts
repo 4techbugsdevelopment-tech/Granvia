@@ -164,6 +164,22 @@ export async function clientDetail(req: Request, res: Response) {
   });
 }
 
+/** GET /sales/jobs — all jobs belonging to clients assigned to this sales executive. */
+export async function jobs(req: Request, res: Response) {
+  const clientIds = await managedClientIds(req.user!.id);
+  const rows = await prisma.jobPost.findMany({
+    where: { employerUserId: { in: clientIds } },
+    include: {
+      company: { select: { id: true, companyName: true } },
+      site: { select: { id: true, siteName: true, city: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const employers = await prisma.user.findMany({ where: { id: { in: clientIds } }, select: { id: true, fullName: true } });
+  const employerNames = new Map(employers.map((employer) => [employer.id, employer.fullName]));
+  return res.json(serializeOut(rows.map((row) => ({ ...row, employerName: employerNames.get(row.employerUserId) ?? 'Client' })), ['required_skills', 'language_requirements']));
+}
+
 /** POST /sales/jobs/request-otp */
 export async function requestJobOtp(req: Request, res: Response) {
   const { employer_user_id } = z.object({ employer_user_id: z.string().uuid() }).parse(req.body);

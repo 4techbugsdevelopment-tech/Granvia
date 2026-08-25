@@ -37,7 +37,7 @@ export default function FeedbackPage() {
   };
 
   return (
-    <motion.div className="p-6 max-w-4xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="p-4 md:p-6 max-w-4xl" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="mb-5">
         <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Feedback</h1>
         <p className="text-sm text-gray-500 mt-0.5">Rate associates or the Granvia service</p>

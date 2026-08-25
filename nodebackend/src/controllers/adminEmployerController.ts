@@ -8,8 +8,14 @@ import { snakeKeys, serializeOut } from '../utils/serialize';
 import { serializeUserRow } from '../serializers/userSerializer';
 import { env } from '../config/env';
 import { sendEmployerWelcome } from '../services/mailService';
+import { urlFor } from '../utils/fileStorage';
 
 // Port of App\Http\Controllers\Admin\EmployerController.
+
+const emptyOptional = (schema: z.ZodString) => z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  schema.optional().nullable(),
+);
 
 const employerSchema = z.object({
   contact_person_name: z.string().min(2),
@@ -23,8 +29,8 @@ const employerSchema = z.object({
   company_name: z.string().nullish(),
   company_address: z.string().nullish(),
   business_type: z.string().nullish(),
-  gst_number: z.string().regex(/^[0-9A-Z]{15}$/i, 'The gst number format is invalid.').nullish(),
-  pan_number: z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'The pan number format is invalid.').nullish(),
+  gst_number: emptyOptional(z.string().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i, 'Enter a valid 15-character GST number.')),
+  pan_number: emptyOptional(z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'Enter a valid PAN number (for example, ABCDE1234F).')),
   website: z.string().nullish(),
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
@@ -76,7 +82,11 @@ export async function index(_req: Request, res: Response) {
   return res.json({
     employers: employers.map((e) => serializeUserRow(e as unknown as Record<string, unknown>)),
     companies: snakeKeys(companies),
-    documents: snakeKeys(documents),
+    documents: documents.map((document) => ({
+      ...snakeKeys(document),
+      // Admins receive a newly signed link instead of the expired upload-time URL.
+      download_url: urlFor('company-documents', document.filePath),
+    })),
     sites: serializeOut(sites, ['address']),
     jobs: snakeKeys(jobs),
   });
@@ -202,14 +212,51 @@ export async function destroy(req: Request, res: Response) {
   const employer = await prisma.user.findUnique({ where: { id: req.params.employer } });
   if (!employer || employer.role !== 'employer') throw new HttpError(404, 'Not an employer account.');
 
-  await prisma.$transaction(async (tx) => {
-    await tx.employerCompany.deleteMany({ where: { employerUserId: employer.id } });
-    await tx.employerProfile.deleteMany({ where: { userId: employer.id } });
-    await tx.employerWallet.deleteMany({ where: { employerUserId: employer.id } });
-    await tx.user.delete({ where: { id: employer.id } });
-  });
+  const [applications, tickets, subAdmins] = await Promise.all([
+    prisma.jobApplication.findMany({ where: { employerUserId: employer.id }, select: { id: true } }),
+    prisma.supportTicket.findMany({ where: { userId: employer.id }, select: { id: true } }),
+    prisma.subAdminProfile.findMany({ where: { employerUserId: employer.id }, select: { userId: true } }),
+  ]);
+  const applicationIds = applications.map((row) => row.id);
+  const ticketIds = tickets.map((row) => row.id);
+  const subAdminIds = subAdmins.map((row) => row.userId);
 
-  return res.json({ message: 'Employer deleted.' });
+  await prisma.$transaction([
+    ...(applicationIds.length ? [prisma.applicationStatusLog.deleteMany({ where: { applicationId: { in: applicationIds } } })] : []),
+    prisma.interviewRequest.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.jobOffer.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.agreement.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.attendanceRecord.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.payment.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.jobApplication.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.jobPost.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.companyDocument.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.companySite.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.employerCompany.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.invoice.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.walletTransaction.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.employerAadhaarVerification.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.discount.updateMany({ where: { employerUserId: employer.id }, data: { employerUserId: null } }),
+    ...(ticketIds.length ? [prisma.supportTicketMessage.deleteMany({ where: { ticketId: { in: ticketIds } } })] : []),
+    prisma.supportTicket.deleteMany({ where: { userId: employer.id } }),
+    prisma.notification.deleteMany({ where: { userId: employer.id } }),
+    prisma.emailOtp.deleteMany({ where: { userId: employer.id } }),
+    prisma.personalAccessToken.deleteMany({ where: { tokenableId: employer.id } }),
+    prisma.staffMember.deleteMany({ where: { subAdminUserId: { in: [employer.id, ...subAdminIds] } } }),
+    ...(subAdminIds.length ? [
+      prisma.guardProfile.updateMany({ where: { subAdminId: { in: subAdminIds } }, data: { subAdminId: null } }),
+      prisma.personalAccessToken.deleteMany({ where: { tokenableId: { in: subAdminIds } } }),
+      prisma.notification.deleteMany({ where: { userId: { in: subAdminIds } } }),
+      prisma.emailOtp.deleteMany({ where: { userId: { in: subAdminIds } } }),
+      prisma.subAdminProfile.deleteMany({ where: { userId: { in: subAdminIds } } }),
+      prisma.user.deleteMany({ where: { id: { in: subAdminIds } } }),
+    ] : []),
+    prisma.employerWallet.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.employerProfile.deleteMany({ where: { userId: employer.id } }),
+    prisma.user.delete({ where: { id: employer.id } }),
+  ]);
+
+  return res.json({ message: 'Employer deleted successfully.' });
 }
 
 function normalizeCodes<T extends { gst_number?: string | null; pan_number?: string | null }>(d: T): T {

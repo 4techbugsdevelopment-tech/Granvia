@@ -24,6 +24,7 @@ router.patch('/subadmin/guard-documents/:document', asyncHandler(sub.updateDocum
 
 router.get('/subadmin/clients', asyncHandler(sub.clients));
 router.get('/subadmin/guards', asyncHandler(sub.guards));
+router.get('/subadmin/attendance', asyncHandler(sub.attendance));
 
 router.get('/subadmin/reports/skills', asyncHandler(sub.skillsReport));
 router.get('/subadmin/reports/commission', asyncHandler(sub.commissionReport));

@@ -24,16 +24,16 @@ interface AdminAppProps {
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   dashboard: 'Dashboard',
-  guards: 'Associate Management',
+  guards: 'Manage Associates',
   'add-guard': 'Add New Associate',
-  employers: 'Employer Management',
-  jobs: 'Job Management',
+  employers: 'Manage Employers',
+  jobs: 'Manage Jobs',
   attendance: 'Attendance',
   hiring: 'Hiring Workflow',
   wallet: 'Wallet & Payments',
   reports: 'Reports',
   'email-logs': 'Email Logs',
-  roles: 'Role Master',
+  roles: 'Manage Roles',
   settings: 'Settings',
 };
 

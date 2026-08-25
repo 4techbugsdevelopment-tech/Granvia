@@ -21,6 +21,7 @@ router.use('/admin', requireAuth, requireRole('super_admin'));
 router.get('/admin/guards', asyncHandler(adminGuard.index));
 router.post('/admin/guards', asyncHandler(adminGuard.store));
 router.patch('/admin/guards/:guard', asyncHandler(adminGuard.update));
+router.delete('/admin/guards/:guard', asyncHandler(adminGuard.destroy));
 router.patch('/admin/guards/:guard/aadhaar', asyncHandler(aadhaarManual.adminDeclareGuard));
 router.get('/admin/guards/:guard/documents', asyncHandler(guardDoc.adminIndex));
 router.patch('/admin/guard-documents/:document', asyncHandler(guardDoc.adminUpdateStatus));
@@ -41,6 +42,8 @@ router.delete('/admin/roles/:role', asyncHandler(roles.destroy));
 
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs', asyncHandler(job.all));
+router.post('/admin/jobs', asyncHandler(job.adminStore));
+router.patch('/admin/jobs/:job', asyncHandler(job.adminUpdate));
 router.patch('/admin/jobs/:job/approve', asyncHandler(job.approve));
 router.patch('/admin/jobs/:job/reject', asyncHandler(job.reject));
 router.patch('/admin/jobs/:job/status', asyncHandler(job.adminUpdateStatus));

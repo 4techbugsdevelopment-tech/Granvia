@@ -67,10 +67,16 @@ export async function mine(req: Request, res: Response) {
 /** POST /employer/jobs */
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
+  const company = await prisma.employerCompany.findFirst({
+    where: { id: data.company_id, employerUserId: req.user!.id },
+  });
+  if (!company) {
+    throw new HttpError(422, 'Select a valid company from your employer account.');
+  }
 
   if (data.site_id) {
     const site = await prisma.companySite.findUnique({ where: { id: data.site_id } });
-    if (!site || site.companyId !== data.company_id) {
+    if (!site || site.companyId !== company.id || site.employerUserId !== req.user!.id) {
       throw new HttpError(422, 'Site does not belong to the selected company.');
     }
   }
@@ -79,8 +85,11 @@ export async function store(req: Request, res: Response) {
     data: {
       ...toPrismaData(data, JSON_FIELDS),
       employerUserId: req.user!.id,
-      status: 'pending_approval',
+      // Employer-created active jobs must be discoverable by associates.
+      // Draft remains available when the employer is not ready to publish.
+      status: data.status === 'draft' ? 'draft' : 'active',
     } as never,
+    include: { ...companySelect, ...siteSelect },
   });
   return res.status(201).json(serializeOut(job, OUT_JSON));
 }
@@ -106,8 +115,19 @@ export async function destroy(req: Request, res: Response) {
   if (job.employerUserId !== req.user!.id && req.user!.role !== 'super_admin') {
     throw new HttpError(403, 'Forbidden.');
   }
-  await prisma.jobPost.delete({ where: { id: job.id } });
-  return res.json({ message: 'Job deleted.' });
+  const applications = await prisma.jobApplication.findMany({ where: { jobId: job.id }, select: { id: true } });
+  const applicationIds = applications.map((application) => application.id);
+  await prisma.$transaction([
+    ...(applicationIds.length ? [prisma.applicationStatusLog.deleteMany({ where: { applicationId: { in: applicationIds } } })] : []),
+    prisma.interviewRequest.deleteMany({ where: { jobId: job.id } }),
+    prisma.jobOffer.deleteMany({ where: { jobId: job.id } }),
+    prisma.agreement.deleteMany({ where: { jobId: job.id } }),
+    prisma.attendanceRecord.deleteMany({ where: { jobId: job.id } }),
+    prisma.payment.deleteMany({ where: { jobId: job.id } }),
+    prisma.jobApplication.deleteMany({ where: { jobId: job.id } }),
+    prisma.jobPost.delete({ where: { id: job.id } }),
+  ]);
+  return res.json({ message: 'Job deleted successfully.' });
 }
 
 // --- public / admin -------------------------------------------------------
@@ -151,6 +171,55 @@ export async function approve(req: Request, res: Response) {
   const updated = await prisma.jobPost.update({
     where: { id: job.id },
     data: { status: 'active', rejectionReason: null },
+  });
+  return res.json(serializeOut(updated, OUT_JSON));
+}
+
+/** POST /admin/jobs — create a job on behalf of an employer from the manage page. */
+export async function adminStore(req: Request, res: Response) {
+  const data = createSchema.parse(req.body);
+  const company = await prisma.employerCompany.findUnique({ where: { id: data.company_id } });
+  if (!company) throw new HttpError(422, 'Select a valid employer company.');
+
+  if (data.site_id) {
+    const site = await prisma.companySite.findUnique({ where: { id: data.site_id } });
+    if (!site || site.companyId !== company.id) {
+      throw new HttpError(422, 'Site does not belong to the selected company.');
+    }
+  }
+
+  const job = await prisma.jobPost.create({
+    data: {
+      ...toPrismaData(data, JSON_FIELDS),
+      employerUserId: company.employerUserId,
+      status: data.status ?? 'pending_approval',
+    } as never,
+  });
+  return res.status(201).json(serializeOut(job, OUT_JSON));
+}
+
+/** PATCH /admin/jobs/:job — edit job details from the admin manage page. */
+export async function adminUpdate(req: Request, res: Response) {
+  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
+  if (!job) throw new HttpError(404, 'Not found.');
+  const data = updateSchema.parse(req.body);
+  let employerUserId: string | undefined;
+
+  if (data.company_id || data.site_id) {
+    const companyId = data.company_id ?? job.companyId;
+    if (!companyId) throw new HttpError(422, 'Select a valid employer company.');
+    const company = await prisma.employerCompany.findUnique({ where: { id: companyId } });
+    if (!company) throw new HttpError(422, 'Select a valid employer company.');
+    if (data.company_id) employerUserId = company.employerUserId;
+    if (data.site_id) {
+      const site = await prisma.companySite.findUnique({ where: { id: data.site_id } });
+      if (!site || site.companyId !== company.id) throw new HttpError(422, 'Site does not belong to the selected company.');
+    }
+  }
+
+  const updated = await prisma.jobPost.update({
+    where: { id: job.id },
+    data: { ...toPrismaData(data, JSON_FIELDS), ...(employerUserId ? { employerUserId } : {}) } as never,
   });
   return res.json(serializeOut(updated, OUT_JSON));
 }

@@ -1,13 +1,12 @@
 // WalletScreen — associate earnings, completed-work details, and withdrawal request UI
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet, ArrowUpRight, ArrowDownLeft, Building2, X, Briefcase, MapPin, Clock, Calendar, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Wallet, ArrowLeft, ArrowUpRight, ArrowDownLeft, Building2, X, Briefcase, MapPin, Clock, Calendar, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
 import { getMyGuardWallet, listMyGuardTransactions } from '../../services/walletService';
 
 export default function WalletScreen() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [amount, setAmount] = useState('');
-  const [done, setDone] = useState(false);
   const [wallet, setWallet] = useState({ balance_coins: 0, balance_inr: 0, coin_value_inr: 1 });
   const [transactions, setTransactions] = useState<any[]>([]);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
@@ -22,8 +21,8 @@ export default function WalletScreen() {
   }, []);
 
   const submitWithdraw = () => {
-    setDone(true);
-    setTimeout(() => { setWithdrawOpen(false); setDone(false); setAmount(''); }, 1600);
+    setWithdrawOpen(false);
+    setAmount('');
   };
 
   return (
@@ -175,52 +174,39 @@ export default function WalletScreen() {
       <AnimatePresence>
         {withdrawOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-50 mobile-scroll"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setWithdrawOpen(false)}
           >
             <motion.div
-              className="w-full rounded-t-3xl bg-white"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              className="mx-auto min-h-full w-full max-w-lg bg-white"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)', paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              onClick={e => e.stopPropagation()}
             >
-              <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-gray-200" /></div>
               <div className="px-5 pt-2 pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Withdraw</h2>
-                  <button onClick={() => setWithdrawOpen(false)} className="text-gray-400"><X size={18} /></button>
+                <button type="button" onClick={() => setWithdrawOpen(false)} className="mb-4 flex items-center gap-2 rounded-xl py-2 text-sm font-semibold text-slate-700">
+                  <ArrowLeft size={18} /> Back to Wallet
+                </button>
+                <h2 className="mb-4 text-lg font-bold text-gray-900">Withdraw</h2>
+                <div className="flex items-center gap-2 rounded-xl p-3 mb-3" style={{ background: '#f8fafc' }}>
+                  <Building2 size={16} className="text-gray-400" />
+                  <span className="text-sm text-gray-600">Linked bank •••• 4521</span>
                 </div>
-                {done ? (
-                  <div className="py-8 text-center">
-                    <div className="text-4xl mb-2">✅</div>
-                    <p className="font-bold text-gray-800">Withdrawal requested</p>
-                    <p className="text-xs text-gray-400 mt-1">Funds reach your bank in 1–2 business days (demo).</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 rounded-xl p-3 mb-3" style={{ background: '#f8fafc' }}>
-                      <Building2 size={16} className="text-gray-400" />
-                      <span className="text-sm text-gray-600">Linked bank •••• 4521</span>
-                    </div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (coins)</label>
-                    <input
-                      type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                      placeholder={`Max ${wallet.balance_coins}`}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none"
-                      style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }}
-                    />
-                    <button
-                      onClick={submitWithdraw}
-                      disabled={!amount || Number(amount) <= 0 || Number(amount) > wallet.balance_coins}
-                      className="w-full mt-4 py-4 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
-                      style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
-                    >
-                      Request Withdrawal
-                    </button>
-                  </>
-                )}
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (coins)</label>
+                <input
+                  type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                  placeholder={`Max ${wallet.balance_coins}`}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }}
+                />
+                <button
+                  onClick={submitWithdraw}
+                  disabled={!amount || Number(amount) <= 0 || Number(amount) > wallet.balance_coins}
+                  className="w-full mt-4 py-4 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
+                >
+                  Request Withdrawal
+                </button>
               </div>
             </motion.div>
           </motion.div>

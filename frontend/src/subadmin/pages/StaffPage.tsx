@@ -137,7 +137,7 @@ export default function StaffPage() {
         </motion.div>
       )}
 
-      <SlideOver open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Staff Member' : 'Add Staff Member'} subtitle={editing ? editing.name : 'New internal staff account'}>
+      <SlideOver open={open} page={!editing} onClose={() => setOpen(false)} title={editing ? 'Edit Staff Member' : 'Add Staff Member'} subtitle={editing ? editing.name : 'New internal staff account'}>
         <Field label="Staff Name" value={draft.name} onChange={(v) => setDraft((cur) => ({ ...cur, name: v }))} placeholder="e.g. Priya Menon" />
 
         <label className="block mb-4">

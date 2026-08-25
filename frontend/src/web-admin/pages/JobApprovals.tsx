@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle, XCircle, Briefcase, MapPin, Clock,
-  RefreshCw, AlertCircle, ChevronDown, Eye, EyeOff,
+  RefreshCw, AlertCircle, ChevronDown, Eye, EyeOff, Plus, Pencil, Trash2, X, ArrowLeft,
 } from 'lucide-react';
-import { approveJob, listAllJobsForAdmin, rejectJob, updateAdminJobStatus } from '../../services/jobService';
+import { approveJob, createAdminJob, deleteAdminJob, listAllJobsForAdmin, rejectJob, updateAdminJob, updateAdminJobStatus } from '../../services/jobService';
+import { listEmployerManagementData } from '../../services/adminEmployerService';
 import { getErrorMessage } from '../../services/apiErrors';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
@@ -42,6 +43,12 @@ function skillList(raw: unknown): string[] {
   return String(raw).split(',').map(s => s.trim()).filter(Boolean);
 }
 
+const EMPTY_JOB_FORM = {
+  company_id: '', site_id: '', title: '', guards_required: '1', salary_amount: '',
+  payment_type: 'Monthly', shift_type: 'Day', duty_hours: '8 hours', start_date: '',
+  end_date: '', description: '', status: 'pending_approval',
+};
+
 export default function JobApprovals() {
   const [jobs, setJobs]               = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -50,6 +57,12 @@ export default function JobApprovals() {
   const [filter, setFilter]           = useState<StatusFilter>('all');
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
   const [expanded, setExpanded]       = useState<Set<string>>(new Set());
+  const [companies, setCompanies]     = useState<any[]>([]);
+  const [sites, setSites]             = useState<any[]>([]);
+  const [formOpen, setFormOpen]       = useState(false);
+  const [editingJob, setEditingJob]   = useState<any | null>(null);
+  const [jobForm, setJobForm]         = useState({ ...EMPTY_JOB_FORM });
+  const [formError, setFormError]     = useState('');
 
   const load = () => {
     setLoading(true);
@@ -60,7 +73,64 @@ export default function JobApprovals() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    listEmployerManagementData()
+      .then(data => { setCompanies(data.companies ?? []); setSites(data.sites ?? []); })
+      .catch(e => setError(getErrorMessage(e, 'Failed to load employer companies.')));
+  }, []);
+
+  const openCreate = () => {
+    const companyId = companies[0]?.id ?? '';
+    setEditingJob(null);
+    setJobForm({ ...EMPTY_JOB_FORM, company_id: companyId, site_id: sites.find(site => site.companyId === companyId)?.id ?? '' });
+    setFormError('');
+    setFormOpen(true);
+  };
+
+  const openEdit = (job: any) => {
+    setEditingJob(job);
+    setJobForm({
+      company_id: job.employer_companies?.id ?? '', site_id: job.company_sites?.id ?? '', title: job.title ?? '',
+      guards_required: String(job.guards_required ?? 1), salary_amount: String(job.salary_amount ?? ''),
+      payment_type: job.payment_type ?? 'Monthly', shift_type: job.shift_type ?? 'Day', duty_hours: job.duty_hours ?? '8 hours',
+      start_date: job.start_date ? String(job.start_date).slice(0, 10) : '', end_date: job.end_date ? String(job.end_date).slice(0, 10) : '',
+      description: job.description ?? '', status: job.status ?? 'pending_approval',
+    });
+    setFormError('');
+    setFormOpen(true);
+  };
+
+  const saveJob = async () => {
+    if (!jobForm.company_id || !jobForm.title.trim() || !jobForm.salary_amount || !jobForm.start_date) {
+      setFormError('Company, job title, salary and start date are required.');
+      return;
+    }
+    setActing(editingJob?.id ?? 'create');
+    setFormError('');
+    try {
+      const payload = { ...jobForm, site_id: jobForm.site_id || null, guards_required: Number(jobForm.guards_required) || 1, salary_amount: Number(jobForm.salary_amount), end_date: jobForm.end_date || null };
+      if (editingJob) await updateAdminJob(editingJob.id, payload);
+      else await createAdminJob(payload);
+      setFormOpen(false);
+      setEditingJob(null);
+      load();
+    } catch (e) {
+      setFormError(getErrorMessage(e, `Failed to ${editingJob ? 'update' : 'create'} the job.`));
+    } finally { setActing(null); }
+  };
+
+  const removeJob = async (job: any) => {
+    if (!window.confirm(`Delete ${job.title}? Related applications and operational records will also be removed.`)) return;
+    setActing(job.id);
+    setError(null);
+    try {
+      await deleteAdminJob(job.id);
+      setJobs(current => current.filter(item => item.id !== job.id));
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to delete the job.'));
+    } finally { setActing(null); }
+  };
 
   const setStatus = async (jobId: string, status: string, reason?: string) => {
     setActing(jobId);
@@ -97,20 +167,21 @@ export default function JobApprovals() {
   }, {});
 
   return (
-    <motion.div className="p-6 space-y-5" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Job Management</h2>
           <p className="text-sm text-gray-500">Review and control all employer job postings.</p>
         </div>
-        <button
-          onClick={load}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>
+            <Plus size={15} /> Create Job
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -120,7 +191,7 @@ export default function JobApprovals() {
       )}
 
       {/* Status filter tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex flex-wrap gap-2 pb-1">
         {STATUS_TABS.map(tab => {
           const count = tab.key === 'all' ? jobs.length : (counts[tab.key] ?? 0);
           const active = filter === tab.key;
@@ -277,6 +348,12 @@ export default function JobApprovals() {
 
                 {/* Action buttons */}
                 <div className="flex flex-wrap gap-2 mt-1">
+                  <button onClick={() => openEdit(job)} disabled={isBusy} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50">
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button onClick={() => removeJob(job)} disabled={isBusy} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-red-200 text-red-700 hover:bg-red-50">
+                    <Trash2 size={13} /> Delete
+                  </button>
                   {/* Pending → Approve or Reject */}
                   {isPending && (
                     <>
@@ -352,6 +429,68 @@ export default function JobApprovals() {
           );
         })}
       </AnimatePresence>
+
+      {formOpen && (
+        <div
+          className={editingJob ? 'fixed inset-0 z-[80] flex justify-end bg-black/35' : 'fixed inset-0 z-[80] overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6 sm:py-8'}
+          onClick={editingJob ? () => setFormOpen(false) : undefined}
+        >
+          <div className={editingJob ? 'h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl' : 'mx-auto min-h-full w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={event => event.stopPropagation()}>
+            {!editingJob && (
+              <button type="button" onClick={() => setFormOpen(false)} className="mb-5 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <ArrowLeft size={18} /> Back to Jobs
+              </button>
+            )}
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{editingJob ? 'Edit Job' : 'Create Job'}</h3>
+                <p className="text-sm text-gray-500">Save here to return to the job management list.</p>
+              </div>
+              {editingJob && <button onClick={() => setFormOpen(false)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button>}
+            </div>
+            {formError && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</div>}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="form-label">Employer Company *</span>
+                <select value={jobForm.company_id} disabled={Boolean(editingJob?.employer_companies?.id)} onChange={event => { const companyId = event.target.value; setJobForm(current => ({ ...current, company_id: companyId, site_id: sites.find(site => site.companyId === companyId)?.id ?? '' })); }} className="form-input">
+                  <option value="">Select company</option>
+                  {companies.map(company => <option key={company.id} value={company.id}>{company.companyName}</option>)}
+                </select>
+              </label>
+              <label className="sm:col-span-2">
+                <span className="form-label">Site</span>
+                <select value={jobForm.site_id} onChange={event => setJobForm(current => ({ ...current, site_id: event.target.value }))} className="form-input">
+                  <option value="">No site selected</option>
+                  {sites.filter(site => site.companyId === jobForm.company_id).map(site => <option key={site.id} value={site.id}>{site.siteName} — {site.city}</option>)}
+                </select>
+              </label>
+              <JobField label="Job Title *" value={jobForm.title} onChange={value => setJobForm(current => ({ ...current, title: value }))} className="sm:col-span-2" />
+              <JobField label="Openings" value={jobForm.guards_required} onChange={value => setJobForm(current => ({ ...current, guards_required: value.replace(/\D/g, '') }))} />
+              <JobField label="Salary *" value={jobForm.salary_amount} onChange={value => setJobForm(current => ({ ...current, salary_amount: value.replace(/[^\d.]/g, '') }))} />
+              <JobField label="Payment Type" value={jobForm.payment_type} onChange={value => setJobForm(current => ({ ...current, payment_type: value }))} />
+              <JobField label="Shift" value={jobForm.shift_type} onChange={value => setJobForm(current => ({ ...current, shift_type: value }))} />
+              <JobField label="Duty Hours" value={jobForm.duty_hours} onChange={value => setJobForm(current => ({ ...current, duty_hours: value }))} />
+              <JobField label="Start Date *" type="date" value={jobForm.start_date} onChange={value => setJobForm(current => ({ ...current, start_date: value }))} />
+              <JobField label="End Date" type="date" value={jobForm.end_date} onChange={value => setJobForm(current => ({ ...current, end_date: value }))} />
+              <label>
+                <span className="form-label">Status</span>
+                <select value={jobForm.status} onChange={event => setJobForm(current => ({ ...current, status: event.target.value }))} className="form-input">
+                  <option value="pending_approval">Pending Approval</option><option value="active">Active</option><option value="draft">Draft</option><option value="closed">Closed</option>
+                </select>
+              </label>
+              <label className="sm:col-span-2"><span className="form-label">Description</span><textarea value={jobForm.description} onChange={event => setJobForm(current => ({ ...current, description: event.target.value }))} className="form-input min-h-24" /></label>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setFormOpen(false)} className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
+              <button onClick={saveJob} disabled={acting === (editingJob?.id ?? 'create')} className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>{acting === (editingJob?.id ?? 'create') ? 'Saving…' : editingJob ? 'Save Changes' : 'Create Job'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
+}
+
+function JobField({ label, value, onChange, type = 'text', className = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; className?: string }) {
+  return <label className={className}><span className="form-label">{label}</span><input type={type} value={value} onChange={event => onChange(event.target.value)} className="form-input" /></label>;
 }

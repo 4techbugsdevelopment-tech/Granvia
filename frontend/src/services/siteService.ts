@@ -14,3 +14,8 @@ export async function updateCompanySite(siteId: string, updates: Record<string, 
   const { data } = await apiClient.patch(`/employer/sites/${siteId}`, updates);
   return data;
 }
+
+export async function deleteCompanySite(siteId: string) {
+  const { data } = await apiClient.delete(`/employer/sites/${siteId}`);
+  return data;
+}

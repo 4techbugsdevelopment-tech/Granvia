@@ -77,6 +77,16 @@ export async function declareGuardAadhaar(userId: string, status: AadhaarDecl, r
   return data;
 }
 
+export async function updateGuard(userId: string, input: Partial<CreateGuardInput>) {
+  const { data } = await apiClient.patch(`/admin/guards/${userId}`, input);
+  return toGuardView(data);
+}
+
+export async function deleteGuard(userId: string) {
+  const { data } = await apiClient.delete(`/admin/guards/${userId}`);
+  return data;
+}
+
 export async function getAdminGuardAgreement(userId: string) {
   const { data } = await apiClient.get(`/admin/guards/${userId}/agreement`);
   return data;

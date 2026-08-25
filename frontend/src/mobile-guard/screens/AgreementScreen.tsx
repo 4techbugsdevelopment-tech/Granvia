@@ -80,11 +80,11 @@ export default function AgreementScreen() {
       <div className="flex items-center gap-3"><FileSignature size={24} /><div><h1 className="font-bold text-xl">Associate Partner Agreement</h1><p className="text-xs text-blue-200">Secure digital execution</p></div></div>
     </div>
     <div className="px-4 space-y-4 mt-4">
-      <div className="rounded-2xl bg-white p-3 shadow-sm overflow-x-auto" aria-label="Onboarding progress"><div className="flex min-w-[360px] items-start">
+      <div className="rounded-2xl bg-white p-3 shadow-sm" aria-label="Onboarding progress"><div className="flex w-full items-start">
         {steps.map(([label, done], index) => <div key={label} className="flex-1 text-center relative">
           {index < steps.length - 1 && <div className="absolute h-0.5 bg-slate-200 top-3 left-1/2 w-full" />}
           <span className="relative mx-auto w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: done ? '#166534' : label === 'Agreement' ? '#8b1a1a' : '#e2e8f0', color: done || label === 'Agreement' ? 'white' : '#64748b' }}>{done ? <Check size={13} /> : index + 1}</span>
-          <span className="block mt-1 text-[10px] text-slate-500">{label}</span>
+          <span className="block mt-1 break-words text-[9px] text-slate-500 sm:text-[10px]">{label}</span>
         </div>)}
       </div></div>
       {error && <div role="alert" className="rounded-xl bg-red-50 text-red-700 p-3 text-sm flex gap-2"><AlertCircle size={17} className="shrink-0" />{error}</div>}

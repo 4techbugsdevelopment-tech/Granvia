@@ -160,3 +160,38 @@ export async function update(req: Request, res: Response) {
   const fresh = await prisma.user.findUnique({ where: { id: guard.id }, include: { guardProfile: true } });
   return res.json(serializeUserRow(fresh as unknown as Record<string, unknown>));
 }
+
+/** DELETE /admin/guards/:guard */
+export async function destroy(req: Request, res: Response) {
+  const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
+  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
+
+  const applications = await prisma.jobApplication.findMany({ where: { guardUserId: guard.id }, select: { id: true } });
+  const applicationIds = applications.map((application) => application.id);
+  const tickets = await prisma.supportTicket.findMany({ where: { userId: guard.id }, select: { id: true } });
+  const ticketIds = tickets.map((ticket) => ticket.id);
+
+  await prisma.$transaction([
+    ...(applicationIds.length ? [prisma.applicationStatusLog.deleteMany({ where: { applicationId: { in: applicationIds } } })] : []),
+    prisma.interviewRequest.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.jobOffer.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.agreement.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.payment.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.attendanceRecord.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.jobApplication.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.guardDocument.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.guardAvailability.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.guardAadhaarVerification.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.associatePartnerAgreementAudit.deleteMany({ where: { associatePartnerId: guard.id } }),
+    prisma.associatePartnerAgreement.deleteMany({ where: { associatePartnerId: guard.id } }),
+    ...(ticketIds.length ? [prisma.supportTicketMessage.deleteMany({ where: { ticketId: { in: ticketIds } } })] : []),
+    prisma.supportTicket.deleteMany({ where: { userId: guard.id } }),
+    prisma.notification.deleteMany({ where: { userId: guard.id } }),
+    prisma.emailOtp.deleteMany({ where: { userId: guard.id } }),
+    prisma.personalAccessToken.deleteMany({ where: { tokenableId: guard.id } }),
+    prisma.guardProfile.deleteMany({ where: { userId: guard.id } }),
+    prisma.user.delete({ where: { id: guard.id } }),
+  ]);
+
+  return res.json({ message: 'Associate deleted successfully.' });
+}

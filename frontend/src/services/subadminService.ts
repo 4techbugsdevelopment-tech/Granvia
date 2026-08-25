@@ -63,6 +63,21 @@ export interface VerificationCandidate {
 
 export interface BranchClient { id: string; company: string; contact: string; sites: number; jobs: number; status: string }
 export interface BranchGuard { id: string; name: string; city: string | null; status: string; account_status: string; experience: string | null }
+export interface BranchAttendance {
+  id: string;
+  attendance_date: string;
+  in_time: string | null;
+  out_time: string | null;
+  total_hours: number | null;
+  status: string;
+  entry_mode: string;
+  guard_profile: { full_name?: string | null } | null;
+  job: {
+    title?: string | null;
+    site?: { site_name?: string | null } | null;
+    company?: { company_name?: string | null } | null;
+  } | null;
+}
 export interface SkillRow { id: string; name: string; languages: string[]; english: string; qualification: string | null; specialization: string | null; experience: string | null }
 export interface CommissionReport {
   commission_rate: number;
@@ -86,5 +101,6 @@ export const reviewDocument = async (documentId: string, status: 'verified' | 'r
 
 export const getBranchClients = async (): Promise<BranchClient[]> => (await apiClient.get('/subadmin/clients')).data;
 export const getBranchGuards = async (): Promise<BranchGuard[]> => (await apiClient.get('/subadmin/guards')).data;
+export const getBranchAttendance = async (): Promise<BranchAttendance[]> => (await apiClient.get('/subadmin/attendance')).data;
 export const getSkillsReport = async (): Promise<SkillRow[]> => (await apiClient.get('/subadmin/reports/skills')).data;
 export const getCommissionReport = async (): Promise<CommissionReport> => (await apiClient.get('/subadmin/reports/commission')).data;

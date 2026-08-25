@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   BackHandler, SafeAreaView, StyleSheet, ActivityIndicator, View, Platform,
-  PermissionsAndroid,
+  PermissionsAndroid, Alert, AppState, Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -38,6 +38,8 @@ export default function App() {
   const webRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
+  const waitingForLocationSettings = useRef(false);
+  const locationSettingsWasBackgrounded = useRef(false);
 
   // Android hardware back button navigates WebView history instead of exiting.
   useEffect(() => {
@@ -63,6 +65,28 @@ export default function App() {
       true;
     `);
   };
+
+  const sendLocationSettingsResult = (retry: boolean) => {
+    webRef.current?.injectJavaScript(`
+      window.dispatchEvent(new CustomEvent('granvia-location-settings-return', {
+        detail: ${JSON.stringify({ retry })}
+      }));
+      true;
+    `);
+  };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (!waitingForLocationSettings.current) return;
+      if (state !== 'active') locationSettingsWasBackgrounded.current = true;
+      if (state === 'active' && locationSettingsWasBackgrounded.current) {
+        waitingForLocationSettings.current = false;
+        locationSettingsWasBackgrounded.current = false;
+        sendLocationSettingsResult(true);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Android WebViews do not reliably surface the system location prompt on
   // their own. The map asks the native shell to request runtime permission,
@@ -90,9 +114,39 @@ export default function App() {
         results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
         results[coarse] === PermissionsAndroid.RESULTS.GRANTED;
       sendLocationPermissionResult(granted);
+      if (!granted && (results[fine] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || results[coarse] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) {
+        Alert.alert('Location permission required', 'Enable location permission for Granvia in App Settings.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ]);
+      }
     } catch {
       sendLocationPermissionResult(false);
     }
+  };
+
+  const openLocationSettings = () => {
+    Alert.alert(
+      'Enable location services',
+      'Granvia needs your live location. Turn on Location/GPS, then return to the app.',
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => sendLocationSettingsResult(false) },
+        {
+          text: 'Enable Location',
+          onPress: async () => {
+            try {
+              waitingForLocationSettings.current = true;
+              locationSettingsWasBackgrounded.current = false;
+              await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+            } catch {
+              waitingForLocationSettings.current = false;
+              sendLocationSettingsResult(false);
+            }
+          },
+        },
+      ],
+      { cancelable: false },
+    );
   };
 
   const onMessage = (event: { nativeEvent: { data: string } }) => {
@@ -100,6 +154,8 @@ export default function App() {
       const message = JSON.parse(event.nativeEvent.data) as { type?: string };
       if (message.type === 'GRANVIA_REQUEST_LOCATION') {
         void requestLocationPermission();
+      } else if (message.type === 'GRANVIA_OPEN_LOCATION_SETTINGS') {
+        openLocationSettings();
       }
     } catch {
       // Ignore messages that are not part of the native bridge.

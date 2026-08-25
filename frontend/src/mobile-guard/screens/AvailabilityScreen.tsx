@@ -1,7 +1,7 @@
 // Persisted associate availability with server-enforced overlap protection.
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarClock, Plus, X, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Plus, X, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import {
   type AvailabilitySlot,
   createAvailability,
@@ -133,13 +133,14 @@ export default function AvailabilityScreen() {
 
       <AnimatePresence>
         {adding && (
-          <motion.div className="fixed inset-0 z-[80] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !saving && setAdding(false)}>
-            <motion.div className="w-full rounded-t-3xl bg-white overflow-y-auto mobile-scroll" style={{ maxHeight: '88dvh', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} onClick={event => event.stopPropagation()}>
-              <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-gray-200" /></div>
+          <motion.div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-50 mobile-scroll" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="mx-auto min-h-full w-full max-w-lg bg-white" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)', paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
               <div className="px-5 pt-2 pb-4">
+                <button type="button" onClick={() => !saving && setAdding(false)} className="mb-4 flex items-center gap-2 rounded-xl py-2 text-sm font-semibold text-slate-700">
+                  <ArrowLeft size={18} /> Back to Availability
+                </button>
                 <div className="flex items-center justify-between mb-4">
                   <div><h2 className="text-lg font-bold text-gray-900">Add Availability</h2><p className="text-xs text-gray-400">Overlapping active schedules will be rejected.</p></div>
-                  <button onClick={() => !saving && setAdding(false)} className="text-gray-400"><X size={18} /></button>
                 </div>
 
                 {formError && <div className="mb-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 text-red-600 text-xs"><AlertCircle size={14} className="flex-shrink-0 mt-0.5" />{formError}</div>}

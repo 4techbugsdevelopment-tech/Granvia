@@ -20,13 +20,28 @@ export default function JobSearch() {
   const [applyError, setApplyError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listActiveJobs(), listMyAppliedJobIds()])
+    let mounted = true;
+    const load = () => Promise.all([listActiveJobs(), listMyAppliedJobIds()])
       .then(([jobData, appliedSet]) => {
+        if (!mounted) return;
         setJobs(jobData ?? []);
         setAppliedIds(appliedSet);
+        setError(null);
       })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch(e => { if (mounted) setError(e.message); })
+      .finally(() => { if (mounted) setLoading(false); });
+
+    void load();
+    const refresh = () => { if (document.visibilityState === 'visible') void load(); };
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, []);
 
   const filtered = jobs.filter(job => {
@@ -110,12 +125,12 @@ export default function JobSearch() {
       </div>
 
       {/* Filter tabs */}
-      <div className="px-4 py-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex flex-wrap gap-2 px-4 py-3">
         {(['All', 'Night', 'Day'] as const).map(f => (
           <motion.button
             key={f}
             onClick={() => setActiveFilter(f)}
-            className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold"
+            className="px-4 py-2 rounded-full text-xs font-semibold"
             style={{
               background: activeFilter === f ? '#0f1e3c' : 'white',
               color: activeFilter === f ? 'white' : '#64748b',

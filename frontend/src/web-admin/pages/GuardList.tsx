@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Eye, Shield, ShieldOff,
-  Phone, Mail, MapPin, XCircle, User, AlertCircle
+  Phone, Mail, MapPin, XCircle, User, AlertCircle, Pencil, Trash2
 } from 'lucide-react';
 import { Guard } from '../../lib/storage';
-import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf } from '../../services/adminGuardService';
+import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, deleteGuard } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
+import { getErrorMessage } from '../../services/apiErrors';
 
 interface GuardListProps {
   onAddGuard: () => void;
@@ -23,6 +24,9 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   const [docsLoading, setDocsLoading] = useState(false);
   const [agreement, setAgreement] = useState<any | null>(null);
   const [agreementLoading, setAgreementLoading] = useState(false);
+  const [editingGuard, setEditingGuard] = useState(false);
+  const [guardSaving, setGuardSaving] = useState(false);
+  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', city: '', state: '', address: '' });
 
   useEffect(() => {
     listGuards()
@@ -86,6 +90,49 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     }
   };
 
+  const startEditGuard = (target?: Guard) => {
+    const guard = target ?? selectedGuard;
+    if (!guard) return;
+    setSelectedGuard(guard);
+    setEditDraft({
+      fullName: guard.fullName, email: guard.email, mobile: guard.mobile,
+      city: guard.city, state: guard.state, address: guard.address,
+    });
+    setEditingGuard(true);
+  };
+
+  const saveGuard = async () => {
+    if (!selectedGuard) return;
+    setGuardSaving(true);
+    setError(null);
+    try {
+      const updated = await updateGuard(selectedGuard.id, {
+        full_name: editDraft.fullName.trim(), email: editDraft.email.trim().toLowerCase(), mobile: editDraft.mobile.trim(),
+        city: editDraft.city.trim(), state: editDraft.state.trim(), address: editDraft.address.trim(),
+      });
+      setGuards(current => current.map(guard => guard.id === updated.id ? updated : guard));
+      setSelectedGuard(updated);
+      setEditingGuard(false);
+    } catch (cause) {
+      setError(getErrorMessage(cause, 'Failed to update associate.'));
+    } finally { setGuardSaving(false); }
+  };
+
+  const removeGuard = async (target?: Guard) => {
+    const guard = target ?? selectedGuard;
+    if (!guard || !window.confirm(`Delete ${guard.fullName}? This permanently removes the associate and their related application, attendance, verification and agreement records.`)) return;
+    setGuardSaving(true);
+    setError(null);
+    try {
+      await deleteGuard(guard.id);
+      setGuards(current => current.filter(item => item.id !== guard.id));
+      setSelectedGuard(null);
+      setEditingGuard(false);
+    } catch (cause) {
+      setError(getErrorMessage(cause, 'Failed to delete associate.'));
+    } finally { setGuardSaving(false); }
+  };
+
   const declareAadhaar = async (id: string, status: 'verified' | 'rejected') => {
     const titled = (status.charAt(0).toUpperCase() + status.slice(1)) as Guard['aadhaarStatus'];
     try {
@@ -106,7 +153,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="p-6 space-y-5"
+      className="p-4 md:p-6 space-y-5"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -116,7 +163,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
         </div>
         <motion.button
           onClick={onAddGuard}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+          className="flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white sm:w-auto"
           style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
           whileHover={{ scale: 1.03, boxShadow: '0 8px 20px rgba(15,30,60,0.3)' }}
           whileTap={{ scale: 0.97 }}
@@ -164,7 +211,31 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div className="space-y-3 lg:hidden">
+        {filtered.map(guard => (
+          <div key={guard.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0"><p className="break-words font-semibold text-gray-900">{guard.fullName}</p><p className="break-all text-xs text-gray-500">{guard.email}</p><p className="text-xs text-gray-400">{guard.mobile}</p></div>
+              <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: statusColor(guard.status), background: statusBg(guard.status) }}>{guard.status}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-[10px] font-semibold uppercase text-gray-400">Location</p><p className="break-words text-gray-700">{guard.city}, {guard.state}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-gray-400">Experience</p><p className="text-gray-700">{guard.experience || '--'}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-gray-400">Aadhaar</p><p style={{ color: verifyColor(guard.aadhaarStatus) }}>{guard.aadhaarStatus}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-gray-400">Police</p><p style={{ color: verifyColor(guard.policeVerification) }}>{guard.policeVerification}</p></div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+              <button onClick={() => setSelectedGuard(guard)} className="table-action"><Eye size={13} className="inline mr-1" />View</button>
+              <button onClick={() => startEditGuard(guard)} className="table-action tone-blue"><Pencil size={13} className="inline mr-1" />Edit</button>
+              <button onClick={() => toggleBlock(guard.id)} className="table-action">{guard.status === 'Active' ? 'Block' : 'Unblock'}</button>
+              <button onClick={() => removeGuard(guard)} className="table-action tone-red"><Trash2 size={13} className="inline mr-1" />Delete</button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <div className="rounded-2xl bg-white py-10 text-center text-sm text-gray-400">{loading ? 'Loading associates…' : 'No associates found'}</div>}
+      </div>
+
+      <div className="hidden rounded-2xl overflow-hidden lg:block" style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -263,6 +334,12 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                         >
                           <Eye size={14} />
                         </motion.button>
+                        <motion.button onClick={() => startEditGuard(guard)} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" whileHover={{ scale: 1.1 }} title="Edit Associate">
+                          <Pencil size={14} />
+                        </motion.button>
+                        <motion.button onClick={() => removeGuard(guard)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors" whileHover={{ scale: 1.1 }} title="Delete Associate">
+                          <Trash2 size={14} />
+                        </motion.button>
                         <motion.button
                           onClick={() => toggleBlock(guard.id)}
                           className="p-1.5 rounded-lg transition-colors"
@@ -342,7 +419,29 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                 </button>
               </div>
 
-              <div className="p-6 grid grid-cols-2 gap-6 max-h-96 overflow-y-auto">
+              {editingGuard && (
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-gray-100">
+                  {([
+                    ['Full Name', 'fullName'], ['Email', 'email'], ['Mobile', 'mobile'],
+                    ['City', 'city'], ['State', 'state'], ['Address', 'address'],
+                  ] as const).map(([label, key]) => (
+                    <label key={key} className="block">
+                      <span className="form-label">{label}</span>
+                      <input
+                        value={editDraft[key]}
+                        onChange={event => setEditDraft(current => ({ ...current, [key]: key === 'mobile' ? event.target.value.replace(/\D/g, '').slice(0, 10) : event.target.value }))}
+                        className="form-input"
+                      />
+                    </label>
+                  ))}
+                  <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                    <button onClick={() => setEditingGuard(false)} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700">Cancel</button>
+                    <button disabled={guardSaving} onClick={saveGuard} className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#0f1e3c' }}>{guardSaving ? 'Saving...' : 'Save Changes'}</button>
+                  </div>
+                </div>
+              )}
+
+              <div className={`p-6 grid-cols-2 gap-6 max-h-96 overflow-y-auto ${editingGuard ? 'hidden' : 'grid'}`}>
                 {[
                   { label: 'Gender', value: selectedGuard.gender },
                   { label: 'Date of Birth', value: selectedGuard.dob },
@@ -455,6 +554,20 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
               </div>
 
               <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  onClick={() => removeGuard()}
+                  disabled={guardSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-700 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+                <button
+                  onClick={() => startEditGuard()}
+                  disabled={editingGuard || guardSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <Pencil size={14} /> Edit
+                </button>
                 <button
                   onClick={() => toggleBlock(selectedGuard.id)}
                   className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"

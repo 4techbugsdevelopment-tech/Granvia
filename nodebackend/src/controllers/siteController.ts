@@ -98,3 +98,22 @@ export async function update(req: Request, res: Response) {
   });
   return res.json(serializeOut(updated, OUTPUT_JSON_FIELDS));
 }
+
+/** DELETE /employer/sites/:site */
+export async function destroy(req: Request, res: Response) {
+  const site = await prisma.companySite.findUnique({ where: { id: req.params.site } });
+  if (!site) throw new HttpError(404, 'Site not found.');
+  if (site.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
+
+  // Preserve operational history while removing references to this master row.
+  await prisma.$transaction([
+    prisma.jobApplication.updateMany({ where: { siteId: site.id }, data: { siteId: null } }),
+    prisma.jobOffer.updateMany({ where: { siteId: site.id }, data: { siteId: null } }),
+    prisma.agreement.updateMany({ where: { siteId: site.id }, data: { siteId: null } }),
+    prisma.attendanceRecord.updateMany({ where: { siteId: site.id }, data: { siteId: null } }),
+    prisma.jobPost.updateMany({ where: { siteId: site.id }, data: { siteId: null } }),
+    prisma.companySite.delete({ where: { id: site.id } }),
+  ]);
+
+  return res.json({ message: 'Site deleted successfully.' });
+}

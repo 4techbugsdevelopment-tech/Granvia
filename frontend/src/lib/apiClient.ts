@@ -41,6 +41,23 @@ apiClient.interceptors.response.use(
       setStoredToken(null);
       notifyAuthChange();
     }
+
+    // Preserve the Axios error object, but replace generic messages such as
+    // "Request failed with status code 422" / "Network Error" with text that
+    // every form can safely show to the user.
+    const data = error?.response?.data as { message?: unknown; errors?: Record<string, string[] | string> } | undefined;
+    const firstValidationMessage = data?.errors
+      ? Object.values(data.errors).flatMap(value => Array.isArray(value) ? value : [value]).find(value => typeof value === 'string' && value.trim())
+      : undefined;
+    if (typeof firstValidationMessage === 'string') {
+      error.message = firstValidationMessage;
+    } else if (typeof data?.message === 'string' && data.message.trim()) {
+      error.message = data.message;
+    } else if (!error?.response) {
+      error.message = error?.code === 'ECONNABORTED'
+        ? 'The request took too long. Please try again.'
+        : 'Unable to connect to the server. Check your internet connection and try again.';
+    }
     return Promise.reject(error);
   }
 );

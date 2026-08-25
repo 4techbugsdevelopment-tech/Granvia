@@ -111,6 +111,7 @@ export type EmployerDocument = {
   fileSize: number;
   verificationStatus: VerificationStatus;
   uploadedAt: string;
+  downloadUrl?: string;
 };
 
 export type CompanySite = {

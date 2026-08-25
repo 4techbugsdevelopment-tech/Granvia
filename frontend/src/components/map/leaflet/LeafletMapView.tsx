@@ -104,7 +104,7 @@ export default function LeafletMapView({
       center={[center.lat, center.lng]}
       zoom={zoom}
       className={className}
-      style={{ height: '100%', width: '100%', borderRadius: 'inherit', ...style }}
+      style={{ height: '100%', width: '100%', borderRadius: 'inherit', position: 'relative', zIndex: 0, isolation: 'isolate', ...style }}
       scrollWheelZoom
     >
       <RecenterMap lat={center.lat} lng={center.lng} zoom={zoom} />

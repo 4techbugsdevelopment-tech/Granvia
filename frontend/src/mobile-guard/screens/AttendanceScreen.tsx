@@ -1,5 +1,5 @@
 // AttendanceScreen — guard check-in/check-out backed by the API
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, CheckCircle, LogIn, LogOut, Calendar, AlertCircle, History, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -69,7 +69,7 @@ export default function AttendanceScreen() {
   const [error, setError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
   const [pulseActive, setPulseActive] = useState(false);
-  const [successType, setSuccessType] = useState<'in' | 'out' | null>(null);
+  const [successType, setSuccessType] = useState<'in' | 'out' | 'history' | null>(null);
   const [showHistoryForm, setShowHistoryForm] = useState(false);
   const [historySaving, setHistorySaving] = useState(false);
   const [historyDate, setHistoryDate] = useState(yesterdayValue);
@@ -117,7 +117,8 @@ export default function AttendanceScreen() {
     }
   };
 
-  const saveHistory = async () => {
+  const saveHistory = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setHistorySaving(true);
     setError(null);
     try {
@@ -126,22 +127,16 @@ export default function AttendanceScreen() {
       if (outTime <= inTime) outTime.setDate(outTime.getDate() + 1);
       if (outTime > new Date()) throw new Error('Historical check-out cannot be in the future.');
 
-      const position = await getCurrentPosition();
-      if (!position) throw new Error('Location access is required to submit a historical attendance correction.');
       const record = await saveHistoricalAttendance({
         attendanceDate: historyDate,
         inTime: inTime.toISOString(),
         outTime: outTime.toISOString(),
-        checkInLatitude: position.lat,
-        checkInLongitude: position.lng,
-        checkOutLatitude: position.lat,
-        checkOutLongitude: position.lng,
         guardRemarks: historyRemarks || undefined,
       });
       setRecords(prev => [record, ...prev.filter(r => r.id !== record.id)]);
       setShowHistoryForm(false);
       setHistoryRemarks('');
-      setSuccessType('out');
+      setSuccessType('history');
       setTimeout(() => setSuccessType(null), 2000);
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
@@ -232,9 +227,11 @@ export default function AttendanceScreen() {
               >
                 <CheckCircle size={40} style={{ color: '#22c55e' }} />
                 <p className="font-bold text-lg text-gray-800">
-                  {successType === 'in' ? 'Checked In!' : 'Checked Out!'}
+                  {successType === 'in' ? 'Checked In!' : successType === 'out' ? 'Checked Out!' : 'Past Attendance Submitted!'}
                 </p>
-                <p className="text-sm text-gray-400">{formatTime(now.toISOString())}</p>
+                <p className="text-sm text-gray-400">
+                  {successType === 'history' ? 'Pending employer verification' : formatTime(now.toISOString())}
+                </p>
               </motion.div>
             ) : (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -390,19 +387,19 @@ export default function AttendanceScreen() {
       <div className="px-4 mt-4">
         {!showHistoryForm ? (
           <button
-            onClick={() => setShowHistoryForm(true)}
+            onClick={() => { setError(null); setShowHistoryForm(true); }}
             className="w-full py-3.5 rounded-2xl border border-blue-100 bg-blue-50 text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mobile-touch-interactive"
           >
             <History size={16} /> Add or correct past attendance
           </button>
         ) : (
-          <div className="rounded-2xl bg-white p-4" style={{ boxShadow: '0 3px 14px rgba(0,0,0,0.07)' }}>
+          <form onSubmit={saveHistory} className="rounded-2xl bg-white p-4" style={{ boxShadow: '0 3px 14px rgba(0,0,0,0.07)' }}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold text-gray-800">Past attendance</h3>
                 <p className="text-xs text-gray-400">Submitted changes require employer verification.</p>
               </div>
-              <button onClick={() => setShowHistoryForm(false)} className="p-2 rounded-lg bg-gray-50 text-gray-500"><X size={15} /></button>
+              <button type="button" onClick={() => setShowHistoryForm(false)} className="p-2 rounded-lg bg-gray-50 text-gray-500"><X size={15} /></button>
             </div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Attendance date</label>
             <input
@@ -431,16 +428,21 @@ export default function AttendanceScreen() {
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
             />
             <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-2 mt-2">
-              GPS records your current correction-submission location; it is labelled as a historical manual entry for reviewers.
+              This is labelled as a historical manual entry and will remain pending until the connected employer verifies it.
             </p>
+            {error && (
+              <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700">
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" /> {error}
+              </p>
+            )}
             <button
-              onClick={saveHistory}
+              type="submit"
               disabled={historySaving || !historyDate || !historyIn || !historyOut}
               className="w-full mt-3 py-3 rounded-xl bg-blue-900 text-white text-sm font-bold disabled:opacity-50"
             >
-              {historySaving ? 'Saving with GPS…' : 'Submit past attendance'}
+              {historySaving ? 'Submitting…' : 'Submit past attendance'}
             </button>
-          </div>
+          </form>
         )}
       </div>
 

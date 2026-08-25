@@ -91,8 +91,8 @@ export default function AadhaarVerificationPage({ onChanged, onVerified }: { onC
   };
 
   return (
-    <div className="p-6 max-w-3xl">
-      <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-6">
+    <div className="p-4 md:p-6 max-w-3xl">
+      <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-4 md:p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Aadhaar Verification</h2>

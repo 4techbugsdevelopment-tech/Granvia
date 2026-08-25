@@ -74,3 +74,8 @@ export function absolutePathFor(storedPath: string): string {
 export function categoryOf(storedPath: string): string {
   return storedPath.split('/')[0] ?? '';
 }
+
+export function removePrivateFile(storedPath: string): void {
+  const absolutePath = absolutePathFor(storedPath);
+  if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath);
+}

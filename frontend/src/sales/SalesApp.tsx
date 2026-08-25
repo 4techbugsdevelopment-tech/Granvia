@@ -11,20 +11,20 @@ import MobileChrome from '../universal-mobile/MobileChrome';
 import { NAVY, NAVY_GRADIENT, BURGUNDY, BROWN, PAGE_BG } from '../subadmin/theme';
 import { GlassStat, Card, Pill, PageHeader, SlideOver, TapButton, Field, Page, DataTable, AppLayoutProvider, DataColumn } from '../subadmin/ui';
 import {
-  getSalesCounts, getSalesActivity, getSalesClients, getSalesClientDetail,
+  getSalesCounts, getSalesActivity, getSalesClients, getSalesClientDetail, getSalesJobs,
   requestJobOtp, postProxyJob, getDiscounts, createDiscount, deleteDiscount, getManpower,
-  SalesCounts, SalesActivityItem, SalesClient, SalesClientDetail, Discount, ManpowerResult,
+  SalesCounts, SalesActivityItem, SalesClient, SalesClientDetail, SalesJob, Discount, ManpowerResult,
 } from '../services/salesService';
 
-type SalesPage = 'dashboard' | 'clients' | 'post-job' | 'discounts' | 'manpower';
+type SalesPage = 'dashboard' | 'clients' | 'jobs' | 'discounts' | 'manpower';
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 // `master: true` → entry / creation actions shown in the top-left drawer on mobile.
 const NAV: { id: SalesPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  { id: 'clients', label: 'Clients', icon: <Users size={18} /> },
-  { id: 'post-job', label: 'Post Job (on behalf)', icon: <Briefcase size={18} />, master: true },
-  { id: 'discounts', label: 'Discounts', icon: <BadgePercent size={18} />, master: true },
+  { id: 'clients', label: 'Manage Clients', icon: <Users size={18} /> },
+  { id: 'jobs', label: 'Manage Jobs', icon: <Briefcase size={18} /> },
+  { id: 'discounts', label: 'Manage Discounts', icon: <BadgePercent size={18} />, master: true },
   { id: 'manpower', label: 'Manpower Map', icon: <MapPinned size={18} /> },
 ];
 
@@ -49,7 +49,7 @@ function DashboardPage({ onNavigate }: { onNavigate: (page: SalesPage) => void }
 
   const stats: Array<{ label: string; value: string; icon: React.ReactNode; accent: string; page: SalesPage }> = [
     { label: 'Managed Clients', value: String(counts.managed_clients), icon: <Users size={18} />, accent: NAVY, page: 'clients' },
-    { label: 'Active Site Jobs', value: String(counts.active_jobs), icon: <Briefcase size={18} />, accent: BURGUNDY, page: 'clients' },
+    { label: 'Active Site Jobs', value: String(counts.active_jobs), icon: <Briefcase size={18} />, accent: BURGUNDY, page: 'jobs' },
     { label: 'Conversion Rate', value: `${counts.conversion_rate}%`, icon: <TrendingUp size={18} />, accent: BROWN, page: 'clients' },
     { label: 'Active Discounts', value: String(counts.active_discounts), icon: <BadgePercent size={18} />, accent: NAVY, page: 'discounts' },
   ];
@@ -182,7 +182,7 @@ const JOB_CATEGORIES = [
   { label: '12-hour (Overtime)', value: '12-hour' },
 ];
 
-function PostJobPage() {
+function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const [clients, setClients] = useState<SalesClient[]>([]);
   const [detail, setDetail] = useState<SalesClientDetail | null>(null);
   const [form, setForm] = useState({ employer: '', company: '', site: '', title: '', dutyHours: '8-hour', english: true, experience: '', education: '', guards: '2' });
@@ -228,7 +228,7 @@ function PostJobPage() {
 
   return (
     <Page className="max-w-2xl">
-      <PageHeader title="Post Job on Behalf of Client" subtitle="Requires OTP confirmation from the client" />
+      <PageHeader title="Create Job" subtitle="Requires OTP confirmation from the client" action={<TapButton variant="ghost" onClick={onCancel}>Back to Jobs</TapButton>} />
       <Card>
         {step === 'form' && (
           <>
@@ -297,7 +297,7 @@ function PostJobPage() {
             <CheckCircle size={44} className="mx-auto mb-3" style={{ color: NAVY }} />
             <p className="font-bold" style={{ color: NAVY }}>Job posted & sent for approval</p>
             <p className="text-xs mt-1" style={{ color: 'rgba(75,46,42,0.55)' }}>Confirmed via client OTP.</p>
-            <button onClick={reset} className="mt-4 text-sm font-semibold" style={{ color: BURGUNDY }}>Post another</button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2"><button onClick={reset} className="text-sm font-semibold" style={{ color: BURGUNDY }}>Post another</button><TapButton variant="navy" onClick={onDone}>Back to Manage Jobs</TapButton></div>
           </div>
         )}
       </Card>
@@ -306,6 +306,40 @@ function PostJobPage() {
 }
 
 // ── Discounts ───────────────────────────────────────────────────────────────────
+
+function ManageJobsPage() {
+  const [jobs, setJobs] = useState<SalesJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    getSalesJobs().then(setJobs).finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  if (creating) return <PostJobPage onCancel={() => setCreating(false)} onDone={() => { setCreating(false); load(); }} />;
+
+  const filtered = jobs.filter(job => `${job.title} ${job.employer_name} ${job.company?.company_name ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+  const columns: DataColumn<SalesJob>[] = [
+    { header: 'Job', primary: true, cell: job => job.title },
+    { header: 'Client', cell: job => job.employer_name },
+    { header: 'Company / Site', wide: true, cell: job => <><div>{job.company?.company_name ?? '—'}</div><div className="text-xs opacity-60">{job.site?.site_name ?? job.site?.city ?? 'No site'}</div></> },
+    { header: 'Openings', cell: job => job.guards_required },
+    { header: 'Duty', cell: job => job.duty_hours ?? '—' },
+    { header: 'Status', cell: job => <Pill label={job.status} /> },
+    { header: 'Posted', cell: job => new Date(job.created_at).toLocaleDateString('en-IN') },
+  ];
+
+  return (
+    <Page>
+      <PageHeader title="Manage Jobs" subtitle="View client jobs and create new postings from one page" action={<TapButton onClick={() => setCreating(true)}><Plus size={16} /> Create Job</TapButton>} />
+      <div className="relative mb-4 max-w-md"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(75,46,42,0.4)' }} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search jobs or clients…" className="w-full rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none" style={{ background: 'white', border: '1.5px solid #e6ddd8', color: BROWN }} /></div>
+      {loading ? <Loading /> : <DataTable columns={columns} rows={filtered} rowKey={job => job.id} empty="No jobs posted for your clients yet." />}
+    </Page>
+  );
+}
 
 function DiscountsPage() {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
@@ -357,7 +391,7 @@ function DiscountsPage() {
         <DataTable columns={columns} rows={discounts} rowKey={d => d.id} empty="No discounts yet." />
       )}
 
-      <SlideOver open={open} onClose={() => setOpen(false)} title="New Discount" subtitle="Real-time billing preview">
+      <SlideOver open={open} page onClose={() => setOpen(false)} title="New Discount" subtitle="Real-time billing preview">
         <div className="mb-4">
           <label className="block text-xs font-semibold mb-1.5" style={{ color: BROWN }}>Client</label>
           <select value={form.employer} onChange={e => setForm(f => ({ ...f, employer: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none" style={{ border: '1.5px solid #e6ddd8', background: '#faf8f6', color: BROWN }}>
@@ -484,7 +518,7 @@ export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: (
     switch (page) {
       case 'dashboard': return <DashboardPage onNavigate={setPage} />;
       case 'clients': return <ClientsPage />;
-      case 'post-job': return <PostJobPage />;
+      case 'jobs': return <ManageJobsPage />;
       case 'discounts': return <DiscountsPage />;
       case 'manpower': return <ManpowerPage />;
     }

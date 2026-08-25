@@ -10,7 +10,7 @@ router.post('/auth/register/employer', asyncHandler(auth.registerEmployer));
 router.post('/auth/register/guard', asyncHandler(auth.registerGuard));
 router.post('/auth/login', asyncHandler(auth.login));
 router.post('/auth/login/verify-otp', asyncHandler(auth.loginVerifyOtp));
-router.post('/auth/logout', requireAuth, asyncHandler(auth.logout));
+router.post('/auth/logout', asyncHandler(auth.logout));
 router.get('/auth/me', requireAuth, asyncHandler(auth.me));
 router.post('/auth/email/verification-notification', asyncHandler(auth.resendVerification));
 router.post('/auth/email/verify-otp', asyncHandler(auth.verifyEmailOtp));

@@ -21,12 +21,18 @@ export function getErrorMessage(error: unknown, fallback = 'Something went wrong
   if (!error) return fallback;
 
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
+    const data = error.response?.data as { message?: string; errors?: Record<string, string[] | string> } | undefined;
     if (data?.errors) {
-      const first = Object.values(data.errors)[0]?.[0];
+      const value = Object.values(data.errors)[0];
+      const first = Array.isArray(value) ? value[0] : value;
       if (first) return first;
     }
     if (data?.message) return data.message;
+    if (!error.response) {
+      return error.code === 'ECONNABORTED'
+        ? 'The request took too long. Please try again.'
+        : 'Unable to connect to the server. Check your internet connection and try again.';
+    }
   }
 
   if (error instanceof Error) return error.message;

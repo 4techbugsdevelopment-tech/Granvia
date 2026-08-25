@@ -7,29 +7,33 @@ import { storeFile, IncomingFile } from '../utils/fileStorage';
 
 // Port of App\Http\Controllers\CompanyController.
 
+const emptyToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const optionalString = (schema: z.ZodString) => z.preprocess(emptyToUndefined, schema.optional().nullable());
+
 const baseFields = {
   business_type: z.string().nullish(),
   registration_type: z.string().nullish(),
-  gst_number: z
-    .string()
-    .regex(/^[0-9A-Z]{15}$/i, 'The gst number format is invalid.')
-    .nullish(),
-  pan_number: z
-    .string()
-    .regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'The pan number format is invalid.')
-    .nullish(),
-  company_email: z.string().email('The company email must be a valid email address.').nullish(),
-  company_phone: z.string().nullish(),
+  gst_number: optionalString(z.string().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i, 'Enter a valid 15-character GST number.')),
+  pan_number: optionalString(z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'Enter a valid PAN number (for example, ABCDE1234F).')),
+  company_email: optionalString(z.string().email('Enter a valid company email address.')),
+  company_phone: optionalString(z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number.')),
   website: z.string().nullish(),
   description: z.string().nullish(),
   registered_address: z.string().nullish(),
   billing_address: z.string().nullish(),
   city: z.string().nullish(),
   state: z.string().nullish(),
-  pincode: z.string().regex(/^\d{6}$/, 'The pincode format is invalid.').nullish(),
+  pincode: optionalString(z.string().regex(/^\d{6}$/, 'Enter a valid 6-digit pincode.')),
 };
 
-const createSchema = z.object({ company_name: z.string(), ...baseFields });
+const createSchema = z.object({
+  company_name: z.string().trim().min(2, 'Company name must contain at least 2 characters.'),
+  ...baseFields,
+  business_type: z.string().trim().min(2, 'Business type is required.'),
+  registered_address: z.string().trim().min(5, 'Enter a valid registered address.'),
+});
 const updateSchema = z
   .object({ company_name: z.string(), ...baseFields, account_status: z.string() })
   .partial();
@@ -105,6 +109,37 @@ export async function update(req: Request, res: Response) {
     data: toColumns(data) as never,
   });
   return res.json(snakeKeys(company));
+}
+
+/** DELETE /employer/companies/:company */
+export async function destroy(req: Request, res: Response) {
+  const company = await ownedCompanyOrFail(req.params.company, req.user!.id);
+  const sites = await prisma.companySite.findMany({ where: { companyId: company.id }, select: { id: true } });
+  const siteIds = sites.map((site) => site.id);
+
+  // Transactional records are retained for audit/history. Their nullable
+  // company/site references are cleared before deleting the master rows.
+  await prisma.$transaction([
+    prisma.jobApplication.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.interviewRequest.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.jobOffer.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.attendanceRecord.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.invoice.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.supportTicket.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    ...(siteIds.length ? [
+      prisma.jobApplication.updateMany({ where: { siteId: { in: siteIds } }, data: { siteId: null } }),
+      prisma.jobOffer.updateMany({ where: { siteId: { in: siteIds } }, data: { siteId: null } }),
+      prisma.agreement.updateMany({ where: { siteId: { in: siteIds } }, data: { siteId: null } }),
+      prisma.attendanceRecord.updateMany({ where: { siteId: { in: siteIds } }, data: { siteId: null } }),
+      prisma.jobPost.updateMany({ where: { siteId: { in: siteIds } }, data: { siteId: null } }),
+    ] : []),
+    prisma.jobPost.updateMany({ where: { companyId: company.id }, data: { companyId: null } }),
+    prisma.companyDocument.deleteMany({ where: { companyId: company.id } }),
+    prisma.companySite.deleteMany({ where: { companyId: company.id } }),
+    prisma.employerCompany.delete({ where: { id: company.id } }),
+  ]);
+
+  return res.json({ message: 'Company deleted successfully.' });
 }
 
 /** POST /employer/companies/:company/logo */

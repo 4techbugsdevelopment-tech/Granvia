@@ -1,7 +1,7 @@
 // SupportScreen — guard help centre (live tickets: /me/support-tickets)
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LifeBuoy, ChevronDown, Plus, X, MessageSquare, Loader2 } from 'lucide-react';
+import { ArrowLeft, LifeBuoy, ChevronDown, Plus, MessageSquare, Loader2 } from 'lucide-react';
 import { listMySupportTickets, createSupportTicket } from '../../services/supportService';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -62,7 +62,6 @@ export default function SupportScreen() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,8 +80,9 @@ export default function SupportScreen() {
     try {
       const created = await createSupportTicket({ subject, message });
       setTickets((prev) => [mapTicket(created), ...prev]);
-      setSent(true);
-      setTimeout(() => { setComposing(false); setSent(false); setSubject(''); setMessage(''); }, 1400);
+      setComposing(false);
+      setSubject('');
+      setMessage('');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     } finally {
@@ -165,31 +165,20 @@ export default function SupportScreen() {
       <AnimatePresence>
         {composing && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-50 mobile-scroll"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setComposing(false)}
           >
             <motion.div
-              className="w-full rounded-t-3xl bg-white"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              className="mx-auto min-h-full w-full max-w-lg bg-white"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)', paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              onClick={e => e.stopPropagation()}
             >
-              <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-gray-200" /></div>
               <div className="px-5 pt-2 pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">New Ticket</h2>
-                  <button onClick={() => setComposing(false)} className="text-gray-400"><X size={18} /></button>
-                </div>
-                {sent ? (
-                  <div className="py-8 text-center">
-                    <LifeBuoy size={40} className="mx-auto mb-2" style={{ color: '#22c55e' }} />
-                    <p className="font-bold text-gray-800">Ticket submitted</p>
-                    <p className="text-xs text-gray-400 mt-1">Our team will respond soon.</p>
-                  </div>
-                ) : (
-                  <>
+                <button type="button" onClick={() => setComposing(false)} className="mb-4 flex items-center gap-2 rounded-xl py-2 text-sm font-semibold text-slate-700">
+                  <ArrowLeft size={18} /> Back to Tickets
+                </button>
+                <h2 className="mb-4 text-lg font-bold text-gray-900">New Ticket</h2>
                     <label className="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
                     <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Brief summary"
                       className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none mb-3" style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }} />
@@ -203,8 +192,6 @@ export default function SupportScreen() {
                       {submitting && <Loader2 size={15} className="animate-spin" />}
                       {submitting ? 'Submitting…' : 'Submit Ticket'}
                     </button>
-                  </>
-                )}
               </div>
             </motion.div>
           </motion.div>

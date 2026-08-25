@@ -15,6 +15,7 @@ router.get('/sales/activity', asyncHandler(sales.activity));
 router.get('/sales/clients', asyncHandler(sales.clients));
 router.get('/sales/clients/:employer', asyncHandler(sales.clientDetail));
 
+router.get('/sales/jobs', asyncHandler(sales.jobs));
 router.post('/sales/jobs/request-otp', asyncHandler(sales.requestJobOtp));
 router.post('/sales/jobs', asyncHandler(sales.storeJob));
 

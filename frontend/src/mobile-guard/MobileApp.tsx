@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Search, Clock, User, MoreHorizontal, LogOut } from 'lucide-react';
+import { LayoutDashboard, Search, Clock, User, MoreHorizontal, LogOut, ClipboardList, Wallet, CalendarDays, Bell, LifeBuoy, FileSignature, X } from 'lucide-react';
 import MobileDashboard from './screens/MobileDashboard';
 import JobSearch from './screens/JobSearch';
 import AttendanceScreen from './screens/AttendanceScreen';
@@ -35,11 +35,20 @@ const NAV_ITEMS = [
   { id: 'jobs' as Screen, icon: <Search size={20} />, label: 'Jobs' },
   { id: 'attendance' as Screen, icon: <Clock size={20} />, label: 'Attend.' },
   { id: 'profile' as Screen, icon: <User size={20} />, label: 'Profile' },
-  { id: 'applications' as Screen, icon: <MoreHorizontal size={20} />, label: 'Applied' },
+];
+
+const MORE_ITEMS = [
+  { id: 'applications' as Screen, icon: <ClipboardList size={20} />, label: 'Applications' },
+  { id: 'wallet' as Screen, icon: <Wallet size={20} />, label: 'Wallet' },
+  { id: 'availability' as Screen, icon: <CalendarDays size={20} />, label: 'Availability' },
+  { id: 'notifications' as Screen, icon: <Bell size={20} />, label: 'Notifications' },
+  { id: 'support' as Screen, icon: <LifeBuoy size={20} />, label: 'Support' },
+  { id: 'agreement' as Screen, icon: <FileSignature size={20} />, label: 'Agreement' },
 ];
 
 export default function MobileApp({ onLogout }: MobileAppProps) {
   const [screen, setScreen] = useState<Screen>(initialScreen);
+  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +57,11 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
 
   const handleLogout = () => {
     signOut().finally(onLogout);
+  };
+
+  const goTo = (next: Screen) => {
+    setScreen(next);
+    setMenuOpen(false);
   };
 
   const renderScreen = () => {
@@ -73,7 +87,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto mobile-scroll"
-        style={{ paddingBottom: 80 }}
+        style={{ paddingBottom: 94 }}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -88,64 +102,68 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
         </AnimatePresence>
       </div>
 
-      {/* Fixed bottom navigation */}
-      <div
-        className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-1"
-        style={{
-          background: 'white',
-          boxShadow: '0 -2px 16px rgba(0,0,0,0.08)',
-          borderTop: '1px solid #f1f5f9',
-          paddingTop: 6,
-          paddingBottom: 'max(env(safe-area-inset-bottom, 6px), 6px)',
-          height: 'auto',
-          minHeight: 64,
-        }}
+      {/* Floating mobile-app navigation: four primary icons plus More. */}
+      <nav
+        className="mobile-bottom-nav fixed bottom-2 left-3 right-3 z-50 grid grid-cols-5 items-center rounded-3xl border border-white/80 bg-white/95 px-1.5 py-1.5 backdrop-blur-xl"
+        style={{ boxShadow: '0 10px 32px rgba(15,30,60,0.18)', paddingBottom: 'max(env(safe-area-inset-bottom, 6px), 6px)' }}
       >
         {NAV_ITEMS.map(item => {
           const active = screen === item.id;
           return (
             <motion.button
               key={item.id}
-              onClick={() => setScreen(item.id)}
-              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl relative mobile-touch-interactive"
-              whileTap={{ scale: 0.88 }}
-              style={{
-                minWidth: 56,
-                minHeight: 48,
-                background: active ? 'rgba(15,30,60,0.07)' : 'transparent',
-                borderRadius: 16,
-                padding: '6px 8px',
-                transition: 'background 0.15s',
-              }}
+              onClick={() => goTo(item.id)}
+              className="mobile-touch-interactive flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
+              whileTap={{ scale: 0.9 }}
             >
-              <span style={{ color: active ? '#0f1e3c' : '#94a3b8', transition: 'color 0.15s' }}>{item.icon}</span>
-              <span
-                className="font-semibold"
-                style={{ color: active ? '#0f1e3c' : '#94a3b8', fontSize: 10, transition: 'color 0.15s' }}
-              >
-                {item.label}
-              </span>
-              {active && (
-                <motion.div
-                  className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                  style={{ background: '#8b1a1a' }}
-                  layoutId="navDot"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                />
-              )}
+              <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: active ? 'rgba(139,26,26,0.08)' : '#f8fafc', color: active ? '#8b1a1a' : '#94a3b8' }}>{item.icon}</span>
+              <span className="max-w-full truncate text-[9px] font-bold" style={{ color: active ? '#0f1e3c' : '#94a3b8' }}>{item.label}</span>
             </motion.button>
           );
         })}
         <motion.button
-          onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-0.5 rounded-2xl mobile-touch-interactive"
-          whileTap={{ scale: 0.88 }}
-          style={{ minWidth: 56, minHeight: 48, padding: '6px 8px' }}
+          onClick={() => setMenuOpen(true)}
+          className="mobile-touch-interactive flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
+          whileTap={{ scale: 0.9 }}
         >
-          <LogOut size={20} style={{ color: '#94a3b8' }} />
-          <span className="font-semibold" style={{ color: '#94a3b8', fontSize: 10 }}>Logout</span>
+          <span className="grid h-8 w-8 place-items-center rounded-xl" style={{ background: MORE_ITEMS.some(item => item.id === screen) ? 'rgba(139,26,26,0.08)' : '#f8fafc', color: MORE_ITEMS.some(item => item.id === screen) ? '#8b1a1a' : '#94a3b8' }}><MoreHorizontal size={20} /></span>
+          <span className="text-[9px] font-bold" style={{ color: MORE_ITEMS.some(item => item.id === screen) ? '#0f1e3c' : '#94a3b8' }}>More</span>
         </motion.button>
-      </div>
+      </nav>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <div className="fixed inset-0 z-[70] flex items-end">
+            <motion.button aria-label="Close menu" className="absolute inset-0 h-full w-full" style={{ background: 'rgba(10,22,40,0.48)', backdropFilter: 'blur(3px)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} />
+            <motion.section
+              className="relative w-full overflow-y-auto rounded-t-[28px] bg-[#f8fafc] px-4 pb-4"
+              style={{ maxHeight: '86vh', paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', boxShadow: '0 -18px 50px rgba(15,30,60,0.22)' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            >
+              <div className="flex justify-center py-3"><div className="h-1 w-10 rounded-full bg-slate-300" /></div>
+              <div className="mb-4 flex items-center justify-between">
+                <div><h2 className="text-lg font-bold text-slate-900">More options</h2><p className="text-xs text-slate-500">Associate Partner app</p></div>
+                <button onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-500 shadow-sm"><X size={19} /></button>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {MORE_ITEMS.map(item => {
+                  const active = screen === item.id;
+                  return (
+                    <motion.button key={item.id} onClick={() => goTo(item.id)} whileTap={{ scale: 0.96 }} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border bg-white p-3 text-center shadow-sm" style={{ borderColor: active ? 'rgba(139,26,26,0.35)' : '#eef2f7' }}>
+                      <span className="grid h-11 w-11 place-items-center rounded-2xl" style={{ background: active ? 'rgba(139,26,26,0.08)' : '#f1f5f9', color: active ? '#8b1a1a' : '#475569' }}>{item.icon}</span>
+                      <span className="line-clamp-2 text-[11px] font-bold leading-tight text-slate-700">{item.label}</span>
+                    </motion.button>
+                  );
+                })}
+                <motion.button onClick={handleLogout} whileTap={{ scale: 0.96 }} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white p-3 text-center shadow-sm">
+                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-700"><LogOut size={20} /></span>
+                  <span className="text-[11px] font-bold text-red-700">Logout</span>
+                </motion.button>
+              </div>
+            </motion.section>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

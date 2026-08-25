@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { LocationPickerProps, LatLng } from '../types';
+import { getCurrentPositionResult, type LocationFailureReason } from '../../../lib/geoUtils';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -68,13 +69,40 @@ export default function LeafletLocationPicker({
 }: LocationPickerProps) {
   /** Set to true before a drag-triggered onChange to suppress map recentering */
   const skipRecenterRef = useRef(false);
+  const autoLocateAttempted = useRef(false);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<LocationFailureReason | null>(null);
+
+  const locate = useCallback(async () => {
+    setLocating(true);
+    setLocationError(null);
+    const result = await getCurrentPositionResult();
+    if (result.position) onChange(result.position);
+    else setLocationError(result.error);
+    setLocating(false);
+  }, [onChange]);
+
+  useEffect(() => {
+    if (value || autoLocateAttempted.current) return;
+    autoLocateAttempted.current = true;
+    void locate();
+  }, [value, locate]);
+
+  const errorMessage = locationError === 'permission_denied'
+    ? 'Allow location permission to use your current position.'
+    : locationError === 'services_disabled'
+      ? 'Turn on Location/GPS, then tap Current location.'
+      : locationError === 'timeout'
+        ? 'Location timed out. Move to an open area and retry.'
+        : locationError ? 'Current location is unavailable. Please retry.' : '';
 
   return (
-    <MapContainer
+    <div className="granvia-map relative h-full w-full isolate" style={{ zIndex: 0 }}>
+      <MapContainer
       center={value ? [value.lat, value.lng] : INDIA_CENTER}
       zoom={value ? 15 : zoom}
       className={className}
-      style={{ height: '100%', width: '100%', borderRadius: 'inherit', cursor: 'crosshair', ...style }}
+      style={{ height: '100%', width: '100%', borderRadius: 'inherit', cursor: 'crosshair', position: 'relative', zIndex: 0, ...style }}
       scrollWheelZoom={true}
     >
       <TileLayer
@@ -102,6 +130,20 @@ export default function LeafletLocationPicker({
           }}
         />
       )}
-    </MapContainer>
+      </MapContainer>
+      <button
+        type="button"
+        disabled={locating}
+        onClick={() => void locate()}
+        className="absolute right-3 top-3 z-10 rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow-md disabled:opacity-60"
+      >
+        {locating ? 'Locating...' : 'Current location'}
+      </button>
+      {errorMessage && (
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs font-medium text-amber-800 shadow">
+          {errorMessage}
+        </div>
+      )}
+    </div>
   );
 }

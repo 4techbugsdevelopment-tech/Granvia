@@ -31,14 +31,18 @@ router.use('/employer', requireAuth, requireRole('employer'));
 router.get('/employer/companies', asyncHandler(company.index));
 router.post('/employer/companies', asyncHandler(company.store));
 router.patch('/employer/companies/:company', asyncHandler(company.update));
+router.delete('/employer/companies/:company', asyncHandler(company.destroy));
 router.post('/employer/companies/:company/logo', upload.single('file'), asyncHandler(company.uploadLogo));
 
 router.get('/employer/companies/:company/sites', asyncHandler(site.index));
 router.post('/employer/sites', asyncHandler(site.store));
 router.patch('/employer/sites/:site', asyncHandler(site.update));
+router.delete('/employer/sites/:site', asyncHandler(site.destroy));
 
 router.get('/employer/companies/:company/documents', asyncHandler(companyDoc.index));
 router.post('/employer/companies/:company/documents', upload.single('file'), asyncHandler(companyDoc.store));
+router.patch('/employer/companies/:company/documents/:document', asyncHandler(companyDoc.update));
+router.delete('/employer/companies/:company/documents/:document', asyncHandler(companyDoc.destroy));
 
 router.get('/employer/jobs', asyncHandler(job.mine));
 router.post('/employer/jobs', asyncHandler(job.store));

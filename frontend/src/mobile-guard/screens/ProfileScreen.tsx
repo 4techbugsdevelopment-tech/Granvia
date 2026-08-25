@@ -3,7 +3,7 @@ import { useEffect, useState, type CSSProperties, type FocusEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Phone, Mail, MapPin, Shield, CreditCard, FileText,
-  CheckCircle, ChevronRight, Pencil, X, AlertCircle, Upload, Award, Camera,
+  CheckCircle, ChevronRight, Pencil, X, AlertCircle, Upload, Award, Camera, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { updateMyGuardProfile, uploadMyAvatar, GuardProfileUpdate } from '../../services/profileService';
@@ -161,6 +161,14 @@ export default function ProfileScreen() {
 
   const handleUpload = async (file: File | null) => {
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setDocError('File must be 10 MB or smaller.');
+      return;
+    }
+    if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
+      setDocError('Only PDF, PNG and JPG files are allowed.');
+      return;
+    }
     setUploading(true);
     setDocError(null);
     try {
@@ -685,14 +693,19 @@ export default function ProfileScreen() {
                     {documents.map(doc => {
                       const badge = statusBadge(doc.status);
                       return (
-                        <div key={doc.id} className="flex items-center justify-between rounded-xl p-3" style={{ background: '#f8fafc' }}>
+                        <div key={doc.id} className="flex items-center justify-between gap-2 rounded-xl p-3" style={{ background: '#f8fafc' }}>
                           <div className="min-w-0 mr-2">
                             <p className="text-sm font-medium text-gray-800 truncate">{GUARD_DOCUMENT_LABELS[doc.document_type as GuardDocumentType] ?? doc.document_type}</p>
                             <p className="text-xs text-gray-400 truncate">{doc.file_name}</p>
                           </div>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: badge.bg, color: badge.color }}>
-                            {badge.label}
-                          </span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+                            {doc.download_url && (
+                              <a href={doc.download_url} target="_blank" rel="noreferrer" aria-label={`View ${doc.file_name}`} className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
+                                <ExternalLink size={14} />
+                              </a>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

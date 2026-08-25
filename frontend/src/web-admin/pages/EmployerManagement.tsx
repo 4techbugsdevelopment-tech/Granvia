@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Edit, Eye, Plus, Search, Shield, ShieldOff, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, Edit, Eye, ExternalLink, Plus, Search, Shield, ShieldOff, Trash2, XCircle } from 'lucide-react';
 import { EmployerFieldKind, getInputMode, sanitizeEmployerInput } from '../../lib/inputSanitizers';
 import { Employer } from '../../lib/storage';
 import {
@@ -12,7 +12,7 @@ import {
   updateEmployerFromAdmin,
   declareEmployerAadhaar,
 } from '../../services/adminEmployerService';
-import { getErrorMessage } from '../../services/apiErrors';
+import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 
 const EMPTY_DATA: EmployerManagementData = {
@@ -104,18 +104,18 @@ export default function EmployerManagement() {
   };
 
   return (
-    <motion.div className="p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Employer Management</h1>
           <p className="text-sm text-gray-500 mt-0.5">{employers.length} employer accounts · {companies.length} companies</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative min-w-72">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <div className="relative w-full sm:min-w-72">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} className="form-input pl-9" placeholder="Search employers or companies..." />
           </div>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2" style={{ background: '#0f1e3c' }}>
+          <button onClick={() => setShowAdd(true)} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white sm:w-auto" style={{ background: '#0f1e3c' }}>
             <Plus size={16} /> Add Employer
           </button>
         </div>
@@ -124,7 +124,33 @@ export default function EmployerManagement() {
       {error && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
       {loading && <div className="rounded-xl bg-white border border-gray-100 px-4 py-3 text-sm text-gray-500">Loading employers from Supabase...</div>}
 
-      <div className="rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100">
+      <div className="space-y-3 lg:hidden">
+        {filtered.map(employer => {
+          const employerCompanies = companies.filter(company => company.employerId === employer.id);
+          const employerJobs = jobs.filter(job => job.employerId === employer.id);
+          const employerSites = sites.filter(site => site.employerId === employer.id);
+          return (
+            <div key={employer.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employer.contactPersonName}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div>{statusBadge(employer.accountStatus)}</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <MobileDetail label="Location" value={`${employer.city}, ${employer.state}`} />
+                <MobileDetail label="Aadhaar" value={statusBadge(employer.aadhaarVerificationStatus)} />
+                <MobileDetail label="Companies" value={String(employerCompanies.length)} />
+                <MobileDetail label="Jobs / Sites" value={`${employerJobs.length} / ${employerSites.length}`} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                <button onClick={() => setSelected(employer)} className="table-action"><Eye size={13} className="inline mr-1" />View</button>
+                <button onClick={() => setEditing(employer)} className="table-action"><Edit size={13} className="inline mr-1" />Edit</button>
+                <button onClick={() => updateEmployer(employer.id, { accountStatus: employer.accountStatus === 'Blocked' ? 'Active' : 'Blocked' })} className="table-action">{employer.accountStatus === 'Blocked' ? 'Unblock' : 'Block'}</button>
+                <button onClick={() => deleteEmployer(employer)} className="table-action tone-red"><Trash2 size={13} className="inline mr-1" />Delete</button>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <div className="rounded-2xl bg-white py-10 text-center text-sm text-gray-400">No employers found</div>}
+      </div>
+
+      <div className="hidden rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100 lg:block">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -190,7 +216,16 @@ export default function EmployerManagement() {
           <h2 className="font-bold text-gray-900">Companies</h2>
           <p className="text-xs text-gray-400 mt-1">Company profiles are separate from employer login accounts.</p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="space-y-3 p-3 lg:hidden">
+          {companies.map(company => {
+            const owner = employers.find(employer => employer.id === company.employerId);
+            const companySites = sites.filter(site => site.employerId === company.employerId && site.companyId === company.id);
+            const companyJobs = jobs.filter(job => job.employerId === company.employerId && job.companyId === company.id);
+            return <div key={company.id} className="rounded-xl border border-gray-100 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{company.companyName}</p><p className="text-xs text-gray-500">{owner?.contactPersonName || company.employerId}</p></div>{statusBadge(company.accountStatus)}</div><div className="mt-3 grid grid-cols-2 gap-3"><MobileDetail label="Location" value={`${company.city}, ${company.state}`} /><MobileDetail label="Verification" value={statusBadge(company.verificationStatus)} /><MobileDetail label="Sites" value={String(companySites.length)} /><MobileDetail label="Jobs" value={String(companyJobs.length)} /></div></div>;
+          })}
+          {companies.length === 0 && <div className="py-8 text-center text-sm text-gray-400">No companies found</div>}
+        </div>
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -262,7 +297,7 @@ export default function EmployerManagement() {
                 ['City / State / Pincode', `${selected.city}, ${selected.state} ${selected.pincode}`],
               ]} />
               <InfoBlock title="Companies Under Employer" rows={companies.filter(company => company.employerId === selected.id).map(company => [company.companyName, `${company.accountStatus} / ${company.verificationStatus}`])} />
-              <InfoBlock title="Documents" rows={documents.filter(doc => doc.employerId === selected.id).map(doc => [doc.type, `${doc.fileName} (${doc.status})`])} />
+              <DocumentBlock documents={documents.filter(doc => doc.employerId === selected.id)} />
               <InfoBlock title="Jobs & Sites" rows={[
                 ['Aadhaar Status', selected.aadhaarVerificationStatus],
                 ['Aadhaar Last Four', selected.aadhaarLastFour || 'Not available'],
@@ -280,6 +315,27 @@ export default function EmployerManagement() {
         </div>
       )}
     </motion.div>
+  );
+}
+
+function DocumentBlock({ documents }: { documents: EmployerManagementData['documents'] }) {
+  return (
+    <div className="rounded-2xl border border-gray-100 p-4">
+      <h3 className="font-bold text-gray-900 mb-3">Documents</h3>
+      {documents.length === 0 ? <p className="text-sm text-gray-400">No records</p> : documents.map(doc => (
+        <div key={doc.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800 truncate">{doc.type}</p>
+            <p className="text-xs text-gray-400 truncate">{doc.fileName} ({doc.status})</p>
+          </div>
+          {doc.downloadUrl ? (
+            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1 flex-shrink-0">
+              <ExternalLink size={13} /> View
+            </a>
+          ) : <span className="text-xs text-gray-400">Unavailable</span>}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -316,6 +372,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     remarks: '',
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -324,6 +381,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const submit = async () => {
     setError('');
+    setFieldErrors({});
     try {
       const result = await createEmployerFromAdmin({
         companyName: form.companyName,
@@ -344,13 +402,19 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
       });
       await onCreated(result.temporaryPassword);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create employer.');
+      const validationErrors = getValidationErrors(err);
+      setFieldErrors(validationErrors);
+      setError(Object.keys(validationErrors).length ? 'Please correct the highlighted fields.' : getErrorMessage(err, 'Unable to create employer.'));
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <motion.div className="w-full max-w-4xl rounded-2xl bg-white overflow-hidden shadow-2xl" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-50">
+      <div className="mx-auto min-h-full w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-8">
+        <button type="button" onClick={onClose} className="mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white">
+          <ArrowLeft size={18} /> Back to Employers
+        </button>
+      <motion.div className="w-full rounded-2xl bg-white overflow-hidden border border-slate-200 shadow-sm" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
         <div className="px-6 py-5 text-white flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
           <div>
             <h2 className="text-xl font-bold">Add Employer / Company</h2>
@@ -358,19 +422,19 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           </div>
           <button onClick={onClose} className="text-white/60 hover:text-white"><XCircle size={22} /></button>
         </div>
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-5 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <DialogInput label="Company Name" kind="name" value={form.companyName} onChange={value => update('companyName', value, 'name')} />
-            <DialogInput label="Contact Person" kind="name" value={form.contactPersonName} onChange={value => update('contactPersonName', value, 'name')} />
-            <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} onChange={value => update('mobile', value, 'mobile')} />
-            <DialogInput label="Email Address" value={form.email} onChange={value => update('email', value)} />
+            <DialogInput label="Company Name" kind="name" value={form.companyName} error={fieldErrors.company_name} onChange={value => update('companyName', value, 'name')} />
+            <DialogInput label="Contact Person" kind="name" value={form.contactPersonName} error={fieldErrors.contact_person_name} onChange={value => update('contactPersonName', value, 'name')} />
+            <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} error={fieldErrors.mobile} onChange={value => update('mobile', value, 'mobile')} />
+            <DialogInput label="Email Address" value={form.email} error={fieldErrors.email} onChange={value => update('email', value)} />
             <DialogInput label="Temporary Password" value={form.password} onChange={value => update('password', value)} />
             <DialogInput label="Business Type" kind="name" value={form.businessType} onChange={value => update('businessType', value, 'name')} />
             <DialogInput label="City" kind="cityState" value={form.city} onChange={value => update('city', value, 'cityState')} />
             <DialogInput label="State" kind="cityState" value={form.state} onChange={value => update('state', value, 'cityState')} />
             <DialogInput label="Pincode" kind="pincode" value={form.pincode} onChange={value => update('pincode', value, 'pincode')} />
-            <DialogInput label="GST Number" kind="gst" value={form.gstNumber} onChange={value => update('gstNumber', value, 'gst')} />
-            <DialogInput label="PAN Number" kind="pan" value={form.panNumber} onChange={value => update('panNumber', value, 'pan')} />
+            <DialogInput label="GST Number (Optional)" kind="gst" value={form.gstNumber} error={fieldErrors.gst_number} onChange={value => update('gstNumber', value, 'gst')} />
+            <DialogInput label="PAN Number (Optional)" kind="pan" value={form.panNumber} error={fieldErrors.pan_number} onChange={value => update('panNumber', value, 'pan')} />
             <DialogInput label="Website" kind="url" value={form.website} onChange={value => update('website', value, 'url')} />
           </div>
           <DialogInput className="mt-3" label="Company Address" value={form.companyAddress} onChange={value => update('companyAddress', value)} />
@@ -390,6 +454,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           </div>
         </div>
       </motion.div>
+      </div>
     </div>
   );
 }
@@ -535,7 +600,7 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
   );
 }
 
-function DialogInput({ label, value, onChange, className = '', kind = 'text' }: { label: string; value: string; onChange: (value: string) => void; className?: string; kind?: EmployerFieldKind }) {
+function DialogInput({ label, value, onChange, className = '', kind = 'text', error }: { label: string; value: string; onChange: (value: string) => void; className?: string; kind?: EmployerFieldKind; error?: string }) {
   return (
     <label className={`block ${className}`}>
       <span className="form-label">{label}</span>
@@ -544,10 +609,16 @@ function DialogInput({ label, value, onChange, className = '', kind = 'text' }: 
         onChange={event => onChange(event.target.value)}
         inputMode={getInputMode(kind)}
         maxLength={kind === 'mobile' ? 10 : kind === 'pincode' ? 6 : kind === 'gst' ? 15 : kind === 'pan' ? 10 : undefined}
-        className="form-input"
+        className={`form-input ${error ? 'border-red-500 focus:border-red-500' : ''}`}
+        aria-invalid={Boolean(error)}
       />
+      {error && <span className="mt-1 block text-xs font-medium text-red-600">{error}</span>}
     </label>
   );
+}
+
+function MobileDetail({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-gray-400">{label}</p><div className="break-words text-sm text-gray-700">{value}</div></div>;
 }
 
 function statusBadge(status: string) {

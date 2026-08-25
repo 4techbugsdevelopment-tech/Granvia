@@ -135,6 +135,7 @@ function mapDocument(row: Row): EmployerDocument {
     fileSize: Number(row.file_size || 0),
     fileType: row.file_type || '',
     uploadedAt: row.created_at || '',
+    downloadUrl: row.download_url || '',
     status: toTitleStatus(row.verification_status, 'Pending'),
     adminRemarks: row.admin_remarks || '',
     rejectionReason: row.rejection_reason || '',

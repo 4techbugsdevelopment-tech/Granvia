@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import {
   BarChart3, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
-  Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle,
-  UsersRound,
+  Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle, ExternalLink,
+  UsersRound, ArrowLeft,
 } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
@@ -12,8 +12,8 @@ import MobileChrome from '../universal-mobile/MobileChrome';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
 import { getMyEmployerProfile, updateMyEmployerProfile, updateMyProfile } from '../services/profileService';
-import { listMyCompanies, createCompany, updateCompany } from '../services/companyService';
-import { listCompanySites, createCompanySite, updateCompanySite } from '../services/siteService';
+import { listMyCompanies, createCompany, updateCompany, deleteCompany } from '../services/companyService';
+import { listCompanySites, createCompanySite, updateCompanySite, deleteCompanySite } from '../services/siteService';
 import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '../services/jobService';
 import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar } from '../services/applicationService';
 import { listEmployerAttendance, updateAttendanceStatus } from '../services/attendanceService';
@@ -24,14 +24,13 @@ import {
   listJobOffers, createJobOffer, updateJobOffer,
   listAgreements, createAgreement, updateAgreement,
 } from '../services/hiringService';
-import { listCompanyDocuments, createDocumentRecord } from '../services/documentService';
+import { listCompanyDocuments, createDocumentRecord, updateDocumentRecord, deleteDocumentRecord } from '../services/documentService';
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
 import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
-import CashPaymentPage from './CashPaymentPage';
 import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
@@ -53,8 +52,8 @@ interface EmployerInfo {
 
 type EmployerPage =
   | 'dashboard' | 'profile' | 'aadhaar' | 'team' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
-  | 'shortlisted' | 'selected' | 'available-guards' | 'interviews' | 'agreements' | 'attendance'
-  | 'payments' | 'cash-payments' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
+  | 'available-guards' | 'interviews' | 'agreements' | 'attendance'
+  | 'payments' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -63,21 +62,17 @@ type EmployerPage =
 const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard',   label: 'Dashboard',                icon: <LayoutDashboard size={18} /> },
   { id: 'profile',     label: 'Profile',                  icon: <UserCheck size={18} /> },
-  { id: 'team',        label: 'Team Management',          icon: <UsersRound size={18} />,    master: true },
-  { id: 'companies',   label: 'Companies',                icon: <Building2 size={18} />,     master: true },
-  { id: 'documents',   label: 'Company Documents',        icon: <FileText size={18} />,      master: true },
-  { id: 'sites',       label: 'Sites / Locations',        icon: <MapPin size={18} />,        master: true },
-  { id: 'post-job',    label: 'Post New Job',             icon: <Plus size={18} />,          master: true },
+  { id: 'team',        label: 'Manage Team',              icon: <UsersRound size={18} />,    master: true },
+  { id: 'companies',   label: 'Manage Companies',         icon: <Building2 size={18} />,     master: true },
+  { id: 'documents',   label: 'Manage Documents',         icon: <FileText size={18} />,      master: true },
+  { id: 'sites',       label: 'Manage Sites',             icon: <MapPin size={18} />,        master: true },
   { id: 'jobs',        label: 'Manage Jobs',              icon: <Briefcase size={18} /> },
-  { id: 'applicants',  label: 'Applicants',               icon: <ClipboardList size={18} /> },
-  { id: 'shortlisted', label: 'Shortlisted Associates',   icon: <ShieldCheck size={18} />,   master: true },
-  { id: 'selected',    label: 'Selected / Hired',         icon: <UserCheck size={18} />,     master: true },
+  { id: 'applicants',  label: 'Manage Applicants',        icon: <ClipboardList size={18} /> },
   { id: 'available-guards', label: 'Available Associates', icon: <Search size={18} />,        master: true },
   { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} />, master: true },
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
   { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} /> },
-  { id: 'cash-payments', label: 'Cash Payments (OTP)',    icon: <CreditCard size={18} />,    master: true },
   { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} />,      master: true },
   { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} />,     master: true },
   { id: 'feedback',    label: 'Feedback',                 icon: <MessageSquare size={18} />, master: true },
@@ -88,6 +83,7 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master
 const pageTitles: Record<EmployerPage, string> = Object.fromEntries(
   navItems.map(item => [item.id, item.label])
 ) as Record<EmployerPage, string>;
+pageTitles['post-job'] = 'Post New Job';
 
 // ── Root component ────────────────────────────────────────────────────────────
 
@@ -154,6 +150,11 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
 
   const handleLogout = () => signOut().finally(onLogout);
 
+  const handleJobCreated = () => {
+    setPage('jobs');
+    reload();
+  };
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':   return <EmployerDashboard employer={employer} company={activeCompany} companies={companies} key={refresh} onNavigate={setPage} />;
@@ -163,11 +164,9 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'companies':   return <CompaniesPage employer={employer} activeCompanyId={activeCompany?.id ?? null} onSwitch={switchCompany} key={refresh} onChanged={reload} />;
       case 'documents':   return aadhaarVerified && activeCompany ? <CompanyDocumentsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'sites':       return aadhaarVerified && activeCompany ? <SitesPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'post-job':    return activeCompany ? <JobFormPage employer={employer} company={activeCompany} key={refresh} onSaved={() => { reload(); setPage('jobs'); }} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'jobs':        return activeCompany ? <JobsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'applicants':  return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} filter="all" onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'shortlisted': return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} filter="shortlisted" onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'selected':    return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} filter="selected" onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'post-job':    return activeCompany ? <JobFormPage employer={employer} company={activeCompany} key={refresh} onSaved={handleJobCreated} onBack={() => setPage('jobs')} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'jobs':        return activeCompany ? <JobsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} onCreate={() => setPage('post-job')} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'applicants':  return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'interviews':  return activeCompany ? <InterviewsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'agreements':  return activeCompany ? <AgreementsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'attendance':  return activeCompany ? <AttendancePage company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
@@ -176,7 +175,6 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'invoices':    return activeCompany ? <InvoicesPage company={activeCompany} /> : <CompanyRequired onNavigate={setPage} />;
       case 'reports':     return activeCompany ? <ReportsPage employer={employer} company={activeCompany} companies={companies} /> : <CompanyRequired onNavigate={setPage} />;
       case 'available-guards': return <AvailableGuardsPage />;
-      case 'cash-payments':    return <CashPaymentPage />;
       case 'feedback':    return <FeedbackPage />;
       default:            return <StaticInfoPage title={pageTitles[page]} />;
     }
@@ -425,16 +423,19 @@ function SuccessBanner({ message, onClose }: { message: string; onClose: () => v
   );
 }
 
-function Toolbar({ title, count, search, setSearch }: { title: string; count: number; search: string; setSearch: (v: string) => void }) {
+function Toolbar({ title, count, search, setSearch, action }: { title: string; count: number; search: string; setSearch: (v: string) => void; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
         <p className="text-sm text-gray-500">{count} record{count === 1 ? '' : 's'}</p>
       </div>
-      <div className="relative min-w-72">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} className="form-input pl-9" placeholder="Search..." />
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative sm:min-w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} className="form-input pl-9" placeholder="Search..." />
+        </div>
+        {action}
       </div>
     </div>
   );
@@ -520,8 +521,8 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
           <h2 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Employer Dashboard</h2>
           <p className="text-sm text-gray-500">{company?.company_name ?? 'All companies'} overview</p>
         </div>
-        <button onClick={() => onNavigate('post-job')} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2" style={{ background: '#0f1e3c' }}>
-          <Plus size={16} /> Post Job
+        <button onClick={() => onNavigate('jobs')} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2" style={{ background: '#0f1e3c' }}>
+          <Briefcase size={16} /> Manage Jobs
         </button>
       </div>
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -531,7 +532,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
         <MetricCard label="Total Sites"         value={sites.length}         icon={<MapPin size={20} />}         color="#1d4ed8" onClick={() => onNavigate('sites')} />
         <MetricCard label="Active Jobs"         value={activeJobs.length}    icon={<CheckCircle size={20} />}    color="#166534" onClick={() => onNavigate('jobs')} />
         <MetricCard label="Applicants"          value={apps.length}          icon={<ClipboardList size={20} />}  color="#1d4ed8" onClick={() => onNavigate('applicants')} />
-        <MetricCard label="Selected Associates" value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" onClick={() => onNavigate('selected')} />
+        <MetricCard label="Selected Associates" value={selectedApps.length}  icon={<UserCheck size={20} />}      color="#0f766e" onClick={() => onNavigate('applicants')} />
         <MetricCard label="Pending Attendance"  value={pendingAttendance.length} icon={<CalendarCheck size={20} />} color="#854d0e" onClick={() => onNavigate('attendance')} />
         <MetricCard label="Pending Payments"    value={pendingPayments.length}   icon={<CreditCard size={20} />}    color="#7c2d12" onClick={() => onNavigate('payments')} />
         <MetricCard label="Wallet Balance"      value={`Rs ${wallet?.balance ?? 0}`} icon={<Wallet size={20} />} color="#065f46" onClick={() => onNavigate('wallet')} />
@@ -648,7 +649,9 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
   const uploadDoc = async (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
     const file = event.target.files?.[0];
     if (!file || !activeCompany?.id) return;
-    if (file.size > 5 * 1024 * 1024) { alert('File must be under 5 MB.'); return; }
+    event.target.value = '';
+    if (file.size > 10 * 1024 * 1024) { alert('File must be 10 MB or smaller.'); return; }
+    if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) { alert('Only PDF, PNG and JPG files are allowed.'); return; }
     try {
       await createDocumentRecord(activeCompany.id, type, file);
       listCompanyDocuments(activeCompany.id).then(setDocs).catch(() => null);
@@ -685,7 +688,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
               </label>
             ))}
           </div>
-          <DataTable headers={['Type', 'File', 'Size', 'Uploaded', 'Status']}>
+          <DataTable headers={['Type', 'File', 'Size', 'Uploaded', 'Status', 'Action']}>
             {docs.map((doc: any) => (
               <tr key={doc.id} className="border-b border-gray-50">
                 <Td>{doc.document_type}</Td>
@@ -693,6 +696,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
                 <Td>{doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : '--'}</Td>
                 <Td>{new Date(doc.created_at).toLocaleDateString('en-IN')}</Td>
                 <Td>{statusBadge(doc.verification_status)}</Td>
+                <Td><DocumentViewLink url={doc.download_url} /></Td>
               </tr>
             ))}
           </DataTable>
@@ -705,10 +709,48 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
 
 // ── Companies ─────────────────────────────────────────────────────────────────
 
+function validateCompanyForm(form: {
+  company_name: string; business_type: string; gst_number: string; pan_number: string;
+  company_email: string; company_phone: string; website: string; registered_address: string;
+  pincode: string;
+}): ValidationErrors {
+  const errors: ValidationErrors = {};
+  if (form.company_name.trim().length < 2) errors.company_name = 'Company name must contain at least 2 characters.';
+  if (form.business_type.trim().length < 2) errors.business_type = 'Business type is required.';
+  if (form.registered_address.trim().length < 5) errors.registered_address = 'Enter a valid registered address.';
+  if (form.gst_number.trim() && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(form.gst_number.trim())) {
+    errors.gst_number = 'Enter a valid 15-character GST number.';
+  }
+  if (form.pan_number.trim() && !/^[A-Z]{5}\d{4}[A-Z]$/i.test(form.pan_number.trim())) {
+    errors.pan_number = 'Enter a valid PAN number (for example, ABCDE1234F).';
+  }
+  if (form.company_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.company_email.trim())) {
+    errors.company_email = 'Enter a valid company email address.';
+  }
+  if (form.company_phone.trim() && !/^[6-9]\d{9}$/.test(form.company_phone.trim())) {
+    errors.company_phone = 'Enter a valid 10-digit Indian mobile number.';
+  }
+  if (form.pincode.trim() && !/^\d{6}$/.test(form.pincode.trim())) errors.pincode = 'Enter a valid 6-digit pincode.';
+  if (form.website.trim()) {
+    try {
+      const value = /^https?:\/\//i.test(form.website.trim()) ? form.website.trim() : `https://${form.website.trim()}`;
+      const url = new URL(value);
+      if (!url.hostname.includes('.')) errors.website = 'Enter a valid website address.';
+    } catch {
+      errors.website = 'Enter a valid website address.';
+    }
+  }
+  return errors;
+}
+
 function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { employer: EmployerInfo; activeCompanyId: string | null; onSwitch: (id: string) => void; onChanged: () => void }) {
   const [companies, setCompanies] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [companyErrors, setCompanyErrors] = useState<ValidationErrors>({});
+  const [companyError, setCompanyError] = useState('');
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
   const [form, setForm] = useState({
     company_name: '', business_type: '', registration_type: 'Private Limited', gst_number: '', pan_number: '',
     company_email: employer.email, company_phone: employer.mobile, website: '', registered_address: '', billing_address: '',
@@ -724,20 +766,23 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
   }, []);
 
   const saveCompany = async () => {
-    if (!form.company_name.trim() || !form.business_type.trim() || !form.registered_address.trim()) {
-      alert('Company name, business type and registered address are required.');
+    const validationErrors = validateCompanyForm(form);
+    setCompanyErrors(validationErrors);
+    setCompanyError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setCompanyError('Please correct the highlighted fields.');
       return;
     }
     setSaving(true);
     try {
-      const company = await createCompany({
+      const payload = {
         company_name: form.company_name.trim(),
         business_type: form.business_type.trim(),
         registration_type: form.registration_type,
-        gst_number: form.gst_number.trim().toUpperCase(),
-        pan_number: form.pan_number.trim().toUpperCase(),
-        company_email: form.company_email.trim().toLowerCase(),
-        company_phone: form.company_phone.trim(),
+        gst_number: form.gst_number.trim().toUpperCase() || undefined,
+        pan_number: form.pan_number.trim().toUpperCase() || undefined,
+        company_email: form.company_email.trim().toLowerCase() || undefined,
+        company_phone: form.company_phone.trim() || undefined,
         website: form.website.trim(),
         registered_address: form.registered_address.trim(),
         billing_address: form.billing_address.trim() || form.registered_address.trim(),
@@ -745,64 +790,121 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
         state: form.state.trim(),
         pincode: form.pincode.trim(),
         description: form.description.trim(),
-      });
+      };
+      const company = editingCompanyId
+        ? await updateCompany(editingCompanyId, payload)
+        : await createCompany(payload);
       setForm({ ...form, company_name: '', business_type: '', gst_number: '', pan_number: '', website: '', registered_address: '', billing_address: '', description: '' });
+      setCompanyErrors({});
+      setCompanyError('');
+      setEditingCompanyId(null);
       setShowAddForm(false);
       const updatedCompanies = await listMyCompanies();
       setCompanies(updatedCompanies);
-      onSwitch(company.id);
+      if (!editingCompanyId) onSwitch(company.id);
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create company.');
+      const apiErrors = getValidationErrors(err);
+      setCompanyErrors(apiErrors);
+      setCompanyError(Object.keys(apiErrors).length ? 'Please correct the highlighted fields.' : getErrorMessage(err, 'Failed to create company.'));
     } finally { setSaving(false); }
+  };
+
+  const startAddCompany = () => {
+    setEditingCompanyId(null);
+    setCompanyErrors({});
+    setCompanyError('');
+    setForm({
+      company_name: '', business_type: '', registration_type: 'Private Limited', gst_number: '', pan_number: '',
+      company_email: employer.email, company_phone: employer.mobile, website: '', registered_address: '', billing_address: '',
+      city: employer.city, state: employer.state, pincode: employer.pincode, description: '',
+    });
+    setShowAddForm(true);
+  };
+
+  const startEditCompany = (company: any) => {
+    setEditingCompanyId(company.id);
+    setCompanyErrors({});
+    setCompanyError('');
+    setForm({
+      company_name: company.company_name ?? '', business_type: company.business_type ?? '',
+      registration_type: company.registration_type ?? 'Private Limited', gst_number: company.gst_number ?? '', pan_number: company.pan_number ?? '',
+      company_email: company.company_email ?? '', company_phone: company.company_phone ?? '', website: company.website ?? '',
+      registered_address: company.registered_address ?? '', billing_address: company.billing_address ?? '',
+      city: company.city ?? '', state: company.state ?? '', pincode: company.pincode ?? '', description: company.description ?? '',
+    });
+    setShowAddForm(true);
+  };
+
+  const removeCompany = async (company: any) => {
+    if (!window.confirm(`Delete ${company.company_name}? Its sites and document records will be deleted. Operational history will be kept without the company/site link.`)) return;
+    setDeletingCompanyId(company.id);
+    setCompanyError('');
+    try {
+      await deleteCompany(company.id);
+      setCompanies(current => current.filter(item => item.id !== company.id));
+      setShowAddForm(false);
+      setEditingCompanyId(null);
+      onChanged();
+    } catch (err) {
+      setCompanyError(getErrorMessage(err, 'Failed to delete company.'));
+    } finally {
+      setDeletingCompanyId(null);
+    }
   };
 
   return (
     <div className="p-4 md:p-6 space-y-5">
-      <div className="flex items-center justify-between gap-3">
+      {showAddForm && !editingCompanyId ? (
+        <button type="button" onClick={() => setShowAddForm(false)} className="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+          <ArrowLeft size={17} /> Back to Companies
+        </button>
+      ) : <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Companies</h2>
           <p className="mt-0.5 text-sm text-gray-500">Manage registered companies and switch the active workspace.</p>
         </div>
         <button
           type="button"
-          onClick={() => setShowAddForm(open => !open)}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white"
+          onClick={() => showAddForm ? setShowAddForm(false) : startAddCompany()}
+          className="flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white sm:w-auto"
           style={{ background: showAddForm ? '#64748b' : '#0f1e3c' }}
         >
           {showAddForm ? <X size={16} /> : <Plus size={16} />}
           {showAddForm ? 'Close' : 'Add Company'}
         </button>
-      </div>
+      </div>}
 
+      {companyError && !showAddForm && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{companyError}</div>}
       {showAddForm && <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Add Company</h2>
-          <button type="button" onClick={() => setShowAddForm(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close add company form"><X size={18} /></button>
+          <h2 className="text-xl font-bold text-gray-900">{editingCompanyId ? 'Edit Company' : 'Add Company'}</h2>
+          <button type="button" onClick={() => { setShowAddForm(false); setEditingCompanyId(null); }} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close company form"><X size={18} /></button>
         </div>
+        {companyError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{companyError}</div>}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Input label="Company Name" value={form.company_name} onChange={v => setForm({ ...form, company_name: v })} />
-          <Input label="Business Type" value={form.business_type} onChange={v => setForm({ ...form, business_type: v })} />
+          <Input label="Company Name" value={form.company_name} error={companyErrors.company_name} onChange={v => { setForm({ ...form, company_name: v }); setCompanyErrors(e => clearValidationError(e, 'company_name')); }} />
+          <Input label="Business Type" value={form.business_type} error={companyErrors.business_type} onChange={v => { setForm({ ...form, business_type: v }); setCompanyErrors(e => clearValidationError(e, 'business_type')); }} />
           <Sel label="Registration Type" value={form.registration_type} options={['Private Limited', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Other']} onChange={v => setForm({ ...form, registration_type: v })} />
-          <Input label="GST Number" value={form.gst_number} onChange={v => setForm({ ...form, gst_number: v })} />
-          <Input label="PAN Number" value={form.pan_number} onChange={v => setForm({ ...form, pan_number: v })} />
-          <Input label="Company Email" value={form.company_email} onChange={v => setForm({ ...form, company_email: v })} />
-          <Input label="Company Phone" value={form.company_phone} onChange={v => setForm({ ...form, company_phone: v })} />
-          <Input label="Website" value={form.website} onChange={v => setForm({ ...form, website: v })} />
+          <Input label="GST Number (Optional)" value={form.gst_number} error={companyErrors.gst_number} onChange={v => { setForm({ ...form, gst_number: v.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15) }); setCompanyErrors(e => clearValidationError(e, 'gst_number')); }} />
+          <Input label="PAN Number (Optional)" value={form.pan_number} error={companyErrors.pan_number} onChange={v => { setForm({ ...form, pan_number: v.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10) }); setCompanyErrors(e => clearValidationError(e, 'pan_number')); }} />
+          <Input label="Company Email" value={form.company_email} error={companyErrors.company_email} onChange={v => { setForm({ ...form, company_email: v }); setCompanyErrors(e => clearValidationError(e, 'company_email')); }} />
+          <Input label="Company Phone" value={form.company_phone} error={companyErrors.company_phone} onChange={v => { setForm({ ...form, company_phone: v.replace(/\D/g, '').slice(0, 10) }); setCompanyErrors(e => clearValidationError(e, 'company_phone')); }} />
+          <Input label="Website" value={form.website} error={companyErrors.website} onChange={v => { setForm({ ...form, website: v }); setCompanyErrors(e => clearValidationError(e, 'website')); }} />
           <Input label="City" value={form.city} onChange={v => setForm({ ...form, city: v })} />
           <Input label="State" value={form.state} onChange={v => setForm({ ...form, state: v })} />
-          <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} />
+          <Input label="Pincode" value={form.pincode} error={companyErrors.pincode} onChange={v => { setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) }); setCompanyErrors(e => clearValidationError(e, 'pincode')); }} />
         </div>
-        <Input className="mt-3" label="Registered Address" value={form.registered_address} onChange={v => setForm({ ...form, registered_address: v })} />
+        <Input className="mt-3" label="Registered Address" value={form.registered_address} error={companyErrors.registered_address} onChange={v => { setForm({ ...form, registered_address: v }); setCompanyErrors(e => clearValidationError(e, 'registered_address')); }} />
         <Input className="mt-3" label="Billing Address" value={form.billing_address} onChange={v => setForm({ ...form, billing_address: v })} />
         <label className="block mt-3">
           <span className="form-label">Description</span>
           <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="form-input min-h-20" />
         </label>
-        <button disabled={saving} onClick={saveCompany} className="mt-4 px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : 'Save Company'}</button>
+        <button disabled={saving} onClick={saveCompany} className="mt-4 px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : editingCompanyId ? 'Save Changes' : 'Save Company'}</button>
       </Card>}
 
-      <Card className="p-5">
+      {(!showAddForm || Boolean(editingCompanyId)) && <Card className="p-5">
         <h3 className="font-bold text-gray-900 mb-4">Company List</h3>
         <DataTable headers={['Company', 'Registration', 'Location', 'Verification', 'Account', 'Actions']}>
           {companies.map((company: any) => (
@@ -814,15 +916,19 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
               <Td>{statusBadge(company.account_status)}</Td>
               <Td>
                 <button onClick={() => onSwitch(company.id)} className="table-action tone-blue">{activeCompanyId === company.id ? 'Active' : 'Switch'}</button>
+                <button onClick={() => startEditCompany(company)} className="table-action tone-blue">Edit</button>
                 <button onClick={async () => { await updateCompany(company.id, { account_status: company.account_status === 'inactive' ? 'active' : 'inactive' }); listMyCompanies().then(setCompanies).catch(console.error); onChanged(); }} className="table-action">
                   {company.account_status === 'inactive' ? 'Reactivate' : 'Deactivate'}
+                </button>
+                <button disabled={deletingCompanyId === company.id} onClick={() => removeCompany(company)} className="table-action tone-red disabled:opacity-50">
+                  {deletingCompanyId === company.id ? 'Deleting...' : 'Delete'}
                 </button>
               </Td>
             </tr>
           ))}
         </DataTable>
         {companies.length === 0 && <EmptyState text="No companies yet. Use Add Company to create your first company." />}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -831,6 +937,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
 
 function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [docs, setDocs] = useState<any[]>([]);
+  const [actingDocumentId, setActingDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
     listCompanyDocuments(company.id).then(setDocs).catch(console.error);
@@ -839,7 +946,8 @@ function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { emp
   const uploadDoc = async (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('File must be under 5 MB.'); return; }
+    event.target.value = '';
+    if (file.size > 10 * 1024 * 1024) { alert('File must be 10 MB or smaller.'); return; }
     if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) { alert('Only PDF, PNG and JPG files are allowed.'); return; }
     try {
       await createDocumentRecord(company.id, type, file);
@@ -867,7 +975,7 @@ function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { emp
             </label>
           ))}
         </div>
-        <DataTable headers={['Type', 'File', 'Size', 'Uploaded', 'Status', 'Remarks']}>
+        <DataTable headers={['Type', 'File', 'Size', 'Uploaded', 'Status', 'Remarks', 'Action']}>
           {docs.map((doc: any) => (
             <tr key={doc.id} className="border-b border-gray-50">
               <Td>{doc.document_type}</Td>
@@ -876,6 +984,13 @@ function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { emp
               <Td>{new Date(doc.created_at).toLocaleDateString('en-IN')}</Td>
               <Td>{statusBadge(doc.verification_status)}</Td>
               <Td>{doc.admin_remarks || doc.rejection_reason || '--'}</Td>
+              <Td>
+                <div className="flex flex-wrap gap-1.5">
+                  <DocumentViewLink url={doc.download_url} />
+                  <button disabled={actingDocumentId === doc.id} onClick={() => editDocument(doc)} className="table-action tone-blue">Edit</button>
+                  <button disabled={actingDocumentId === doc.id} onClick={() => removeDocument(doc)} className="table-action tone-red">Delete</button>
+                </div>
+              </Td>
             </tr>
           ))}
         </DataTable>
@@ -916,6 +1031,14 @@ function validateSiteForm(form: SiteFormState): ValidationErrors {
     errors.longitude = 'Longitude must be between -180 and 180.';
   }
   return errors;
+}
+
+function DocumentViewLink({ url }: { url?: string }) {
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
+      <ExternalLink size={13} /> View
+    </a>
+  ) : <span className="text-xs text-gray-400">Unavailable</span>;
 }
 
 function clearValidationError(errors: ValidationErrors, field: string): ValidationErrors {
@@ -1145,6 +1268,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
   const [editErrors, setEditErrors] = useState<ValidationErrors>({});
   const [editError, setEditError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
   const blankForm = (): SiteFormState => ({
     site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
@@ -1261,6 +1385,47 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
     } finally { setEditSaving(false); }
   };
 
+  const removeSite = async (site: any) => {
+    const confirmed = window.confirm(`Delete ${site.site_name}? Existing jobs and attendance history will be kept, but will no longer be linked to this site.`);
+    if (!confirmed) return;
+    setDeletingSiteId(site.id);
+    setFormError('');
+    try {
+      await deleteCompanySite(site.id);
+      setSites(current => current.filter(item => item.id !== site.id));
+      if (editingSite?.id === site.id) setEditingSite(null);
+      onChanged();
+    } catch (err) {
+      setFormError(getErrorMessage(err, 'Failed to delete site.'));
+    } finally {
+      setDeletingSiteId(null);
+    }
+  };
+
+  const editDocument = async (doc: any) => {
+    const documentType = window.prompt('Document type', doc.document_type)?.trim();
+    if (!documentType || documentType === doc.document_type) return;
+    setActingDocumentId(doc.id);
+    try {
+      const updated = await updateDocumentRecord(company.id, doc.id, documentType);
+      setDocs(current => current.map(item => item.id === doc.id ? updated : item));
+    } catch (err) {
+      alert(getErrorMessage(err, 'Failed to update the document.'));
+    } finally { setActingDocumentId(null); }
+  };
+
+  const removeDocument = async (doc: any) => {
+    if (!window.confirm(`Delete ${doc.document_type}? The uploaded file will be permanently removed.`)) return;
+    setActingDocumentId(doc.id);
+    try {
+      await deleteDocumentRecord(company.id, doc.id);
+      setDocs(current => current.filter(item => item.id !== doc.id));
+      onChanged();
+    } catch (err) {
+      alert(getErrorMessage(err, 'Failed to delete the document.'));
+    } finally { setActingDocumentId(null); }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-5">
       {successMessage && (
@@ -1272,7 +1437,11 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
           }}
         />
       )}
-      <div className="flex items-center justify-between gap-3">
+      {showAddForm ? (
+        <button type="button" onClick={() => setShowAddForm(false)} className="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+          <ArrowLeft size={17} /> Back to Sites
+        </button>
+      ) : <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Sites</h2>
           <p className="mt-0.5 text-sm text-gray-500">Manage locations for {company.company_name}.</p>
@@ -1280,13 +1449,14 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
         <button
           type="button"
           onClick={() => setShowAddForm(open => !open)}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white"
+          className="flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white sm:w-auto"
           style={{ background: showAddForm ? '#64748b' : '#0f1e3c' }}
         >
           {showAddForm ? <X size={16} /> : <Plus size={16} />}
           {showAddForm ? 'Close' : 'Add Site'}
         </button>
-      </div>
+      </div>}
+      {formError && !showAddForm && <ValidationBanner message={formError} />}
       {/* ── Add site form ── */}
       {showAddForm && <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
@@ -1332,7 +1502,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       </Card>}
 
       {/* ── Sites table ── */}
-      <Card className="p-5">
+      {!showAddForm && <Card className="p-5">
         <h3 className="font-bold text-gray-900 mb-4">Sites</h3>
         <DataTable headers={['Site', 'Type', 'Location', 'Contact', 'Status', 'Actions']}>
           {sites.map((site: any) => (
@@ -1365,13 +1535,20 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
                   >
                     {site.status === 'active' ? 'Deactivate' : 'Activate'}
                   </button>
+                  <button
+                    disabled={deletingSiteId === site.id}
+                    onClick={() => removeSite(site)}
+                    className="table-action tone-red disabled:opacity-50"
+                  >
+                    {deletingSiteId === site.id ? 'Deleting...' : 'Delete'}
+                  </button>
                 </div>
               </Td>
             </tr>
           ))}
         </DataTable>
         {sites.length === 0 && <EmptyState text="No sites added yet" />}
-      </Card>
+      </Card>}
 
       {/* ── Edit site drawer ── */}
       {editingSite && (
@@ -1442,7 +1619,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
 // ── Post job ──────────────────────────────────────────────────────────────────
 
-function JobFormPage({ employer: _employer, company, onSaved }: { employer: EmployerInfo; company: any; onSaved: () => void }) {
+function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employer: EmployerInfo; company: any; onSaved: () => void; onBack: () => void }) {
   const [sites, setSites] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [creatingSite, setCreatingSite] = useState(false);
@@ -1461,7 +1638,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
     duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '', duration_type: 'Monthly',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
     police_verification_required: true, uniform_required: true, food_facility: false, accommodation_facility: false,
-    description: '', special_instructions: '', status: 'pending_approval',
+    description: '', special_instructions: '', status: 'active',
   });
 
   usePincodeAutofill(siteForm.pincode, result => {
@@ -1563,6 +1740,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
   if (sites.length === 0) {
     return (
       <div className="p-6">
+        <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm"><ArrowLeft size={17} /> Back to Manage Jobs</button>
         {siteSuccessMessage && <SuccessModal message={siteSuccessMessage} onClose={() => setSiteSuccessMessage('')} />}
         <Card className="p-5">
           <div className="flex items-start justify-between gap-4 mb-4">
@@ -1613,6 +1791,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
 
   return (
     <div className="p-6">
+      <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm"><ArrowLeft size={17} /> Back to Manage Jobs</button>
       {siteSuccessMessage && <SuccessModal message={siteSuccessMessage} onClose={() => setSiteSuccessMessage('')} />}
       <Card className="p-5">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Post New Job</h2>
@@ -1660,7 +1839,7 @@ function JobFormPage({ employer: _employer, company, onSaved }: { employer: Empl
 
 // ── Manage jobs ───────────────────────────────────────────────────────────────
 
-function JobsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
+function JobsPage({ employer: _employer, company, onChanged, onCreate }: { employer: EmployerInfo; company: any; onChanged: () => void; onCreate: () => void }) {
   const [jobs, setJobs]           = useState<any[]>([]);
   const [sites, setSites]         = useState<any[]>([]);
   const [search, setSearch]       = useState('');
@@ -1669,8 +1848,16 @@ function JobsPage({ employer: _employer, company, onChanged }: { employer: Emplo
   const [saving, setSaving]       = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState('');
 
-  const reload = () => listEmployerJobs(company.id).then(setJobs).catch(console.error);
+  const reload = () => {
+    setJobsError('');
+    return listEmployerJobs(company.id)
+      .then(setJobs)
+      .catch(err => setJobsError(getErrorMessage(err, 'Unable to load jobs. Please try again.')))
+      .finally(() => setLoadingJobs(false));
+  };
 
   useEffect(() => {
     reload();
@@ -1750,9 +1937,34 @@ function JobsPage({ employer: _employer, company, onChanged }: { employer: Emplo
   const set = (k: string) => (v: string) => setEditForm(p => ({ ...p, [k]: v }));
 
   return (
-    <div className="p-6 space-y-4">
-      <Toolbar title="Manage Jobs" count={jobs.length} search={search} setSearch={setSearch} />
+    <div className="p-4 md:p-6 space-y-4">
+      <Toolbar
+        title="Manage Jobs"
+        count={jobs.length}
+        search={search}
+        setSearch={setSearch}
+        action={(
+          <button
+            type="button"
+            onClick={onCreate}
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            style={{ background: '#0f1e3c' }}
+          >
+            <Plus size={17} />
+            Create Job
+          </button>
+        )}
+      />
+      {jobsError && (
+        <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>{jobsError}</span>
+          <button type="button" onClick={() => { setLoadingJobs(true); void reload(); }} className="font-semibold text-red-800">Try again</button>
+        </div>
+      )}
       <Card className="p-5">
+        {loadingJobs && <LoadingState />}
+        {!loadingJobs && !jobsError && (
+          <>
         <DataTable headers={['Job', 'Site', 'Openings', 'Pay', 'Shift', 'Status', 'Actions']}>
           {filtered.map((job: any) => (
             <tr key={job.id} className="border-b border-gray-50">
@@ -1789,6 +2001,8 @@ function JobsPage({ employer: _employer, company, onChanged }: { employer: Emplo
           ))}
         </DataTable>
         {filtered.length === 0 && <EmptyState text="No jobs found" />}
+          </>
+        )}
       </Card>
 
       {/* ── Delete confirmation overlay ── */}
@@ -1880,36 +2094,22 @@ function JobsPage({ employer: _employer, company, onChanged }: { employer: Emplo
 
 // ── Applicants ────────────────────────────────────────────────────────────────
 
-function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { employer: EmployerInfo; company: any; filter: 'all' | 'shortlisted' | 'selected'; onChanged: () => void }) {
+function ApplicantsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [apps, setApps] = useState<any[]>([]);
+  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'selected'>('all');
 
   useEffect(() => {
-    listEmployerApplications(company.id).then(data => {
-      const list = data ?? [];
-      if (filter === 'shortlisted') return setApps(list.filter((a: any) => a.status === 'shortlisted'));
-      if (filter === 'selected') return setApps(list.filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status)));
-      setApps(list);
-    }).catch(console.error);
-  }, [company.id, filter]);
+    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
+  }, [company.id]);
 
   const updateStatus = async (appId: string, status: string) => {
     await updateApplicationStatus(appId, status);
-    listEmployerApplications(company.id).then(data => {
-      const list = data ?? [];
-      if (filter === 'shortlisted') return setApps(list.filter((a: any) => a.status === 'shortlisted'));
-      if (filter === 'selected') return setApps(list.filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status)));
-      setApps(list);
-    }).catch(console.error);
+    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
     onChanged();
   };
 
   const refresh = () => {
-    listEmployerApplications(company.id).then(data => {
-      const list = data ?? [];
-      if (filter === 'shortlisted') return setApps(list.filter((a: any) => a.status === 'shortlisted'));
-      if (filter === 'selected') return setApps(list.filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status)));
-      setApps(list);
-    }).catch(console.error);
+    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
   };
 
   const markAadhaar = async (app: any, status: 'verified' | 'rejected') => {
@@ -1950,12 +2150,23 @@ function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { e
     onChanged();
   };
 
+  const visibleApps = filter === 'shortlisted'
+    ? apps.filter((app: any) => app.status === 'shortlisted')
+    : filter === 'selected'
+      ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(app.status))
+      : apps;
+
   return (
     <div className="p-6">
       <Card className="p-5">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Applicants</h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 className="text-xl font-bold text-gray-900">Manage Applicants</h2><p className="text-sm text-gray-500">Review every stage from one list.</p></div>
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'shortlisted', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value}</button>)}
+          </div>
+        </div>
         <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
-          {apps.map((app: any) => (
+          {visibleApps.map((app: any) => (
             <tr key={app.id} className="border-b border-gray-50">
               <Td><b>{app.guard_profiles?.full_name ?? 'Associate'}</b><div className="text-xs text-gray-400">{app.guard_profiles?.city} · {app.guard_profiles?.mobile}</div></Td>
               <Td>{app.job_posts?.title}</Td>
@@ -1978,7 +2189,7 @@ function ApplicantsPage({ employer: _employer, company, filter, onChanged }: { e
             </tr>
           ))}
         </DataTable>
-        {apps.length === 0 && <EmptyState text="No applicants in this view" />}
+        {visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
       </Card>
     </div>
   );
@@ -2315,9 +2526,9 @@ function WalletPage() {
       <Card className="p-6">
         <p className="text-xs text-gray-400 font-semibold uppercase">Wallet Balance</p>
         <div className="text-4xl font-bold mt-2" style={{ color: '#0f1e3c' }}>Rs {wallet?.balance ?? 0}</div>
-        <div className="flex gap-3 mt-5 max-w-md">
+        <div className="mt-5 flex max-w-md flex-col gap-3 sm:flex-row">
           <input value={amount} onChange={e => setAmount(e.target.value)} className="form-input" placeholder="Amount" />
-          <button onClick={addBalance} className="px-4 rounded-xl text-sm font-semibold text-white whitespace-nowrap" style={{ background: '#0f1e3c' }}>Add Balance</button>
+          <button onClick={addBalance} className="rounded-xl px-4 py-3 text-sm font-semibold text-white whitespace-nowrap" style={{ background: '#0f1e3c' }}>Add Balance</button>
         </div>
       </Card>
       <Card className="p-5">

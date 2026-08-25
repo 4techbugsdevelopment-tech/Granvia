@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckSquare, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckSquare, Plus, Pencil, Trash2 } from 'lucide-react';
 import { createRole, deleteRole, listAllRoles, updateRole, RoleOption, ROLE_MODULES } from '../../services/roleService';
 import { PageHeader, Card, Table, Pill } from './_adminUi';
 
@@ -90,12 +90,12 @@ export default function RoleMaster() {
   };
 
   const remove = async (role: RoleOption) => {
-    if (!window.confirm(`Deactivate ${role.name}?`)) return;
+    if (!window.confirm(`Delete ${role.name}? Staff currently using it will keep their account but will need a new role assignment.`)) return;
     setError('');
     try {
       await deleteRole(role.id);
       await load();
-      setNotice('Role deactivated.');
+      setNotice('Role deleted.');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || 'Unable to update role.');
     }
@@ -155,8 +155,17 @@ export default function RoleMaster() {
       </Card>
 
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(15,27,56,0.45)' }} onClick={() => setOpen(false)}>
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-3xl rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={editing ? 'fixed inset-0 z-[70] flex items-center justify-center p-4' : 'fixed inset-0 z-[70] overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6 sm:py-8'}
+          style={editing ? { background: 'rgba(15,27,56,0.45)' } : undefined}
+          onClick={editing ? () => setOpen(false) : undefined}
+        >
+          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={editing ? 'w-full max-w-3xl rounded-2xl bg-white p-6' : 'mx-auto min-h-full w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={(e) => e.stopPropagation()}>
+            {!editing && (
+              <button type="button" onClick={() => setOpen(false)} className="mb-5 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <ArrowLeft size={18} /> Back to Roles
+              </button>
+            )}
             <h3 className="text-lg font-bold text-gray-900">{editing ? 'Edit Role' : 'Add Role'}</h3>
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
               <div className="space-y-4">

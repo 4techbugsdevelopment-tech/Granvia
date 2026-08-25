@@ -36,6 +36,19 @@ export interface SalesClientDetail {
   jobs: Array<{ id: string; title: string; status: string; company?: { company_name: string }; site?: { site_name: string | null } }>;
 }
 
+export interface SalesJob {
+  id: string;
+  employer_user_id: string;
+  employer_name: string;
+  title: string;
+  guards_required: number;
+  duty_hours: string | null;
+  status: string;
+  created_at: string;
+  company?: { id: string; company_name: string } | null;
+  site?: { id: string; site_name: string | null; city: string | null } | null;
+}
+
 export interface Discount {
   id: string;
   employer_user_id: string | null;
@@ -81,6 +94,11 @@ export async function getSalesClientDetail(employerId: string): Promise<SalesCli
 export async function requestJobOtp(employerUserId: string): Promise<{ otp_id: string; sent_to: string | null; dev_otp: string | null }> {
   const { data } = await apiClient.post('/sales/jobs/request-otp', { employer_user_id: employerUserId });
   return data;
+}
+
+export async function getSalesJobs(): Promise<SalesJob[]> {
+  const { data } = await apiClient.get('/sales/jobs');
+  return data ?? [];
 }
 
 export interface ProxyJobInput {

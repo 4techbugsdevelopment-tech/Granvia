@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2, ArrowLeft } from 'lucide-react';
 import { createGuard } from '../../services/adminGuardService';
 import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
@@ -351,6 +351,9 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
       animate={{ opacity: 1, y: 0 }}
       className="p-6 w-full max-w-7xl"
     >
+      <button type="button" onClick={onSuccess} className="mb-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+        <ArrowLeft size={17} /> Back to Associates
+      </button>
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Add New Associate</h1>
         <p className="text-sm text-gray-500 mt-0.5">Create associate account – credentials will be usable in the mobile app</p>
