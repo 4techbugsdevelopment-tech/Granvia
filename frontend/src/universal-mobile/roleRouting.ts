@@ -1,8 +1,8 @@
 import type { ProfileRow } from '../lib/apiTypes';
 
-export type UniversalRole = 'guard' | 'employer' | 'sales_executive' | 'sub_admin' | 'super_admin';
+export type UniversalRole = 'guard' | 'employer' | 'sales_executive' | 'sub_admin' | 'operations' | 'finance' | 'super_admin';
 
-export type UniversalPortalKey = 'associate' | 'employer' | 'sales' | 'subadmin';
+export type UniversalPortalKey = 'associate' | 'employer' | 'sales' | 'subadmin' | 'operations' | 'finance';
 
 export type UniversalRouteTarget =
   | { kind: 'root' }
@@ -20,10 +20,12 @@ const UNIVERSAL_PORTALS: Record<Exclude<UniversalRole, 'super_admin'>, { portal:
   employer: { portal: 'employer', path: `${UNIVERSAL_APP_BASE_PATH}/employer`, label: 'Employer' },
   sales_executive: { portal: 'sales', path: `${UNIVERSAL_APP_BASE_PATH}/sales`, label: 'Sales Executive' },
   sub_admin: { portal: 'subadmin', path: `${UNIVERSAL_APP_BASE_PATH}/sub-admin`, label: 'Sub Admin' },
+  operations: { portal: 'operations', path: `${UNIVERSAL_APP_BASE_PATH}/operations`, label: 'Operations' },
+  finance: { portal: 'finance', path: `${UNIVERSAL_APP_BASE_PATH}/finance`, label: 'Finance' },
 };
 
 export function isSupportedUniversalRole(role: string | null | undefined): role is Exclude<UniversalRole, 'super_admin'> {
-  return role === 'guard' || role === 'employer' || role === 'sales_executive' || role === 'sub_admin';
+  return role === 'guard' || role === 'employer' || role === 'sales_executive' || role === 'sub_admin' || role === 'operations' || role === 'finance';
 }
 
 export function normalizeUniversalAppPath(pathname: string): string {
@@ -41,6 +43,8 @@ export function resolveUniversalRoute(pathname: string): UniversalRouteTarget {
   if (normalized === `${UNIVERSAL_APP_BASE_PATH}/employer`) return { kind: 'portal', role: 'employer', portal: 'employer' };
   if (normalized === `${UNIVERSAL_APP_BASE_PATH}/sales`) return { kind: 'portal', role: 'sales_executive', portal: 'sales' };
   if (normalized === `${UNIVERSAL_APP_BASE_PATH}/sub-admin`) return { kind: 'portal', role: 'sub_admin', portal: 'subadmin' };
+  if (normalized === `${UNIVERSAL_APP_BASE_PATH}/operations`) return { kind: 'portal', role: 'operations', portal: 'operations' };
+  if (normalized === `${UNIVERSAL_APP_BASE_PATH}/finance`) return { kind: 'portal', role: 'finance', portal: 'finance' };
   return { kind: 'root' };
 }
 

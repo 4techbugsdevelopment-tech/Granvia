@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet, ArrowLeft, ArrowUpRight, ArrowDownLeft, Building2, X, Briefcase, MapPin, Clock, Calendar, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
 import { getMyGuardWallet, listMyGuardTransactions } from '../../services/walletService';
+import { listMyWithdrawals, requestWithdrawal, type WithdrawalRow } from '../../services/withdrawalService';
 
 export default function WalletScreen() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -12,17 +13,31 @@ export default function WalletScreen() {
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   useEffect(() => {
-    Promise.all([getMyGuardWallet(), listMyGuardTransactions()])
-      .then(([balance, rows]) => { setWallet(balance); setTransactions(rows); })
+    Promise.all([getMyGuardWallet(), listMyGuardTransactions(), listMyWithdrawals()])
+      .then(([balance, rows, requests]) => { setWallet(balance); setTransactions(rows); setWithdrawals(requests); })
       .catch(cause => setError(cause?.response?.data?.message || cause.message || 'Could not load wallet.'))
       .finally(() => setLoading(false));
   }, []);
 
-  const submitWithdraw = () => {
-    setWithdrawOpen(false);
-    setAmount('');
+  const submitWithdraw = async () => {
+    setWithdrawing(true);
+    setError(null);
+    try {
+      const request = await requestWithdrawal(Number(amount));
+      const balance = await getMyGuardWallet();
+      setWallet(balance);
+      setWithdrawals(previous => [request, ...previous]);
+      setWithdrawOpen(false);
+      setAmount('');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Could not submit withdrawal request.');
+    } finally {
+      setWithdrawing(false);
+    }
   };
 
   return (
@@ -54,6 +69,8 @@ export default function WalletScreen() {
           Withdraw to Bank
         </button>
       </motion.div>
+
+      {withdrawals.length > 0 && <div className="px-4 mt-5"><h3 className="text-sm font-bold text-gray-700 mb-3">Withdrawal History</h3><div className="space-y-2">{withdrawals.slice(0, 8).map(request => <div key={request.id} className="rounded-2xl bg-white p-3.5 flex justify-between"><div><div className="font-semibold text-sm">₹{Number(request.amount).toLocaleString('en-IN')}</div><div className="text-xs text-gray-400">{new Date(request.created_at).toLocaleDateString('en-IN')}</div>{request.rejection_reason && <div className="text-xs text-red-600 mt-1">{request.rejection_reason}</div>}</div><span className="text-xs font-semibold capitalize">{request.status}</span></div>)}</div></div>}
 
       <div className="px-4 mt-5">
         <h3 className="text-sm font-bold text-gray-700 mb-3">Transactions</h3>
@@ -200,12 +217,12 @@ export default function WalletScreen() {
                   style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc' }}
                 />
                 <button
-                  onClick={submitWithdraw}
-                  disabled={!amount || Number(amount) <= 0 || Number(amount) > wallet.balance_coins}
+                  onClick={() => void submitWithdraw()}
+                  disabled={withdrawing || !amount || Number(amount) <= 0 || Number(amount) > wallet.balance_coins}
                   className="w-full mt-4 py-4 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
                   style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
                 >
-                  Request Withdrawal
+                  {withdrawing ? 'Submitting…' : 'Request Withdrawal'}
                 </button>
               </div>
             </motion.div>

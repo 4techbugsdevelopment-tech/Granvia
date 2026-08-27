@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { snakeKeys } from '../utils/serialize';
+import { syncAssociateWallet } from '../services/associateWalletService';
 
 // Port of App\Http\Controllers\WalletController.
 
@@ -28,12 +29,14 @@ export async function transactions(req: Request, res: Response) {
 
 /** GET /guard/wallet — associate earnings balance from completed payments. */
 export async function guardShow(req: Request, res: Response) {
-  const aggregate = await prisma.payment.aggregate({
-    where: { guardUserId: req.user!.id, paymentStatus: 'completed' },
-    _sum: { amount: true },
+  const wallet = await syncAssociateWallet(req.user!.id);
+  const available = Number(wallet.availableBalance);
+  return res.json({
+    balance_coins: available,
+    balance_inr: available,
+    reserved_balance_inr: Number(wallet.reservedBalance),
+    coin_value_inr: 1,
   });
-  const balance = Number(aggregate._sum.amount ?? 0);
-  return res.json({ balance_coins: balance, balance_inr: balance, coin_value_inr: 1 });
 }
 
 /** GET /guard/wallet/transactions — completed payouts with job and attendance work details. */

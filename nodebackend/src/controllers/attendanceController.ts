@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { autoCheckoutExpiredAttendance, scheduledCheckout } from '../services/attendanceAutoCheckout';
+import { env } from '../config/env';
 
 // Guard-facing attendance controller.
 
@@ -25,15 +26,22 @@ const longitude = z.coerce.number().min(-180).max(180);
 const checkInSchema = z.object({
   job_id: z.string().uuid().nullish(),
   guard_remarks: z.string().nullish(),
-  latitude,
-  longitude,
+  latitude: latitude.nullish(),
+  longitude: longitude.nullish(),
 });
 
 const checkOutSchema = z.object({
   guard_remarks: z.string().nullish(),
-  latitude,
-  longitude,
+  latitude: latitude.nullish(),
+  longitude: longitude.nullish(),
 });
+
+function requireLiveLocation(data: { latitude?: number | null; longitude?: number | null }) {
+  if (!env.locationCaptureEnabled) return;
+  if (data.latitude == null || data.longitude == null) {
+    throw new HttpError(422, 'A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
+  }
+}
 
 const historicalSchema = z.object({
   job_id: z.string().uuid().nullish(),
@@ -100,6 +108,7 @@ export async function guardIndex(req: Request, res: Response) {
 /** POST /guard/attendance/check-in */
 export async function checkIn(req: Request, res: Response) {
   const data = checkInSchema.parse(req.body);
+  requireLiveLocation(data);
   const guardId = req.user!.id;
   const today = todayDateOnly();
   const job = await assignedJob(guardId, data.job_id, today);
@@ -127,9 +136,9 @@ export async function checkIn(req: Request, res: Response) {
       attendanceDate: today,
       inTime,
       scheduledOutTime: scheduledCheckout(inTime, job.dutyHours),
-      checkInLatitude: data.latitude,
-      checkInLongitude: data.longitude,
-      entryMode: 'live',
+      checkInLatitude: data.latitude ?? null,
+      checkInLongitude: data.longitude ?? null,
+      entryMode: env.locationCaptureEnabled ? 'live' : 'live_location_disabled',
       status: 'pending_verification',
       guardRemarks: data.guard_remarks ?? null,
     },
@@ -156,6 +165,7 @@ export async function checkOut(req: Request, res: Response) {
   }
 
   const data = checkOutSchema.parse(req.body);
+  requireLiveLocation(data);
 
   const outTime = new Date();
   const totalHours = record.inTime
@@ -167,8 +177,8 @@ export async function checkOut(req: Request, res: Response) {
     data: {
       outTime,
       totalHours,
-      checkOutLatitude: data.latitude,
-      checkOutLongitude: data.longitude,
+      checkOutLatitude: data.latitude ?? null,
+      checkOutLongitude: data.longitude ?? null,
       checkoutMethod: 'associate',
       guardRemarks: data.guard_remarks ?? record.guardRemarks,
     },

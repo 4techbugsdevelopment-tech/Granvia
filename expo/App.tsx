@@ -18,6 +18,7 @@ import {
   type WebViewNavigation,
 } from 'react-native-webview';
 import Constants from 'expo-constants';
+import * as Location from 'expo-location';
 
 // The deployed universal-app URL. Configured in app.json → extra.appUrl.
 // For device testing against a local dev server use your machine's LAN IP,
@@ -57,10 +58,13 @@ export default function App() {
 
   const onNav = (nav: WebViewNavigation) => setCanGoBack(nav.canGoBack);
 
-  const sendLocationPermissionResult = (granted: boolean) => {
+  const sendCurrentPositionResult = (result: {
+    position: { lat: number; lng: number } | null;
+    error: 'permission_denied' | 'services_disabled' | 'timeout' | 'unavailable' | null;
+  }) => {
     webRef.current?.injectJavaScript(`
-      window.dispatchEvent(new CustomEvent('granvia-location-permission', {
-        detail: ${JSON.stringify({ granted })}
+      window.dispatchEvent(new CustomEvent('granvia-current-position', {
+        detail: ${JSON.stringify(result)}
       }));
       true;
     `);
@@ -88,12 +92,12 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  // Android WebViews do not reliably surface the system location prompt on
-  // their own. The map asks the native shell to request runtime permission,
-  // then retries browser geolocation as soon as this result is dispatched.
-  const requestLocationPermission = async () => {
+  // Fetch the coordinate in the native layer. Runtime permission alone is not
+  // enough because Android WebView can report POSITION_UNAVAILABLE even when
+  // GPS is enabled.
+  const requestCurrentPosition = async () => {
     if (Platform.OS !== 'android') {
-      sendLocationPermissionResult(true);
+      sendCurrentPositionResult({ position: null, error: 'unavailable' });
       return;
     }
 
@@ -104,24 +108,35 @@ export default function App() {
         (await PermissionsAndroid.check(fine)) ||
         (await PermissionsAndroid.check(coarse));
 
-      if (alreadyGranted) {
-        sendLocationPermissionResult(true);
+      if (!alreadyGranted) {
+        const results = await PermissionsAndroid.requestMultiple([fine, coarse]);
+        const granted =
+          results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
+          results[coarse] === PermissionsAndroid.RESULTS.GRANTED;
+        if (!granted) {
+          sendCurrentPositionResult({ position: null, error: 'permission_denied' });
+          if (results[fine] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || results[coarse] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+            Alert.alert('Location permission required', 'Enable location permission for Granvia in App Settings.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+            ]);
+          }
+          return;
+        }
+      }
+
+      if (!(await Location.hasServicesEnabledAsync())) {
+        sendCurrentPositionResult({ position: null, error: 'services_disabled' });
         return;
       }
 
-      const results = await PermissionsAndroid.requestMultiple([fine, coarse]);
-      const granted =
-        results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
-        results[coarse] === PermissionsAndroid.RESULTS.GRANTED;
-      sendLocationPermissionResult(granted);
-      if (!granted && (results[fine] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || results[coarse] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) {
-        Alert.alert('Location permission required', 'Enable location permission for Granvia in App Settings.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
-        ]);
-      }
+      const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      sendCurrentPositionResult({
+        position: { lat: fix.coords.latitude, lng: fix.coords.longitude },
+        error: null,
+      });
     } catch {
-      sendLocationPermissionResult(false);
+      sendCurrentPositionResult({ position: null, error: 'unavailable' });
     }
   };
 
@@ -152,8 +167,8 @@ export default function App() {
   const onMessage = (event: { nativeEvent: { data: string } }) => {
     try {
       const message = JSON.parse(event.nativeEvent.data) as { type?: string };
-      if (message.type === 'GRANVIA_REQUEST_LOCATION') {
-        void requestLocationPermission();
+      if (message.type === 'GRANVIA_REQUEST_CURRENT_POSITION') {
+        void requestCurrentPosition();
       } else if (message.type === 'GRANVIA_OPEN_LOCATION_SETTINGS') {
         openLocationSettings();
       }

@@ -11,6 +11,8 @@ function required(name: string): string {
 }
 
 const port = Number(process.env.PORT ?? 8000);
+const enabled = (value: string | undefined, defaultValue = false) =>
+  value == null ? defaultValue : /^(1|true|yes|on)$/i.test(value.trim());
 
 export const env = {
   port,
@@ -23,17 +25,20 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   tokenExpiryDays: Number(process.env.TOKEN_EXPIRY_DAYS ?? 0),
+  // Global attendance switch. Keep enforcement on by default so a missing or
+  // misspelled production variable never silently disables location capture.
+  locationCaptureEnabled: enabled(process.env.LOCATION_CAPTURE_ENABLED, true),
   // Opt-in (default OFF): login requires a second-factor email OTP before a
   // token is issued. Enable only once the two-step UI is wired in every portal.
-  loginOtpEnabled: /^(1|true|yes|on)$/i.test(process.env.AUTH_LOGIN_2FA ?? ''),
+  loginOtpEnabled: enabled(process.env.AUTH_LOGIN_2FA),
   // Opt-in (default OFF): users must verify their email (OTP) before login.
   // Enable (AUTH_ENFORCE_EMAIL_VERIFICATION=true) once the verify-code screen
   // is wired — otherwise new registrants get a code with nowhere to enter it.
-  enforceEmailVerification: /^(1|true|yes|on)$/i.test(process.env.AUTH_ENFORCE_EMAIL_VERIFICATION ?? ''),
+  enforceEmailVerification: enabled(process.env.AUTH_ENFORCE_EMAIL_VERIFICATION),
   // Opt-in (default OFF): automated/self-service Aadhaar verification (SurePass
   // sandbox + email-OTP self-verify). While OFF, Aadhaar is declared manually by
   // admins/employers. Turn on when the real Aadhaar API is integrated.
-  aadhaarApiEnabled: /^(1|true|yes|on)$/i.test(process.env.AADHAAR_API_ENABLED ?? ''),
+  aadhaarApiEnabled: enabled(process.env.AADHAAR_API_ENABLED),
   surepass: {
     baseUrl: (process.env.SUREPASS_BASE_URL ?? 'https://sandbox.surepass.app').replace(/\/+$/, ''),
     bearerToken: process.env.SUREPASS_BEARER_TOKEN?.trim() ?? '',

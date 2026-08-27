@@ -25,9 +25,14 @@ export async function listMyAttendance() {
   return (data ?? []).map(remap);
 }
 
+export async function getAttendanceConfiguration(): Promise<{ attendanceLocationEnabled: boolean }> {
+  const { data } = await apiClient.get('/config/public');
+  return { attendanceLocationEnabled: data?.location_capture_enabled !== false };
+}
+
 export async function checkInAttendance(input: {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   jobId?: string;
   guardRemarks?: string;
 }) {
@@ -41,8 +46,8 @@ export async function checkInAttendance(input: {
 }
 
 export async function checkOutAttendance(recordId: string, input: {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   guardRemarks?: string;
 }) {
   const { data } = await apiClient.patch(`/guard/attendance/${recordId}/check-out`, {

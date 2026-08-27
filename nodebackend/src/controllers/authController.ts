@@ -24,7 +24,7 @@ function auditFromRequest(req: Request, kind: string, details?: Record<string, u
   };
 }
 
-const ROLES = ['super_admin', 'employer', 'guard', 'sub_admin', 'sales_executive'] as const;
+const ROLES = ['super_admin', 'employer', 'guard', 'sub_admin', 'sales_executive', 'operations', 'finance'] as const;
 
 // --- validation (mirrors App\Http\Requests\Auth\*) -------------------------
 

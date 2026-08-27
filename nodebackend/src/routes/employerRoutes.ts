@@ -20,6 +20,7 @@ import * as aadhaar from '../controllers/employerAadhaarController';
 import * as report from '../controllers/reportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
 import * as team from '../controllers/employerTeamController';
+import * as internalStaff from '../controllers/internalStaffController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -56,6 +57,8 @@ router.get('/employer/staff', asyncHandler(team.listStaff));
 router.post('/employer/staff', asyncHandler(team.storeStaff));
 router.patch('/employer/staff/:staff', asyncHandler(team.updateStaff));
 router.delete('/employer/staff/:staff', asyncHandler(team.destroyStaff));
+router.get('/employer/operations-users', asyncHandler(internalStaff.employerIndex));
+router.post('/employer/operations-users', asyncHandler(internalStaff.employerStore));
 
 router.get('/employer/subadmins', asyncHandler(team.listSubAdmins));
 router.post('/employer/subadmins', asyncHandler(team.storeSubAdmin));

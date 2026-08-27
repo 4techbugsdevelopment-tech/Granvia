@@ -102,8 +102,8 @@ type NativeBridgeWindow = Window & {
 export type LocationFailureReason = 'permission_denied' | 'services_disabled' | 'timeout' | 'unavailable' | 'unsupported';
 export type CurrentPositionResult = { position: LatLng | null; error: LocationFailureReason | null };
 
-/** Ask the Android shell for runtime permission before using WebView geolocation. */
-function requestNativeLocationPermission(): Promise<boolean | null> {
+/** Obtain a fresh fix in the native Android shell; WebView geolocation is unreliable on some builds. */
+function requestNativePosition(): Promise<CurrentPositionResult | null> {
   const nativeWindow = window as NativeBridgeWindow;
   if (!nativeWindow.__GRANVIA_APK__ || !nativeWindow.ReactNativeWebView) {
     return Promise.resolve(null);
@@ -112,19 +112,19 @@ function requestNativeLocationPermission(): Promise<boolean | null> {
   return new Promise(resolve => {
     const onResult = (event: Event) => {
       window.clearTimeout(timeoutId);
-      window.removeEventListener('granvia-location-permission', onResult);
-      const detail = (event as CustomEvent<{ granted?: boolean }>).detail;
-      resolve(detail?.granted === true);
+      window.removeEventListener('granvia-current-position', onResult);
+      const detail = (event as CustomEvent<CurrentPositionResult>).detail;
+      resolve(detail?.position || detail?.error ? detail : { position: null, error: 'unavailable' });
     };
 
     const timeoutId = window.setTimeout(() => {
-      window.removeEventListener('granvia-location-permission', onResult);
+      window.removeEventListener('granvia-current-position', onResult);
       resolve(null);
-    }, 15000);
+    }, 25000);
 
-    window.addEventListener('granvia-location-permission', onResult);
+    window.addEventListener('granvia-current-position', onResult);
     nativeWindow.ReactNativeWebView!.postMessage(JSON.stringify({
-      type: 'GRANVIA_REQUEST_LOCATION',
+      type: 'GRANVIA_REQUEST_CURRENT_POSITION',
     }));
   });
 }
@@ -170,8 +170,15 @@ function browserPosition(): Promise<CurrentPositionResult> {
 }
 
 export async function getCurrentPositionResult(): Promise<CurrentPositionResult> {
-  const nativePermission = await requestNativeLocationPermission();
-  if (nativePermission === false) return { position: null, error: 'permission_denied' };
+  const native = await requestNativePosition();
+  if (native?.position) return native;
+  if (native?.error === 'permission_denied') return native;
+  if (native?.error === 'services_disabled') {
+    const retry = await requestNativeLocationSettings();
+    if (retry) return (await requestNativePosition()) ?? { position: null, error: 'unavailable' };
+    return native;
+  }
+  if (native) return native;
 
   const first = await browserPosition();
   if (first.position || (first.error !== 'services_disabled' && first.error !== 'timeout')) return first;

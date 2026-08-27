@@ -7,6 +7,7 @@ import * as profile from '../controllers/profileController';
 import * as notification from '../controllers/notificationController';
 import * as support from '../controllers/supportTicketController';
 import * as roles from '../controllers/roleController';
+import { env } from '../config/env';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -16,6 +17,10 @@ const router = Router();
 
 // Public.
 router.get('/jobs', asyncHandler(job.active));
+router.get('/config/public', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return res.json({ location_capture_enabled: env.locationCaptureEnabled });
+});
 
 // Any authenticated role, under /me.
 router.use('/me', requireAuth);

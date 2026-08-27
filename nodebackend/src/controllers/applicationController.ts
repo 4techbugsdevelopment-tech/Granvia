@@ -42,6 +42,30 @@ export async function apply(req: Request, res: Response) {
     },
   });
 
+  const operationsScopes = await prisma.operationsAssignment.findMany({
+    where: {
+      employerUserId: job.employerUserId,
+      status: 'active',
+      AND: [
+        { OR: [{ companyId: null }, { companyId: job.companyId }] },
+        { OR: [{ siteId: null }, { siteId: job.siteId }] },
+        { OR: [{ jobId: null }, { jobId: job.id }] },
+      ],
+    },
+    select: { operationsUserId: true },
+  });
+  const recipients = [...new Set([job.employerUserId, ...operationsScopes.map((scope) => scope.operationsUserId)])];
+  if (recipients.length) {
+    await prisma.notification.createMany({
+      data: recipients.map((userId) => ({
+        userId,
+        title: 'New application',
+        message: `A new Associate application was submitted for ${job.title}.`,
+        type: 'application',
+      })),
+    });
+  }
+
   return res.status(201).json(snakeKeys(application));
 }
 

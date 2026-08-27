@@ -7,6 +7,7 @@ import {
   checkInAttendance,
   checkOutAttendance,
   saveHistoricalAttendance,
+  getAttendanceConfiguration,
 } from '../../services/attendanceService';
 import { getCurrentPosition } from '../../lib/geoUtils';
 
@@ -78,8 +79,12 @@ export default function AttendanceScreen() {
   const [historyRemarks, setHistoryRemarks] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(now));
+  const [locationRequired, setLocationRequired] = useState<boolean | null>(null);
 
   useEffect(() => {
+    void getAttendanceConfiguration()
+      .then(config => setLocationRequired(config.attendanceLocationEnabled))
+      .catch(() => setLocationRequired(true));
     const load = () => listMyAttendance()
       .then(setRecords)
       .catch(e => setError(e?.response?.data?.message || e.message))
@@ -90,21 +95,22 @@ export default function AttendanceScreen() {
   }, []);
 
   const todayRecord = records.find(r => isToday(r.attendance_date));
-  const canMarkIn = !loading && !todayRecord;
-  const canMarkOut = Boolean(todayRecord && !todayRecord.out_time);
+  const canMarkIn = !loading && locationRequired !== null && !todayRecord;
+  const canMarkOut = Boolean(locationRequired !== null && todayRecord && !todayRecord.out_time);
 
   const handleMark = async (type: 'in' | 'out') => {
     setPulseActive(true);
     setMarking(true);
     setError(null);
     try {
-      const position = await getCurrentPosition();
-      if (!position) throw new Error('Location access is required to mark attendance. Please enable location and try again.');
+      if (locationRequired === null) throw new Error('Attendance settings are still loading. Please try again.');
+      const position = locationRequired ? await getCurrentPosition() : null;
+      if (locationRequired && !position) throw new Error('A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
       if (type === 'in') {
-        const record = await checkInAttendance({ latitude: position.lat, longitude: position.lng });
+        const record = await checkInAttendance({ latitude: position?.lat, longitude: position?.lng });
         setRecords(prev => [record, ...prev]);
       } else if (todayRecord) {
-        const record = await checkOutAttendance(todayRecord.id, { latitude: position.lat, longitude: position.lng });
+        const record = await checkOutAttendance(todayRecord.id, { latitude: position?.lat, longitude: position?.lng });
         setRecords(prev => prev.map(r => (r.id === record.id ? record : r)));
       }
       setSuccessType(type);

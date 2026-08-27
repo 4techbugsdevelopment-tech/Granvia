@@ -20,6 +20,8 @@ import MobileApp from '../mobile-guard/MobileApp';
 import EmployerApp from '../employer/EmployerApp';
 import SalesApp from '../sales/SalesApp';
 import SubAdminApp from '../subadmin/SubAdminApp';
+import OperationsApp from '../operations/OperationsApp';
+import FinanceApp from '../finance/FinanceApp';
 import UniversalLogin from './UniversalLogin';
 import UniversalUnauthorized from './UniversalUnauthorized';
 import {
@@ -130,6 +132,10 @@ export default function UniversalMobileApp() {
         return <SalesApp onLogout={handleLogout} layout="mobile" />;
       case 'sub_admin':
         return <SubAdminApp onLogout={handleLogout} layout="mobile" />;
+      case 'operations':
+        return <OperationsApp onLogout={handleLogout} />;
+      case 'finance':
+        return <FinanceApp onLogout={handleLogout} />;
       default:
         return (
           <UniversalUnauthorized

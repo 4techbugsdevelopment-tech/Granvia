@@ -37,6 +37,7 @@ model User {
   guardProfile    GuardProfile?
   subAdminProfile SubAdminProfile?
   employerWallet  EmployerWallet?
+  associateWallet AssociateWallet?
   associatePartnerAgreements AssociatePartnerAgreement[]
 
   @@index([role])
@@ -568,6 +569,82 @@ model GuardDocument {
 
   @@index([guardUserId, documentType])
   @@map("guard_documents")
+}
+
+model AssociateWallet {
+  id               String   @id @default(uuid()) @db.NVarChar(36)
+  guardUserId      String   @unique @map("guard_user_id") @db.NVarChar(36)
+  availableBalance Decimal  @default(0) @map("available_balance") @db.Decimal(12, 2)
+  reservedBalance  Decimal  @default(0) @map("reserved_balance") @db.Decimal(12, 2)
+  currency         String   @default("INR")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user         User                         @relation(fields: [guardUserId], references: [id], onDelete: Cascade)
+  transactions AssociateWalletTransaction[]
+
+  @@map("associate_wallets")
+}
+
+model AssociateWalletTransaction {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  walletId        String   @map("wallet_id") @db.NVarChar(36)
+  transactionType String   @map("transaction_type") @db.NVarChar(30)
+  amount          Decimal  @db.Decimal(12, 2)
+  purpose         String?  @db.NVarChar(Max)
+  status          String   @default("completed")
+  referenceType   String?  @map("reference_type") @db.NVarChar(50)
+  referenceId     String?  @map("reference_id") @db.NVarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  wallet AssociateWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([referenceType, referenceId])
+  @@index([walletId, createdAt])
+  @@map("associate_wallet_transactions")
+}
+
+model WithdrawalRequest {
+  id                 String    @id @default(uuid()) @db.NVarChar(36)
+  guardUserId        String    @map("guard_user_id") @db.NVarChar(36)
+  walletId           String    @map("wallet_id") @db.NVarChar(36)
+  amount             Decimal   @db.Decimal(12, 2)
+  feeAmount          Decimal   @default(0) @map("fee_amount") @db.Decimal(12, 2)
+  netAmount          Decimal   @map("net_amount") @db.Decimal(12, 2)
+  status             String    @default("requested") @db.NVarChar(30)
+  rejectionReason    String?   @map("rejection_reason") @db.NVarChar(Max)
+  reviewedByUserId   String?   @map("reviewed_by_user_id") @db.NVarChar(36)
+  reviewedAt         DateTime? @map("reviewed_at")
+  gatewayProvider    String?   @map("gateway_provider") @db.NVarChar(100)
+  gatewayReference   String?   @map("gateway_reference") @db.NVarChar(255)
+  gatewayStatus      String?   @map("gateway_status") @db.NVarChar(80)
+  gatewayResponse    String?   @map("gateway_response") @db.NVarChar(Max)
+  idempotencyKey     String    @unique @map("idempotency_key") @db.NVarChar(100)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([guardUserId, createdAt])
+  @@index([status, createdAt])
+  @@map("withdrawal_requests")
+}
+
+model OperationsAssignment {
+  id               String   @id @default(uuid()) @db.NVarChar(36)
+  operationsUserId String   @map("operations_user_id") @db.NVarChar(36)
+  employerUserId   String   @map("employer_user_id") @db.NVarChar(36)
+  companyId        String?  @map("company_id") @db.NVarChar(36)
+  siteId           String?  @map("site_id") @db.NVarChar(36)
+  jobId            String?  @map("job_id") @db.NVarChar(36)
+  status           String   @default("active")
+  permissions      String?  @db.NVarChar(Max)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([operationsUserId, status])
+  @@index([employerUserId, status])
+  @@index([jobId])
+  @@map("operations_assignments")
 }
 
 model GuardAvailability {

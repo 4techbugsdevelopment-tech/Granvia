@@ -12,6 +12,10 @@ import SalesAuth from './sales/SalesAuth';
 import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
 import SubAdminApp from './subadmin/SubAdminApp';
+import OperationsAuth from './operations/OperationsAuth';
+import OperationsApp from './operations/OperationsApp';
+import FinanceAuth from './finance/FinanceAuth';
+import FinanceApp from './finance/FinanceApp';
 import UniversalMobileApp from './universal-mobile/UniversalMobileApp';
 import SmtpTestPage from './pages/dev/SmtpTestPage';
 import {
@@ -31,10 +35,12 @@ const PORTALS = [
   { mode: 'employer', emoji: '🏢', title: 'Employer Portal', subtitle: 'Company Hiring Workspace', desc: 'Post jobs, review applicants & manage payments', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
   { mode: 'sales', emoji: '📈', title: 'Sales Executive', subtitle: 'Client & Discount Management', desc: 'Manage clients, post jobs & apply discounts', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.3)' },
   { mode: 'subadmin', emoji: '🗂️', title: 'Sub Admin', subtitle: 'Regional Operations', desc: 'Manage company, staff, clients & associates', bg: 'rgba(13,148,136,0.12)', border: 'rgba(13,148,136,0.3)' },
+  { mode: 'operations', emoji: '📋', title: 'Operations', subtitle: 'Hiring & Onboarding', desc: 'Process applicants, interviews and onboarding', bg: 'rgba(14,116,144,0.12)', border: 'rgba(14,116,144,0.3)' },
+  { mode: 'finance', emoji: '₹', title: 'Finance', subtitle: 'Withdrawals & Payouts', desc: 'Review Associate withdrawal and payout requests', bg: 'rgba(22,101,52,0.12)', border: 'rgba(22,101,52,0.3)' },
   { mode: 'app', emoji: '🚀', title: 'Universal Mobile App', subtitle: 'One app · every role', desc: 'Single login for Associates, Employers, Sales & Sub Admins (APK)', bg: 'rgba(37,99,235,0.12)', border: 'rgba(37,99,235,0.3)' },
 ] as const;
 
-type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin' | 'app';
+type AppMode = 'landing' | 'admin' | 'mobile' | 'employer' | 'sales' | 'subadmin' | 'operations' | 'finance' | 'app';
 type AdminState = 'splash' | 'login' | 'dashboard';
 type MobileState = 'splash' | 'login' | 'app';
 type EmployerState = 'login' | 'app';
@@ -51,6 +57,8 @@ function getModeForRole(role: string | undefined): AppMode | null {
   if (role === 'employer') return 'employer';
   if (role === 'sales_executive') return 'sales';
   if (role === 'sub_admin') return 'subadmin';
+  if (role === 'operations') return 'operations';
+  if (role === 'finance') return 'finance';
   return null;
 }
 
@@ -63,6 +71,8 @@ function getModeFromPath(pathname: string): AppMode {
   if (pathname === '/employer' || pathname.startsWith('/employer/')) return 'employer';
   if (pathname === '/sales' || pathname.startsWith('/sales/')) return 'sales';
   if (pathname === '/sub-admin' || pathname.startsWith('/sub-admin/')) return 'subadmin';
+  if (pathname === '/operations' || pathname.startsWith('/operations/')) return 'operations';
+  if (pathname === '/finance' || pathname.startsWith('/finance/')) return 'finance';
   return 'admin';
 }
 
@@ -74,6 +84,8 @@ function getPathForMode(mode: AppMode): string {
   if (mode === 'employer') return '/employer';
   if (mode === 'sales') return '/sales';
   if (mode === 'subadmin') return '/sub-admin';
+  if (mode === 'operations') return '/operations';
+  if (mode === 'finance') return '/finance';
   return '/home-1';
 }
 
@@ -271,6 +283,8 @@ function AppShell() {
   const [employerState, setEmployerState] = useState<EmployerState>('login');
   const [salesState, setSalesState] = useState<DemoPanelState>('login');
   const [subAdminState, setSubAdminState] = useState<DemoPanelState>('login');
+  const [operationsState, setOperationsState] = useState<DemoPanelState>('login');
+  const [financeState, setFinanceState] = useState<DemoPanelState>('login');
 
   const setPathForMode = (nextMode: AppMode, replace = false) => {
     const nextPath = getPathForMode(nextMode);
@@ -297,6 +311,8 @@ function AppShell() {
     if (nextMode === 'subadmin') {
       setSubAdminState(profile?.role === 'sub_admin' ? 'app' : 'login');
     }
+    if (nextMode === 'operations') setOperationsState(profile?.role === 'operations' ? 'app' : 'login');
+    if (nextMode === 'finance') setFinanceState(profile?.role === 'finance' ? 'app' : 'login');
   };
 
   useEffect(() => {
@@ -322,6 +338,10 @@ function AppShell() {
           setSalesState('app');
         } else if (authenticatedMode === 'subadmin') {
           setSubAdminState('app');
+        } else if (authenticatedMode === 'operations') {
+          setOperationsState('app');
+        } else if (authenticatedMode === 'finance') {
+          setFinanceState('app');
         }
         if (
           authenticatedMode === 'admin' &&
@@ -378,6 +398,18 @@ function AppShell() {
       if (routeMode === 'subadmin') {
         setMode('subadmin');
         setSubAdminState(profile?.role === 'sub_admin' ? 'app' : 'login');
+        return;
+      }
+
+      if (routeMode === 'operations') {
+        setMode('operations');
+        setOperationsState(profile?.role === 'operations' ? 'app' : 'login');
+        return;
+      }
+
+      if (routeMode === 'finance') {
+        setMode('finance');
+        setFinanceState(profile?.role === 'finance' ? 'app' : 'login');
         return;
       }
 
@@ -494,6 +526,20 @@ function AppShell() {
         )}
       </AnimatePresence>
     );
+  }
+
+  if (mode === 'operations') {
+    return <AnimatePresence mode="wait">{operationsState === 'login'
+      ? <motion.div key="operations-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><OperationsAuth onLogin={() => setOperationsState('app')} onBackToLanding={() => openPortal('landing')} /></motion.div>
+      : <motion.div key="operations-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><OperationsApp onLogout={() => { setOperationsState('login'); setMode('operations'); setPathForMode('operations', true); }} /></motion.div>}
+    </AnimatePresence>;
+  }
+
+  if (mode === 'finance') {
+    return <AnimatePresence mode="wait">{financeState === 'login'
+      ? <motion.div key="finance-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><FinanceAuth onLogin={() => setFinanceState('app')} onBackToLanding={() => openPortal('landing')} /></motion.div>
+      : <motion.div key="finance-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><FinanceApp onLogout={() => { setFinanceState('login'); setMode('finance'); setPathForMode('finance', true); }} /></motion.div>}
+    </AnimatePresence>;
   }
 
   return null;

@@ -12,6 +12,7 @@ import * as aadhaarManual from '../controllers/aadhaarManualController';
 import * as emailLog from '../controllers/emailLogController';
 import * as roles from '../controllers/roleController';
 import * as associateAgreement from '../controllers/adminAssociateAgreementController';
+import * as internalStaff from '../controllers/internalStaffController';
 
 const router = Router();
 
@@ -39,6 +40,8 @@ router.get('/admin/roles', asyncHandler(roles.index));
 router.post('/admin/roles', asyncHandler(roles.store));
 router.patch('/admin/roles/:role', asyncHandler(roles.update));
 router.delete('/admin/roles/:role', asyncHandler(roles.destroy));
+router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
+router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs', asyncHandler(job.all));

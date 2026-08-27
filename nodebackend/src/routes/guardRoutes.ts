@@ -11,6 +11,7 @@ import * as aadhaar from '../controllers/guardAadhaarController';
 import * as surepassTest from '../controllers/surepassTestController';
 import * as availability from '../controllers/availabilityController';
 import * as wallet from '../controllers/walletController';
+import * as withdrawal from '../controllers/withdrawalController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -30,6 +31,8 @@ router.delete('/guard/availability/:availability', asyncHandler(availability.des
 
 router.get('/guard/wallet', asyncHandler(wallet.guardShow));
 router.get('/guard/wallet/transactions', asyncHandler(wallet.guardTransactions));
+router.get('/guard/withdrawals', asyncHandler(withdrawal.mine));
+router.post('/guard/withdrawals', asyncHandler(withdrawal.requestWithdrawal));
 
 router.get('/guard/attendance', asyncHandler(attendance.guardIndex));
 router.post('/guard/attendance/check-in', asyncHandler(attendance.checkIn));
