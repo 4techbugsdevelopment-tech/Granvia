@@ -214,7 +214,8 @@ async function main() {
   await call('PATCH', '/employer/associates/:guard/aadhaar', `/employer/associates/${guardId}/aadhaar`, { role: 'employer', body: { status: 'verified', remarks: marker } });
 
   const guardDoc = requireData(await call('POST', '/guard/documents', '/guard/documents', {
-    role: 'guard', form: formWithFile({ document_type: 'other' }, `${marker}.pdf`, 'application/pdf', pdf),
+    // Keep the smoke path aligned with the mobile skill-certificate upload.
+    role: 'guard', form: formWithFile({ document_type: 'skill_training_certificate' }, `${marker}.pdf`, 'application/pdf', pdf),
   }), 'guard document');
   created.push({ type: 'guard_document', id: guardDoc.id, marker: guardDoc.file_path });
   await call('GET', '/guard/documents', '/guard/documents', { role: 'guard' });

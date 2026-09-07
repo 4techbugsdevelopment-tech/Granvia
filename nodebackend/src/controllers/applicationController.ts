@@ -29,6 +29,9 @@ export async function apply(req: Request, res: Response) {
 
   const data = applySchema.parse(req.body);
 
+  const existing = await prisma.jobApplication.findFirst({ where: { jobId: job.id, guardUserId: req.user!.id } });
+  if (existing) throw new HttpError(409, 'You have already applied for this job.');
+
   const application = await prisma.jobApplication.create({
     data: {
       jobId: job.id,
@@ -42,6 +45,13 @@ export async function apply(req: Request, res: Response) {
     },
   });
 
+  const associate = await prisma.guardProfile.findUnique({
+    where: { userId: req.user!.id },
+    select: { fullName: true, verificationStatus: true },
+  });
+  const associateName = associate?.fullName?.trim() || 'Associate Partner';
+  const isVerified = associate?.verificationStatus === 'verified';
+
   const operationsScopes = await prisma.operationsAssignment.findMany({
     where: {
       employerUserId: job.employerUserId,
@@ -54,15 +64,44 @@ export async function apply(req: Request, res: Response) {
     },
     select: { operationsUserId: true },
   });
-  const recipients = [...new Set([job.employerUserId, ...operationsScopes.map((scope) => scope.operationsUserId)])];
+  const superAdmins = await prisma.user.findMany({
+    where: { role: 'super_admin', accountStatus: 'active' },
+    select: { id: true },
+  });
+  const recipients = [...new Set([
+    job.employerUserId,
+    ...superAdmins.map((admin) => admin.id),
+    ...operationsScopes.map((scope) => scope.operationsUserId),
+  ])];
   if (recipients.length) {
     await prisma.notification.createMany({
       data: recipients.map((userId) => ({
         userId,
         title: 'New application',
-        message: `A new Associate application was submitted for ${job.title}.`,
+        message: `${associateName} applied for ${job.title}.`,
         type: 'application',
       })),
+    });
+  }
+
+  if (!isVerified) {
+    await prisma.notification.createMany({
+      data: [
+        ...new Set([job.employerUserId, ...superAdmins.map((admin) => admin.id)]),
+      ].map((userId) => ({
+        userId,
+        title: 'Unverified associate application',
+        message: `${associateName} is not verified and has applied for ${job.title}. Please review the associate profile before proceeding.`,
+        type: 'associate_verification',
+      })),
+    });
+    await prisma.notification.create({
+      data: {
+        userId: req.user!.id,
+        title: 'Complete verification to continue',
+        message: `You applied for ${job.title}. Complete your profile verification for further processing.`,
+        type: 'associate_verification',
+      },
     });
   }
 
@@ -106,9 +145,26 @@ export async function myAppliedJobIds(req: Request, res: Response) {
 // --- employer/admin-facing ------------------------------------------------
 
 const updateStatusSchema = z.object({
-  status: z.string(),
+  status: z.enum(['applied', 'shortlisted', 'selected', 'scheduled', 'hired', 'not_hired', 'rejected', 'offer_sent', 'accepted', 'joined']),
   remarks: z.string().nullish(),
 });
+
+const schedulingSchema = z.object({ remarks: z.string().trim().min(1).max(4000) });
+
+async function applicationWithScope(applicationId: string, user: NonNullable<Request['user']>, admin = false) {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+    include: { job: { select: { id: true, title: true, employerUserId: true } } },
+  });
+  if (!application) throw new HttpError(404, 'Application not found.');
+  if (!admin && (user.role !== 'employer' || application.employerUserId !== user.id)) throw new HttpError(403, 'Forbidden.');
+  return application;
+}
+
+async function notifyApplicationParties(application: { guardUserId: string; employerUserId: string | null; job: { title: string } }, title: string, message: string, type = 'application') {
+  const recipients = [...new Set([application.guardUserId, application.employerUserId].filter(Boolean) as string[])];
+  if (recipients.length) await prisma.notification.createMany({ data: recipients.map(userId => ({ userId, title, message, type })) });
+}
 
 /** GET /employer/applications */
 export async function employerIndex(req: Request, res: Response) {
@@ -142,10 +198,7 @@ export async function employerIndex(req: Request, res: Response) {
 
 /** PATCH /employer/applications/:application/status */
 export async function updateStatus(req: Request, res: Response) {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: req.params.application },
-  });
-  if (!application) throw new HttpError(404, 'Not found.');
+  const application = await applicationWithScope(req.params.application, req.user!);
 
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
@@ -171,5 +224,64 @@ export async function updateStatus(req: Request, res: Response) {
     }),
   ]);
 
+  if (data.status === 'hired' || data.status === 'not_hired') {
+    const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
+    const name = profile?.fullName || 'Associate Partner';
+    await notifyApplicationParties(
+      application,
+      data.status === 'hired' ? 'Associate hired' : 'Interview outcome updated',
+      data.status === 'hired'
+        ? `${name} has been hired for ${application.job.title}. Verification status: ${profile?.verificationStatus ?? 'pending'}.`
+        : `${name} was not selected for ${application.job.title}.`,
+      data.status === 'hired' ? 'hiring_verification' : 'application',
+    );
+  } else if (data.status !== 'applied') {
+    await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
+  }
+
+  return res.json(snakeKeys(updated));
+}
+
+/** GET /admin/jobs/:job/applications */
+export async function adminJobApplications(req: Request, res: Response) {
+  const rows = await prisma.jobApplication.findMany({
+    where: { jobId: req.params.job },
+    include: { job: { select: { id: true, title: true, salaryAmount: true, dutyHours: true, shiftType: true, startDate: true } } },
+    orderBy: { appliedAt: 'desc' },
+  });
+  const shaped = snakeKeys(rows) as Array<Record<string, unknown> & { guard_user_id?: string }>;
+  return res.json(await attachGuardProfiles(shaped));
+}
+
+/** PATCH /admin/applications/:application/status */
+export async function adminUpdateStatus(req: Request, res: Response) {
+  const application = await applicationWithScope(req.params.application, req.user!, true);
+  const data = updateStatusSchema.parse(req.body);
+  const oldStatus = application.status;
+  const [updated] = await prisma.$transaction([
+    prisma.jobApplication.update({ where: { id: application.id }, data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } }),
+    prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus, newStatus: data.status, remarks: data.remarks ?? null } }),
+  ]);
+  if (data.status === 'hired' || data.status === 'not_hired') {
+    const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
+    const name = profile?.fullName || 'Associate Partner';
+    await notifyApplicationParties(application, data.status === 'hired' ? 'Associate hired' : 'Interview outcome updated', data.status === 'hired' ? `${name} has been hired for ${application.job.title}. Verification status: ${profile?.verificationStatus ?? 'pending'}.` : `${name} was not selected for ${application.job.title}.`, data.status === 'hired' ? 'hiring_verification' : 'application');
+  } else if (data.status !== 'applied') {
+    await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
+  }
+  return res.json(snakeKeys(updated));
+}
+
+/** POST /employer|admin/applications/:application/schedule-interview */
+export async function scheduleInterview(req: Request, res: Response) {
+  const admin = req.user!.role === 'super_admin';
+  const application = await applicationWithScope(req.params.application, req.user!, admin);
+  const data = schedulingSchema.parse(req.body);
+  const [updated] = await prisma.$transaction([
+    prisma.jobApplication.update({ where: { id: application.id }, data: { status: 'scheduled', notes: data.remarks, reviewedAt: new Date(), reviewedBy: req.user!.id } }),
+    prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'scheduled', remarks: data.remarks } }),
+    prisma.interviewRequest.create({ data: { applicationId: application.id, jobId: application.jobId, guardUserId: application.guardUserId, employerUserId: application.employerUserId, companyId: application.companyId, requestType: 'Offline Interview', message: data.remarks, status: 'scheduled' } }),
+  ]);
+  await notifyApplicationParties(application, 'Interview scheduled', `Your interview for ${application.job.title} has been scheduled. Remarks: ${data.remarks}`);
   return res.json(snakeKeys(updated));
 }

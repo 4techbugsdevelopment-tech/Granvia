@@ -1,11 +1,12 @@
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart3, Bell, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
+  BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
   Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle, ExternalLink,
   UsersRound, ArrowLeft,
 } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
 import MobileChrome from '../universal-mobile/MobileChrome';
@@ -15,7 +16,7 @@ import { getMyEmployerProfile, updateMyEmployerProfile, updateMyProfile } from '
 import { listMyCompanies, createCompany, updateCompany, deleteCompany } from '../services/companyService';
 import { listCompanySites, createCompanySite, updateCompanySite, deleteCompanySite } from '../services/siteService';
 import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '../services/jobService';
-import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar } from '../services/applicationService';
+import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview } from '../services/applicationService';
 import { listEmployerAttendance, updateAttendanceStatus } from '../services/attendanceService';
 import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
 import { getEmployerWallet, listWalletTransactions } from '../services/walletService';
@@ -259,10 +260,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
                 {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
               </select>
             )}
-            <button className="relative p-2 rounded-xl text-gray-400 hover:bg-gray-100">
-              <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
-            </button>
+            <NotificationBell />
             <div className="hidden sm:block text-right">
               <div className="text-sm font-semibold text-gray-800">{employer.contactPersonName}</div>
               <div className="text-xs text-gray-400">Employer</div>
@@ -282,8 +280,8 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
 
 function statusBadge(status: string) {
   const s = status?.toLowerCase() ?? '';
-  const green = ['active', 'verified', 'selected', 'approved', 'accepted', 'confirmed', 'paid', 'completed', 'joined'];
-  const red = ['rejected', 'blocked', 'closed', 'cancelled', 'failed', 'inactive'];
+  const green = ['active', 'verified', 'selected', 'approved', 'accepted', 'confirmed', 'paid', 'completed', 'joined', 'hired'];
+  const red = ['rejected', 'not_hired', 'blocked', 'closed', 'cancelled', 'failed', 'inactive'];
   const isGreen = green.some(v => s.includes(v));
   const isRed = red.some(v => s.includes(v));
   const bg = isGreen ? '#dcfce7' : isRed ? '#fee2e2' : '#fef9c3';
@@ -2095,12 +2093,22 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
 // ── Applicants ────────────────────────────────────────────────────────────────
 
 function ApplicantsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [apps, setApps] = useState<any[]>([]);
   const [filter, setFilter] = useState<'all' | 'shortlisted' | 'selected'>('all');
+  const [interviewApp, setInterviewApp] = useState<any | null>(null);
+  const [interviewRemarks, setInterviewRemarks] = useState('');
+  const [savingInterview, setSavingInterview] = useState(false);
 
   useEffect(() => {
-    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
+    listEmployerJobs(company.id).then(data => setJobs(data ?? [])).catch(console.error);
   }, [company.id]);
+
+  useEffect(() => {
+    if (!selectedJob) return;
+    listEmployerApplications(company.id, selectedJob.id).then(data => setApps(data ?? [])).catch(console.error);
+  }, [company.id, selectedJob]);
 
   const updateStatus = async (appId: string, status: string) => {
     await updateApplicationStatus(appId, status);
@@ -2109,7 +2117,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
   };
 
   const refresh = () => {
-    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
+    if (selectedJob) listEmployerApplications(company.id, selectedJob.id).then(data => setApps(data ?? [])).catch(console.error);
   };
 
   const markAadhaar = async (app: any, status: 'verified' | 'rejected') => {
@@ -2135,19 +2143,18 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
     await updateStatus(app.id, 'offer_sent');
   };
 
-  const sendInterview = async (app: any) => {
-    await createInterviewRequest({
-      application_id: app.id,
-      job_id: app.job_id,
-      guard_user_id: app.guard_user_id,
-      company_id: company.id,
-      request_type: 'Phone Call',
-      preferred_date: new Date().toISOString().split('T')[0],
-      preferred_time: '11:00:00',
-      message: 'Please connect for job discussion.',
-      status: 'requested',
-    });
-    onChanged();
+  const scheduleInterview = async () => {
+    if (!interviewApp || !interviewRemarks.trim()) return;
+    setSavingInterview(true);
+    try {
+      await scheduleApplicationInterview(interviewApp.id, interviewRemarks.trim());
+      setInterviewApp(null);
+      setInterviewRemarks('');
+      refresh();
+      onChanged();
+    } finally {
+      setSavingInterview(false);
+    }
   };
 
   const visibleApps = filter === 'shortlisted'
@@ -2156,11 +2163,15 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
       ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(app.status))
       : apps;
 
+  if (!selectedJob) {
+    return <div className="p-6"><Card className="p-5"><div className="mb-4"><h2 className="text-xl font-bold text-gray-900">Job Applicants</h2><p className="text-sm text-gray-500">Select a job to view all associate partners who applied.</p></div><div className="grid gap-3 md:grid-cols-2">{jobs.map(job => <button key={job.id} onClick={() => setSelectedJob(job)} className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm hover:border-blue-200"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{job.title}</p><p className="mt-1 text-xs text-gray-500">{job.company_sites?.site_name ?? job.company_sites?.city ?? 'Location not set'}</p></div>{statusBadge(job.status)}</div><p className="mt-3 text-xs text-gray-400">{job.guards_required ?? 0} openings · View applicants</p></button>)}{jobs.length === 0 && <EmptyState text="No jobs posted yet" />}</div></Card></div>;
+  }
+
   return (
     <div className="p-6">
       <Card className="p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><h2 className="text-xl font-bold text-gray-900">Manage Applicants</h2><p className="text-sm text-gray-500">Review every stage from one list.</p></div>
+          <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review every associate who applied for this job.</p></div>
           <div className="flex flex-wrap gap-2">
             {(['all', 'shortlisted', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value}</button>)}
           </div>
@@ -2183,7 +2194,9 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
                 {app.guard_profiles?.aadhaar_status !== 'verified' && (
                   <button onClick={() => markAadhaar(app, 'verified')} className="table-action tone-green" title="Manually declare Aadhaar verified">Aadhaar ✓</button>
                 )}
-                <button onClick={() => sendInterview(app)} className="table-action">Call</button>
+                <button onClick={() => { setInterviewApp(app); setInterviewRemarks(''); }} className="table-action">Schedule interview</button>
+                <button onClick={() => updateStatus(app.id, 'hired')} className="table-action tone-green">Hired</button>
+                <button onClick={() => updateStatus(app.id, 'not_hired')} className="table-action tone-red">Not hired</button>
                 <button onClick={() => sendOffer(app)} className="table-action">Offer</button>
               </Td>
             </tr>
@@ -2191,6 +2204,9 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
         </DataTable>
         {visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
       </Card>
+      <AnimatePresence>
+        {interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder="Enter interview date, time, location, or other remarks" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}
+      </AnimatePresence>
     </div>
   );
 }

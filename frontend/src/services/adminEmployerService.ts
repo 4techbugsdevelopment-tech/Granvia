@@ -264,3 +264,11 @@ export async function declareEmployerAadhaar(id: string, status: 'verified' | 'r
   const { data } = await apiClient.patch(`/admin/employers/${id}/aadhaar`, { status, remarks });
   return data;
 }
+
+export async function reviewEmployerDocument(documentId: string, status: 'verified' | 'rejected' | 'pending', remarks?: string) {
+  const { data } = await apiClient.patch(`/admin/company-documents/${documentId}`, {
+    status,
+    admin_remarks: remarks,
+  });
+  return data;
+}

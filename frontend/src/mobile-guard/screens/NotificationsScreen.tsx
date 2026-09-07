@@ -1,7 +1,7 @@
 // NotificationsScreen — guard notifications (live: /me/notifications)
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Briefcase, Wallet, ShieldCheck, Info, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, Briefcase, Wallet, ShieldCheck, Info, CheckCheck, Loader2, RefreshCw } from 'lucide-react';
 import { listMyNotifications, markNotificationRead } from '../../services/notificationService';
 
 type Kind = 'job' | 'payment' | 'verification' | 'system';
@@ -13,6 +13,7 @@ interface NotificationItem {
   time: string;
   read: boolean;
   kind: Kind;
+  type: string;
 }
 
 const ICONS: Record<Kind, JSX.Element> = {
@@ -55,6 +56,7 @@ function mapNotification(n: any): NotificationItem {
     time: relativeTime(n.created_at),
     read: Boolean(n.is_read),
     kind: kindFromType(n.type),
+    type: n.type ?? '',
   };
 }
 
@@ -62,15 +64,22 @@ export default function NotificationsScreen() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const load = async (manual = false) => {
+    if (manual) setRefreshing(true); else setLoading(true);
     let active = true;
-    listMyNotifications()
-      .then((data) => { if (active) setItems((data ?? []).map(mapNotification)); })
-      .catch((e) => { if (active) setError(e?.response?.data?.message || e.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
+    try {
+      const data = await listMyNotifications();
+      if (active) { setItems((data ?? []).map(mapNotification)); setError(null); }
+    } catch (e: any) {
+      if (active) setError(e?.response?.data?.message || e.message);
+    } finally {
+      if (manual) setRefreshing(false); else setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
 
   const markRead = async (id: string) => {
     const target = items.find((n) => n.id === id);
@@ -103,12 +112,10 @@ export default function NotificationsScreen() {
             <h1 className="text-white font-bold text-xl mb-1">Notifications</h1>
             <p className="text-blue-200 text-xs">{unread} unread</p>
           </div>
-          {unread > 0 && (
-            <button onClick={markAllRead} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-2 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.12)' }}>
-              <CheckCheck size={13} /> Mark all read
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <button onClick={() => void load(true)} className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,0.12)' }}><RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} /> Refresh</button>
+            {unread > 0 && <button onClick={markAllRead} className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,0.12)' }}><CheckCheck size={13} /> Mark all read</button>}
+          </div>
         </div>
       </div>
 
@@ -128,9 +135,9 @@ export default function NotificationsScreen() {
         )}
 
         {!loading && !error && items.map((n, i) => (
-          <motion.button
+          <motion.div
             key={n.id}
-            onClick={() => markRead(n.id)}
+            onClick={() => void markRead(n.id)}
             className="w-full flex gap-3 items-start rounded-2xl p-4 text-left"
             style={{ background: n.read ? 'white' : '#f0f6ff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
             initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
@@ -146,8 +153,9 @@ export default function NotificationsScreen() {
               </div>
               <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
               <p className="text-xs text-gray-400 mt-1">{n.time}</p>
+              {n.type === 'associate_verification' && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
             </div>
-          </motion.button>
+          </motion.div>
         ))}
 
         {!loading && !error && items.length === 0 && (

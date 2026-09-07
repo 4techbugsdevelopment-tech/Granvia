@@ -13,6 +13,7 @@ import SupportScreen from './screens/SupportScreen';
 import MobilePlaceholder from './screens/MobilePlaceholder';
 import AadhaarMockTestScreen from './screens/AadhaarMockTestScreen';
 import AgreementScreen from './screens/AgreementScreen';
+import AcceptedJobsScreen from './screens/AcceptedJobsScreen';
 import { signOut } from '../services/authService';
 
 interface MobileAppProps {
@@ -41,6 +42,7 @@ const MORE_ITEMS = [
   { id: 'applications' as Screen, icon: <ClipboardList size={20} />, label: 'Applications' },
   { id: 'wallet' as Screen, icon: <Wallet size={20} />, label: 'Wallet' },
   { id: 'availability' as Screen, icon: <CalendarDays size={20} />, label: 'Availability' },
+  { id: 'accepted-jobs' as Screen, icon: <ClipboardList size={20} />, label: 'Accepted Jobs' },
   { id: 'notifications' as Screen, icon: <Bell size={20} />, label: 'Notifications' },
   { id: 'support' as Screen, icon: <LifeBuoy size={20} />, label: 'Support' },
   { id: 'agreement' as Screen, icon: <FileSignature size={20} />, label: 'Agreement' },
@@ -54,6 +56,12 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [screen]);
+
+  useEffect(() => {
+    const goToProfile = () => setScreen('profile');
+    window.addEventListener('granvia:navigate-profile', goToProfile);
+    return () => window.removeEventListener('granvia:navigate-profile', goToProfile);
+  }, []);
 
   const handleLogout = () => {
     signOut().finally(onLogout);
@@ -73,6 +81,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       case 'applications': return <ApplicationsScreen />;
       case 'wallet': return <WalletScreen />;
       case 'availability': return <AvailabilityScreen />;
+      case 'accepted-jobs': return <AcceptedJobsScreen />;
       case 'notifications': return <NotificationsScreen />;
       case 'support': return <SupportScreen />;
       case 'aadhaar-mock-test': return <AadhaarMockTestScreen />;

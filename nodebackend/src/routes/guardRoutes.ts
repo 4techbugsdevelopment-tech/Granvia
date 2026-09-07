@@ -12,6 +12,7 @@ import * as surepassTest from '../controllers/surepassTestController';
 import * as availability from '../controllers/availabilityController';
 import * as wallet from '../controllers/walletController';
 import * as withdrawal from '../controllers/withdrawalController';
+import * as offer from '../controllers/jobOfferController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -23,6 +24,8 @@ router.use('/guard', requireAuth, requireRole('guard'));
 router.post('/guard/jobs/:job/apply', asyncHandler(applications.apply));
 router.get('/guard/applications', asyncHandler(applications.mine));
 router.get('/guard/applications/job-ids', asyncHandler(applications.myAppliedJobIds));
+router.get('/guard/job-offers', asyncHandler(offer.guardIndex));
+router.patch('/guard/job-offers/:jobOffer', asyncHandler(offer.guardUpdate));
 
 router.get('/guard/availability', asyncHandler(availability.index));
 router.post('/guard/availability', asyncHandler(availability.store));

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, MapPin, Clock, CheckCircle, XCircle, Loader, AlertCircle, X, Map as MapIcon, ChevronRight } from 'lucide-react';
-import { listMyApplications } from '../../services/applicationService';
+import { listMyApplications, listMyJobOffers, updateMyJobOffer } from '../../services/applicationService';
 import JobRadiusMap from '../../components/map/JobRadiusMap';
 
 const STATUS_CONFIG: Record<string, { icon: JSX.Element; color: string; bg: string; label: string }> = {
@@ -10,6 +10,9 @@ const STATUS_CONFIG: Record<string, { icon: JSX.Element; color: string; bg: stri
   viewed: { icon: <Loader size={14} />, color: '#075985', bg: '#e0f2fe', label: 'Viewed' },
   shortlisted: { icon: <CheckCircle size={14} />, color: '#1d4ed8', bg: '#dbeafe', label: 'Shortlisted' },
   selected: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Selected' },
+  scheduled: { icon: <Loader size={14} />, color: '#075985', bg: '#e0f2fe', label: 'Interview Scheduled' },
+  hired: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Hired' },
+  not_hired: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Not Hired' },
   offer_sent: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Offer Sent' },
   accepted: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Accepted' },
   joined: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Joined' },
@@ -23,17 +26,37 @@ const FALLBACK_STATUS = { icon: <Loader size={14} />, color: '#64748b', bg: '#f1
 
 export default function ApplicationsScreen() {
   const [apps, setApps] = useState<any[]>([]);
+  const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
-    listMyApplications()
-      .then(data => setApps(data ?? []))
+    Promise.all([listMyApplications(), listMyJobOffers()])
+      .then(([applications, jobOffers]) => {
+        setApps(applications ?? []);
+        setOffers(jobOffers ?? []);
+      })
       .catch(e => setError(e?.response?.data?.message || e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const refresh = async () => {
+    const [applications, jobOffers] = await Promise.all([listMyApplications(), listMyJobOffers()]);
+    setApps(applications ?? []);
+    setOffers(jobOffers ?? []);
+  };
+
+  const respondToOffer = async (offerId: string, status: 'accepted' | 'declined') => {
+    setError(null);
+    try {
+      await updateMyJobOffer(offerId, status);
+      await refresh();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    }
+  };
 
   const closeDetails = () => {
     setSelectedApp(null);
@@ -84,6 +107,78 @@ export default function ApplicationsScreen() {
       )}
 
       <div className="px-4 mt-4 space-y-2.5">
+        {!loading && offers.length > 0 && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-sm font-bold text-slate-700">Job Offers</h2>
+              <span className="text-[11px] text-slate-400">{offers.length} offer{offers.length !== 1 ? 's' : ''}</span>
+            </div>
+            {offers.map((offer, i) => {
+              const job = offer.job ?? {};
+              const company = job.company?.company_name ?? '—';
+              const status = String(offer.status ?? '').toLowerCase();
+              const accepted = status === 'accepted';
+              const declined = status === 'declined';
+              return (
+                <motion.div
+                  key={offer.id}
+                  className="rounded-2xl p-4"
+                  style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 truncate">{job.title ?? 'Job offer'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{company}</p>
+                    </div>
+                    <span
+                      className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: accepted ? '#dcfce7' : declined ? '#fee2e2' : '#fef9c3', color: accepted ? '#166534' : declined ? '#7c2d12' : '#854d0e' }}
+                    >
+                      {accepted ? <CheckCircle size={14} /> : declined ? <XCircle size={14} /> : <Loader size={14} />}
+                      {accepted ? 'Accepted' : declined ? 'Declined' : 'Offer Sent'}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 text-xs text-gray-400 flex-wrap">
+                    {job.site?.site_name && <span className="flex items-center gap-1"><MapPin size={10} />{job.site.site_name}</span>}
+                    {job.shift_type && <span className="flex items-center gap-1"><Clock size={10} />{job.shift_type} Shift</span>}
+                    {job.salary_amount && (
+                      <span className="font-bold" style={{ color: '#166534' }}>
+                        ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo' : 'day'}
+                      </span>
+                    )}
+                  </div>
+                  {offer.terms_summary && <p className="mt-3 text-xs text-gray-500 leading-relaxed">{offer.terms_summary}</p>}
+                  <div className="mt-3 flex items-center gap-2">
+                    {!accepted && !declined ? (
+                      <>
+                        <button
+                          onClick={() => respondToOffer(offer.id, 'accepted')}
+                          className="flex-1 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-semibold"
+                        >
+                          Accept Offer
+                        </button>
+                        <button
+                          onClick={() => respondToOffer(offer.id, 'declined')}
+                          className="flex-1 py-2 rounded-xl bg-red-50 text-red-700 text-xs font-semibold"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex-1 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold text-center">
+                        {accepted ? 'Offer accepted. Agreement will appear next.' : 'Offer declined.'}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-16">
             <motion.div className="w-8 h-8 rounded-full border-2 border-blue-200 border-t-blue-600 mx-auto" animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }} />

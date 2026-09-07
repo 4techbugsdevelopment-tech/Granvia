@@ -35,6 +35,11 @@ const employerSchema = z.object({
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
 
+const companyDocumentStatusSchema = z.object({
+  status: z.enum(['verified', 'rejected', 'pending']),
+  admin_remarks: z.string().nullish(),
+});
+
 function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
   return {
     kind,
@@ -257,6 +262,27 @@ export async function destroy(req: Request, res: Response) {
   ]);
 
   return res.json({ message: 'Employer deleted successfully.' });
+}
+
+/** PATCH /admin/company-documents/:document */
+export async function updateCompanyDocumentStatus(req: Request, res: Response) {
+  const document = await prisma.companyDocument.findUnique({ where: { id: req.params.document } });
+  if (!document) throw new HttpError(404, 'Company document not found.');
+
+  const data = companyDocumentStatusSchema.parse(req.body);
+  const updated = await prisma.companyDocument.update({
+    where: { id: document.id },
+    data: {
+      verificationStatus: data.status,
+      ...(data.admin_remarks !== undefined ? { adminRemarks: data.admin_remarks } : {}),
+      ...(data.status === 'rejected' ? { rejectionReason: data.admin_remarks ?? null } : { rejectionReason: null }),
+    },
+  });
+
+  return res.json({
+    ...snakeKeys(updated),
+    download_url: urlFor('company-documents', updated.filePath),
+  });
 }
 
 function normalizeCodes<T extends { gst_number?: string | null; pan_number?: string | null }>(d: T): T {

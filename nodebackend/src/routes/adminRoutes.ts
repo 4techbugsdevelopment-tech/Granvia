@@ -13,6 +13,7 @@ import * as emailLog from '../controllers/emailLogController';
 import * as roles from '../controllers/roleController';
 import * as associateAgreement from '../controllers/adminAssociateAgreementController';
 import * as internalStaff from '../controllers/internalStaffController';
+import * as application from '../controllers/applicationController';
 
 const router = Router();
 
@@ -51,8 +52,12 @@ router.patch('/admin/jobs/:job/approve', asyncHandler(job.approve));
 router.patch('/admin/jobs/:job/reject', asyncHandler(job.reject));
 router.patch('/admin/jobs/:job/status', asyncHandler(job.adminUpdateStatus));
 router.delete('/admin/jobs/:job', asyncHandler(job.destroy));
+router.get('/admin/jobs/:job/applications', asyncHandler(application.adminJobApplications));
+router.patch('/admin/applications/:application/status', asyncHandler(application.adminUpdateStatus));
+router.post('/admin/applications/:application/schedule-interview', asyncHandler(application.scheduleInterview));
 
 router.get('/admin/employers', asyncHandler(adminEmployer.index));
+router.patch('/admin/company-documents/:document', asyncHandler(adminEmployer.updateCompanyDocumentStatus));
 router.post('/admin/employers', asyncHandler(adminEmployer.store));
 router.patch('/admin/employers/:employer', asyncHandler(adminEmployer.update));
 router.patch('/admin/employers/:employer/aadhaar', asyncHandler(aadhaarManual.adminDeclareEmployer));

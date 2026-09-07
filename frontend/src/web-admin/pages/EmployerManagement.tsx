@@ -11,6 +11,7 @@ import {
   listEmployerManagementData,
   updateEmployerFromAdmin,
   declareEmployerAadhaar,
+  reviewEmployerDocument,
 } from '../../services/adminEmployerService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
@@ -33,6 +34,7 @@ export default function EmployerManagement() {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [documentBusy, setDocumentBusy] = useState<string | null>(null);
 
   const { employers, companies, documents, sites, jobs, walletBalances } = data;
   const filtered = employers.filter(employer => {
@@ -100,6 +102,27 @@ export default function EmployerManagement() {
       setNotice('Employer deleted.');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to delete employer.'));
+    }
+  };
+
+  const reviewDocument = async (documentId: string, status: 'verified' | 'rejected') => {
+    const remarks = status === 'rejected' ? window.prompt('Rejection reason (required):') : undefined;
+    if (status === 'rejected' && !remarks?.trim()) return;
+    setDocumentBusy(documentId);
+    setError('');
+    try {
+      const updated = await reviewEmployerDocument(documentId, status, remarks?.trim());
+      setData(current => ({
+        ...current,
+        documents: current.documents.map(document => document.id === documentId
+          ? { ...document, status: status === 'verified' ? 'Verified' : 'Rejected', adminRemarks: remarks || '', rejectionReason: remarks || '', downloadUrl: updated.download_url }
+          : document),
+      }));
+      setNotice(`Employer document ${status}.`);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to update employer document.'));
+    } finally {
+      setDocumentBusy(null);
     }
   };
 
@@ -297,7 +320,11 @@ export default function EmployerManagement() {
                 ['City / State / Pincode', `${selected.city}, ${selected.state} ${selected.pincode}`],
               ]} />
               <InfoBlock title="Companies Under Employer" rows={companies.filter(company => company.employerId === selected.id).map(company => [company.companyName, `${company.accountStatus} / ${company.verificationStatus}`])} />
-              <DocumentBlock documents={documents.filter(doc => doc.employerId === selected.id)} />
+              <DocumentBlock
+                documents={documents.filter(doc => doc.employerId === selected.id)}
+                busyDocumentId={documentBusy}
+                onReview={reviewDocument}
+              />
               <InfoBlock title="Jobs & Sites" rows={[
                 ['Aadhaar Status', selected.aadhaarVerificationStatus],
                 ['Aadhaar Last Four', selected.aadhaarLastFour || 'Not available'],
@@ -318,7 +345,15 @@ export default function EmployerManagement() {
   );
 }
 
-function DocumentBlock({ documents }: { documents: EmployerManagementData['documents'] }) {
+function DocumentBlock({
+  documents,
+  busyDocumentId,
+  onReview,
+}: {
+  documents: EmployerManagementData['documents'];
+  busyDocumentId: string | null;
+  onReview: (documentId: string, status: 'verified' | 'rejected') => void;
+}) {
   return (
     <div className="rounded-2xl border border-gray-100 p-4">
       <h3 className="font-bold text-gray-900 mb-3">Documents</h3>
@@ -328,11 +363,15 @@ function DocumentBlock({ documents }: { documents: EmployerManagementData['docum
             <p className="text-sm font-medium text-gray-800 truncate">{doc.type}</p>
             <p className="text-xs text-gray-400 truncate">{doc.fileName} ({doc.status})</p>
           </div>
-          {doc.downloadUrl ? (
-            <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1 flex-shrink-0">
-              <ExternalLink size={13} /> View
-            </a>
-          ) : <span className="text-xs text-gray-400">Unavailable</span>}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {doc.downloadUrl ? (
+              <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
+                <ExternalLink size={13} /> View
+              </a>
+            ) : <span className="text-xs text-gray-400">Unavailable</span>}
+            {doc.status !== 'Verified' && <button disabled={busyDocumentId === doc.id} onClick={() => onReview(doc.id, 'verified')} className="table-action tone-green">Verify</button>}
+            {doc.status !== 'Rejected' && <button disabled={busyDocumentId === doc.id} onClick={() => onReview(doc.id, 'rejected')} className="table-action tone-red">Reject</button>}
+          </div>
         </div>
       ))}
     </div>

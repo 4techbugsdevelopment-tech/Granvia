@@ -95,6 +95,7 @@ export default function ProfileScreen() {
   const [docType, setDocType] = useState<GuardDocumentType>('id_proof');
   const [uploading, setUploading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
+  const [documentFeedback, setDocumentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [sheetViewport, setSheetViewport] = useState(() => ({
     height: window.visualViewport?.height ?? window.innerHeight,
     top: window.visualViewport?.offsetTop ?? 0,
@@ -146,6 +147,7 @@ export default function ProfileScreen() {
 
   const openDocs = () => {
     setDocError(null);
+    setDocumentFeedback(null);
     setDocsOpen(true);
     listMyDocuments().then(setDocuments).catch(e => setDocError(apiError(e, 'Could not load documents.')));
   };
@@ -162,11 +164,11 @@ export default function ProfileScreen() {
   const handleUpload = async (file: File | null) => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setDocError('File must be 10 MB or smaller.');
+      setDocumentFeedback({ type: 'error', message: 'File must be 10 MB or smaller.' });
       return;
     }
     if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
-      setDocError('Only PDF, PNG and JPG files are allowed.');
+      setDocumentFeedback({ type: 'error', message: 'Only PDF, PNG and JPG files are allowed.' });
       return;
     }
     setUploading(true);
@@ -175,8 +177,12 @@ export default function ProfileScreen() {
       const doc = await uploadMyDocument(docType, file);
       setDocuments(prev => [doc, ...prev]);
       await refreshProfile();
+      setDocumentFeedback({
+        type: 'success',
+        message: `${GUARD_DOCUMENT_LABELS[docType]} uploaded successfully. It is now pending verification.`,
+      });
     } catch (e: any) {
-      setDocError(apiError(e, 'Upload failed.'));
+      setDocumentFeedback({ type: 'error', message: apiError(e, 'Upload failed.') });
     } finally {
       setUploading(false);
     }
@@ -712,6 +718,46 @@ export default function ProfileScreen() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {documentFeedback && (
+          <motion.div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-5"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setDocumentFeedback(null)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-live="assertive"
+              className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl"
+              initial={{ scale: 0.82, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+              onClick={event => event.stopPropagation()}
+            >
+              <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${documentFeedback.type === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+                {documentFeedback.type === 'success'
+                  ? <CheckCircle size={42} style={{ color: '#22c55e' }} />
+                  : <AlertCircle size={42} style={{ color: '#dc2626' }} />}
+              </div>
+              <p className="text-lg font-bold text-gray-800">
+                {documentFeedback.type === 'success' ? 'Document Uploaded!' : 'Document Upload Failed'}
+              </p>
+              <p className={`mt-2 text-sm ${documentFeedback.type === 'success' ? 'text-gray-500' : 'text-red-600'}`}>
+                {documentFeedback.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => setDocumentFeedback(null)}
+                className="mt-5 w-full rounded-xl py-3 text-sm font-bold text-white"
+                style={{ background: documentFeedback.type === 'success' ? '#166534' : '#991b1b' }}
+              >
+                Continue
+              </button>
             </motion.div>
           </motion.div>
         )}

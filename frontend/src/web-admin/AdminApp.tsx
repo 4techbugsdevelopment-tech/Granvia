@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import Sidebar, { AdminPage } from './Sidebar';
 import Dashboard from './pages/Dashboard';
 import GuardList from './pages/GuardList';
@@ -17,6 +17,7 @@ import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
+import NotificationBell from '../components/NotificationBell';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -143,17 +144,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <motion.button
-              className="relative p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-              whileHover={{ scale: 1.05 }}
-            >
-              <Bell size={18} />
-              <motion.span
-                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            </motion.button>
+            <NotificationBell />
             <div className="flex items-center gap-2.5">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"

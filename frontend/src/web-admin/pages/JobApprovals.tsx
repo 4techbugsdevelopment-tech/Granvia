@@ -7,6 +7,7 @@ import {
 import { approveJob, createAdminJob, deleteAdminJob, listAllJobsForAdmin, rejectJob, updateAdminJob, updateAdminJobStatus } from '../../services/jobService';
 import { listEmployerManagementData } from '../../services/adminEmployerService';
 import { getErrorMessage } from '../../services/apiErrors';
+import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
 
@@ -63,6 +64,11 @@ export default function JobApprovals() {
   const [editingJob, setEditingJob]   = useState<any | null>(null);
   const [jobForm, setJobForm]         = useState({ ...EMPTY_JOB_FORM });
   const [formError, setFormError]     = useState('');
+  const [applicantsJob, setApplicantsJob] = useState<any | null>(null);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [interviewApp, setInterviewApp] = useState<any | null>(null);
+  const [interviewRemarks, setInterviewRemarks] = useState('');
+  const [savingInterview, setSavingInterview] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -158,6 +164,27 @@ export default function JobApprovals() {
   const toggleExpand = (id: string) =>
     setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
+  const openApplicants = async (job: any) => {
+    setApplicantsJob(job);
+    setApplicants(await listAdminJobApplications(job.id));
+  };
+
+  const changeApplicantStatus = async (applicationId: string, status: string, remarks?: string) => {
+    await updateAdminApplicationStatus(applicationId, status, remarks);
+    if (applicantsJob) setApplicants(await listAdminJobApplications(applicantsJob.id));
+  };
+
+  const scheduleInterview = async () => {
+    if (!interviewApp || !interviewRemarks.trim()) return;
+    setSavingInterview(true);
+    try {
+      await scheduleAdminApplicationInterview(interviewApp.id, interviewRemarks.trim());
+      setInterviewApp(null);
+      setInterviewRemarks('');
+      if (applicantsJob) setApplicants(await listAdminJobApplications(applicantsJob.id));
+    } finally { setSavingInterview(false); }
+  };
+
   const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter);
 
   // Count per tab
@@ -165,6 +192,15 @@ export default function JobApprovals() {
     acc[j.status] = (acc[j.status] ?? 0) + 1;
     return acc;
   }, {});
+
+  if (applicantsJob) {
+    return <motion.div className="p-4 md:p-6" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+      <button onClick={() => setApplicantsJob(null)} className="mb-3 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button>
+      <div className="mb-5 flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-gray-900">{applicantsJob.title}</h2><p className="text-sm text-gray-500">All associate partners who applied for this job</p></div><button onClick={() => void openApplicants(applicantsJob)} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-600 shadow-sm"><RefreshCw size={14} /> Refresh</button></div>
+      <div className="rounded-2xl bg-white p-4 shadow-sm"><div className="space-y-3">{applicants.map(app => <div key={app.id} className="rounded-xl border border-gray-100 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{app.guard_profiles?.full_name ?? 'Associate Partner'}</p><p className="text-xs text-gray-500">{app.guard_profiles?.mobile ?? ''} · Profile {app.guard_profiles?.verification_status ?? 'pending'}</p></div>{statusBadge(app.status)}</div><p className="mt-2 text-xs text-gray-500">Applied {app.applied_at ? new Date(app.applied_at).toLocaleString('en-IN') : ''}{app.notes ? ` · ${app.notes}` : ''}</p><div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void changeApplicantStatus(app.id, 'selected')} className="rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">Select</button><button onClick={() => { setInterviewApp(app); setInterviewRemarks(''); }} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">Schedule interview</button><button onClick={() => void changeApplicantStatus(app.id, 'hired')} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Hired</button><button onClick={() => void changeApplicantStatus(app.id, 'not_hired')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Not hired</button></div></div>)}{applicants.length === 0 && <p className="py-10 text-center text-sm text-gray-400">No applicants for this job.</p>}</div></div>
+      <AnimatePresence>{interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder="Enter interview date, time, location, or other remarks" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}</AnimatePresence>
+    </motion.div>;
+  }
 
   return (
     <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -305,6 +341,8 @@ export default function JobApprovals() {
                     ))}
                   </div>
                 )}
+
+                <button onClick={() => void openApplicants(job)} className="mb-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">View applicants</button>
 
                 {/* Expanded detail */}
                 <AnimatePresence>
