@@ -1,5 +1,5 @@
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
@@ -192,16 +192,21 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         onNavigate={id => setPage(id as EmployerPage)}
         onLogout={handleLogout}
         accent="#8b1a1a"
-        headerRight={aadhaarVerified && companies.length > 1 ? (
-          <select
-            value={activeCompany?.id ?? ''}
-            onChange={e => switchCompany(e.target.value)}
-            className="text-xs rounded-lg px-2 py-1.5 max-w-[7.5rem] outline-none"
-            style={{ border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f1e3c' }}
-          >
-            {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-          </select>
-        ) : undefined}
+        headerRight={(
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            {aadhaarVerified && companies.length > 1 && (
+              <select
+                value={activeCompany?.id ?? ''}
+                onChange={e => switchCompany(e.target.value)}
+                className="text-xs rounded-lg px-2 py-1.5 max-w-[7.5rem] outline-none"
+                style={{ border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f1e3c' }}
+              >
+                {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+              </select>
+            )}
+          </div>
+        )}
       >
         <AppLayoutProvider value="mobile">{renderPage()}</AppLayoutProvider>
       </MobileChrome>

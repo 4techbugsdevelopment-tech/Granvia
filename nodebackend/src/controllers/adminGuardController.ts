@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
 import { serializeUserRow } from '../serializers/userSerializer';
+import { deliverHiringDocumentsForVerifiedAssociate } from '../services/hiringDocumentDelivery';
 
 // Port of App\Http\Controllers\Admin\GuardController.
 
@@ -158,6 +159,9 @@ export async function update(req: Request, res: Response) {
   });
 
   const fresh = await prisma.user.findUnique({ where: { id: guard.id }, include: { guardProfile: true } });
+  if (data.verification_status === 'verified') {
+    await deliverHiringDocumentsForVerifiedAssociate(guard.id);
+  }
   return res.json(serializeUserRow(fresh as unknown as Record<string, unknown>));
 }
 

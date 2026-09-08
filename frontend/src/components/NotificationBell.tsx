@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, CheckCheck, RefreshCw, ShieldCheck } from 'lucide-react';
-import { listMyNotifications, markNotificationRead } from '../services/notificationService';
+import { downloadHiringDocument, listMyNotifications, markNotificationRead, type HiringDocument } from '../services/notificationService';
 
 interface NotificationBellProps {
   onCompleteVerification?: () => void;
@@ -55,11 +55,15 @@ export default function NotificationBell({ onCompleteVerification, dark = false 
             {items.length === 0 && <p className="px-3 py-8 text-center text-xs text-gray-400">No notifications</p>}
             {items.map(item => {
               const verification = item.type === 'associate_verification';
+              const documentType: HiringDocument | null = item.type?.startsWith('hiring_offer_letter:')
+                ? 'offer-letter'
+                : item.type?.startsWith('hiring_employment_agreement:') ? 'employment-agreement' : null;
               return <div key={item.id} onClick={() => void read(item)} className={`rounded-xl p-3 ${item.is_read ? '' : 'bg-blue-50'}`}>
                 <div className="flex gap-2">
                   {verification && <ShieldCheck size={16} className="mt-0.5 shrink-0 text-amber-700" />}
                   <div className="min-w-0"><p className="text-xs font-bold text-gray-900">{item.title}</p><p className="mt-1 text-xs leading-snug text-gray-600">{item.message}</p><p className="mt-1 text-[10px] text-gray-400">{item.created_at ? new Date(item.created_at).toLocaleString('en-IN') : ''}</p>
                     {verification && onCompleteVerification && <button onClick={(event) => { event.stopPropagation(); void read(item); onCompleteVerification(); }} className="mt-2 rounded-lg bg-[#0f1e3c] px-2.5 py-1.5 text-[11px] font-semibold text-white">Review profile</button>}
+                    {documentType && <button onClick={(event) => { event.stopPropagation(); void read(item); void downloadHiringDocument(documentType); }} className="mt-2 text-xs font-semibold text-blue-700 underline underline-offset-2">Click here to download {documentType === 'offer-letter' ? 'your offer letter' : 'the employment agreement'}</button>}
                   </div>
                 </div>
               </div>;

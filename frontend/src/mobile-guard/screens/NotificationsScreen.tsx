@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Bell, Briefcase, Wallet, ShieldCheck, Info, CheckCheck, Loader2, RefreshCw } from 'lucide-react';
-import { listMyNotifications, markNotificationRead } from '../../services/notificationService';
+import { downloadHiringDocument, listMyNotifications, markNotificationRead, type HiringDocument } from '../../services/notificationService';
 
 type Kind = 'job' | 'payment' | 'verification' | 'system';
 
@@ -14,6 +14,8 @@ interface NotificationItem {
   read: boolean;
   kind: Kind;
   type: string;
+  documentType: HiringDocument | null;
+  verificationRequired: boolean;
 }
 
 const ICONS: Record<Kind, JSX.Element> = {
@@ -57,6 +59,8 @@ function mapNotification(n: any): NotificationItem {
     read: Boolean(n.is_read),
     kind: kindFromType(n.type),
     type: n.type ?? '',
+    documentType: n.type?.startsWith('hiring_offer_letter:') ? 'offer-letter' : n.type?.startsWith('hiring_employment_agreement:') ? 'employment-agreement' : null,
+    verificationRequired: n.type?.startsWith('hiring_verification_required:'),
   };
 }
 
@@ -153,7 +157,8 @@ export default function NotificationsScreen() {
               </div>
               <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
               <p className="text-xs text-gray-400 mt-1">{n.time}</p>
-              {n.type === 'associate_verification' && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
+              {(n.type === 'associate_verification' || n.verificationRequired) && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
+              {n.documentType && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); void downloadHiringDocument(n.documentType as HiringDocument); }} className="mt-3 text-xs font-semibold text-blue-700 underline underline-offset-2">Click here to download {n.documentType === 'offer-letter' ? 'your offer letter' : 'the employment agreement'}</button>}
             </div>
           </motion.div>
         ))}

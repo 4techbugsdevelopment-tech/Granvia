@@ -4,6 +4,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
+import { deliverHiringDocumentsForApplication, notifyUnverifiedHiredApplication } from '../services/hiringDocumentDelivery';
 
 // Guard-facing application controller.
 // (employerIndex/updateStatus are wired when the employer/admin routes are ported.)
@@ -68,41 +69,52 @@ export async function apply(req: Request, res: Response) {
     where: { role: 'super_admin', accountStatus: 'active' },
     select: { id: true },
   });
-  const recipients = [...new Set([
-    job.employerUserId,
-    ...superAdmins.map((admin) => admin.id),
-    ...operationsScopes.map((scope) => scope.operationsUserId),
-  ])];
-  if (recipients.length) {
-    await prisma.notification.createMany({
-      data: recipients.map((userId) => ({
-        userId,
-        title: 'New application',
-        message: `${associateName} applied for ${job.title}.`,
-        type: 'application',
-      })),
-    });
-  }
+  // Application creation succeeds independently of notification delivery. A failed
+  // notification must not turn a completed application into a misleading 500.
+  try {
+    const recipients = [...new Set([
+      job.employerUserId,
+      ...superAdmins.map((admin) => admin.id),
+      ...operationsScopes.map((scope) => scope.operationsUserId),
+    ].filter((userId): userId is string => Boolean(userId)))];
+    if (recipients.length) {
+      await prisma.notification.createMany({
+        data: recipients.map((userId) => ({
+          userId,
+          title: 'New application',
+          message: `${associateName} applied for ${job.title}.`,
+          type: 'application',
+        })),
+      });
+    }
 
-  if (!isVerified) {
-    await prisma.notification.createMany({
-      data: [
-        ...new Set([job.employerUserId, ...superAdmins.map((admin) => admin.id)]),
-      ].map((userId) => ({
-        userId,
-        title: 'Unverified associate application',
-        message: `${associateName} is not verified and has applied for ${job.title}. Please review the associate profile before proceeding.`,
-        type: 'associate_verification',
-      })),
-    });
-    await prisma.notification.create({
-      data: {
-        userId: req.user!.id,
-        title: 'Complete verification to continue',
-        message: `You applied for ${job.title}. Complete your profile verification for further processing.`,
-        type: 'associate_verification',
-      },
-    });
+    if (!isVerified) {
+      const verificationRecipients = [...new Set([
+        job.employerUserId,
+        ...superAdmins.map((admin) => admin.id),
+      ].filter((userId): userId is string => Boolean(userId)))];
+      if (verificationRecipients.length) {
+        await prisma.notification.createMany({
+          data: verificationRecipients.map((userId) => ({
+            userId,
+            title: 'Unverified associate application',
+            message: `${associateName} is not verified and has applied for ${job.title}. Please review the associate profile before proceeding.`,
+            type: 'associate_verification',
+          })),
+        });
+      }
+      await prisma.notification.create({
+        data: {
+          userId: req.user!.id,
+          title: 'Complete verification to continue',
+          message: `You applied for ${job.title}. Complete your profile verification for further processing.`,
+          type: 'associate_verification',
+        },
+      });
+    }
+  } catch (error) {
+    // Keep the successful application response even if an ancillary notification fails.
+    console.warn('Application notification delivery failed', error);
   }
 
   return res.status(201).json(snakeKeys(application));
@@ -235,6 +247,10 @@ export async function updateStatus(req: Request, res: Response) {
         : `${name} was not selected for ${application.job.title}.`,
       data.status === 'hired' ? 'hiring_verification' : 'application',
     );
+    if (data.status === 'hired') {
+      await notifyUnverifiedHiredApplication(application.id);
+      await deliverHiringDocumentsForApplication(application.id);
+    }
   } else if (data.status !== 'applied') {
     await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
   }
@@ -266,6 +282,10 @@ export async function adminUpdateStatus(req: Request, res: Response) {
     const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
     const name = profile?.fullName || 'Associate Partner';
     await notifyApplicationParties(application, data.status === 'hired' ? 'Associate hired' : 'Interview outcome updated', data.status === 'hired' ? `${name} has been hired for ${application.job.title}. Verification status: ${profile?.verificationStatus ?? 'pending'}.` : `${name} was not selected for ${application.job.title}.`, data.status === 'hired' ? 'hiring_verification' : 'application');
+    if (data.status === 'hired') {
+      await notifyUnverifiedHiredApplication(application.id);
+      await deliverHiringDocumentsForApplication(application.id);
+    }
   } else if (data.status !== 'applied') {
     await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
   }

@@ -8,6 +8,7 @@ import * as notification from '../controllers/notificationController';
 import * as support from '../controllers/supportTicketController';
 import * as roles from '../controllers/roleController';
 import { env } from '../config/env';
+import * as hiringDocument from '../controllers/hiringDocumentController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -36,6 +37,7 @@ router.get('/me/roles', asyncHandler(roles.active));
 
 router.get('/me/notifications', asyncHandler(notification.index));
 router.patch('/me/notifications/:notification/read', asyncHandler(notification.markRead));
+router.get('/me/documents/:document', asyncHandler(hiringDocument.download));
 
 router.get('/me/support-tickets', asyncHandler(support.index));
 router.post('/me/support-tickets', asyncHandler(support.store));

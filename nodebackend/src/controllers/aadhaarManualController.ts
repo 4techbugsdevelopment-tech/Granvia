@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { deliverHiringDocumentsForVerifiedAssociate } from '../services/hiringDocumentDelivery';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
@@ -74,6 +75,7 @@ export async function employerDeclareAssociate(req: Request, res: Response) {
 
   const data = declSchema.parse(req.body);
   await setGuardAadhaar(guardUserId, data.status, 'manual_employer');
+  if (data.status === 'verified') await deliverHiringDocumentsForVerifiedAssociate(guardUserId);
 
   const profile = await prisma.guardProfile.findUnique({ where: { userId: guardUserId } });
   return res.json(snakeKeys(profile));

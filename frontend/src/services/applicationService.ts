@@ -1,7 +1,8 @@
 import { apiClient } from '../lib/apiClient';
 
 export async function applyForJob(jobId: string, coverNote?: string) {
-  const { data } = await apiClient.post(`/guard/jobs/${jobId}/apply`, { cover_note: coverNote });
+  // Keep an explicit JSON body when the apply form has no optional note.
+  const { data } = await apiClient.post(`/guard/jobs/${jobId}/apply`, { cover_note: coverNote ?? '' });
   return data;
 }
 

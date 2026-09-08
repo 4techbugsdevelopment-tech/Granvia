@@ -68,6 +68,19 @@ export default function JobSearch() {
       setApplySuccess(job.id);
       setTimeout(() => { setApplySuccess(null); setSelectedJob(null); }, 1500);
     } catch (e: any) {
+      // The application may have been persisted before a non-critical server-side
+      // notification failed. Re-read state before reporting the apply as failed.
+      try {
+        const applied = await listMyAppliedJobIds();
+        if (applied.has(job.id)) {
+          setAppliedIds(applied);
+          setApplySuccess(job.id);
+          setTimeout(() => { setApplySuccess(null); setSelectedJob(null); }, 1500);
+          return;
+        }
+      } catch {
+        // Preserve the original API error when reconciliation is unavailable.
+      }
       setApplyError(e.message);
     } finally {
       setApplyingId(null);
