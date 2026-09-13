@@ -147,6 +147,8 @@ model GuardProfile {
   languages                String?   @db.NVarChar(Max)
   experience               String?
   qualification            String?
+  dailyRate                Decimal?  @map("daily_rate") @db.Decimal(12, 2)
+  hourlyRate               Decimal?  @map("hourly_rate") @db.Decimal(12, 2)
   aadhaarStatus            String    @default("pending") @map("aadhaar_status")
   policeVerificationStatus String    @default("pending") @map("police_verification_status")
   verificationStatus       String    @default("pending") @map("verification_status")
@@ -472,6 +474,7 @@ model Payment {
   employerUserId String?   @map("employer_user_id") @db.NVarChar(36)
   jobId          String?   @map("job_id") @db.NVarChar(36)
   applicationId  String?   @map("application_id") @db.NVarChar(36)
+  attendanceId   String?   @map("attendance_id") @db.NVarChar(36)
   amount         Decimal   @default(0) @db.Decimal(12, 2)
   paymentMethod  String?   @map("payment_method")
   paymentStatus  String    @default("pending") @map("payment_status")
@@ -483,6 +486,7 @@ model Payment {
 
   @@index([employerUserId])
   @@index([guardUserId])
+  @@index([attendanceId])
   @@map("payments")
 }
 

@@ -42,12 +42,20 @@ export async function attendance(req: Request, res: Response) {
     }),
     prisma.attendanceRecord.count({ where: { attendanceDate: today } }),
     prisma.attendanceRecord.count({ where: { attendanceDate: today, outTime: null } }),
-    prisma.attendanceRecord.count({ where: { status: 'verified' } }),
+    prisma.attendanceRecord.count({ where: { status: { in: ['approved', 'verified'] } } }),
     prisma.attendanceRecord.count({ where: { status: 'pending_verification' } }),
   ]);
 
   const rows = snakeKeys(records) as Array<Record<string, unknown> & { guard_user_id?: string }>;
   const enriched = await attachGuardProfiles(rows);
+  const recordIds = records.map((record) => record.id);
+  const payments = recordIds.length
+    ? await prisma.payment.findMany({
+        where: { attendanceId: { in: recordIds } } as never,
+        select: { id: true, attendanceId: true, amount: true, paymentStatus: true, paymentDate: true },
+      })
+    : [];
+  const paymentsByAttendance = new Map(payments.map((payment) => [payment.attendanceId, payment]));
 
   return res.json({
     stats: {
@@ -56,7 +64,12 @@ export async function attendance(req: Request, res: Response) {
       verified,
       pending,
     },
-    records: enriched,
+    records: enriched.map((record) => ({
+      ...record,
+      settlement: paymentsByAttendance.get(record.id as string)
+        ? snakeKeys(paymentsByAttendance.get(record.id as string)!)
+        : null,
+    })),
   });
 }
 

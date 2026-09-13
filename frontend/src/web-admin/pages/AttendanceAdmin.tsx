@@ -1,12 +1,13 @@
 // Admin attendance overview (live: GET /admin/attendance)
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { PageHeader, StatTile, Table, Pill } from './_adminUi';
-import { getAdminAttendance, AdminAttendance } from '../../services/reportService';
+import { getAdminAttendance, AdminAttendance, updateAdminAttendanceStatus } from '../../services/reportService';
+import { getErrorMessage } from '../../services/apiErrors';
 
 const tone = (s: string) =>
-  s === 'verified' ? 'green' : s === 'pending_verification' ? 'amber' : s === 'rejected' ? 'red' : 'blue';
+  s === 'verified' || s === 'approved' ? 'green' : s === 'pending_verification' ? 'amber' : s === 'rejected' ? 'red' : 'blue';
 
 const statusLabel = (s: string) => (s === 'pending_verification' ? 'pending' : s);
 
@@ -45,15 +46,39 @@ export default function AttendanceAdmin() {
   const [data, setData] = useState<AdminAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     let active = true;
+    setLoading(true);
     getAdminAttendance()
       .then((d) => { if (active) setData(d); })
       .catch((e) => { if (active) setError(e?.response?.data?.message || e.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
+  };
+
+  useEffect(() => {
+    return load();
   }, []);
+
+  const decide = async (recordId: string, status: 'approved' | 'rejected') => {
+    const remarks = status === 'rejected' ? window.prompt('Rejection reason (required):') : undefined;
+    if (status === 'rejected' && !remarks?.trim()) return;
+    setActionBusy(recordId);
+    setError(null);
+    setNotice('');
+    try {
+      await updateAdminAttendanceStatus(recordId, status, remarks?.trim());
+      await getAdminAttendance().then(setData);
+      setNotice(status === 'approved' ? 'Attendance approved and settlement moved to processing.' : 'Attendance rejected.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to update attendance.'));
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   const stats = data?.stats;
   const records = data?.records ?? [];
@@ -61,6 +86,7 @@ export default function AttendanceAdmin() {
   return (
     <motion.div className="p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader title="Attendance" subtitle="Daily in/out logs across all sites" />
+      {notice && <div className="mb-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
       {loading && (
         <div className="text-center py-20 text-gray-400">
@@ -84,7 +110,7 @@ export default function AttendanceAdmin() {
             <StatTile label="Pending Verification" value={String(stats?.pending ?? 0)} color="#854d0e" />
           </div>
 
-          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in GPS', 'Out', 'Check-out GPS', 'Hours', 'Status']}>
+          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in GPS', 'Out', 'Check-out GPS', 'Hours', 'Status', 'Settlement', 'Actions']}>
             {records.map((r) => (
               <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                 <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard_profile?.full_name ?? '—'}</td>
@@ -102,10 +128,30 @@ export default function AttendanceAdmin() {
                   {r.checkout_method === 'automatic' && <div className="text-[10px] text-purple-600 mt-1">Auto checkout</div>}
                   {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Historical correction</div>}
                 </td>
+                <td className="px-4 py-3.5 text-sm">
+                  {r.settlement ? (
+                    <div>
+                      <div className="font-bold text-gray-900">Rs {Number(r.settlement.amount).toLocaleString('en-IN')}</div>
+                      <div className="text-xs text-blue-700 capitalize">{r.settlement.payment_status}</div>
+                    </div>
+                  ) : <span className="text-xs text-gray-400">Not settled</span>}
+                </td>
+                <td className="px-4 py-3.5">
+                  {r.status === 'pending_verification' ? (
+                    <div className="flex items-center gap-2">
+                      <button disabled={actionBusy === r.id} onClick={() => void decide(r.id, 'approved')} className="rounded-lg bg-green-50 p-2 text-green-700 disabled:opacity-50" title="Approve attendance">
+                        <CheckCircle size={16} />
+                      </button>
+                      <button disabled={actionBusy === r.id} onClick={() => void decide(r.id, 'rejected')} className="rounded-lg bg-red-50 p-2 text-red-700 disabled:opacity-50" title="Reject attendance">
+                        <XCircle size={16} />
+                      </button>
+                    </div>
+                  ) : <span className="text-xs text-gray-400">--</span>}
+                </td>
               </tr>
             ))}
             {records.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
+              <tr><td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
             )}
           </Table>
         </>

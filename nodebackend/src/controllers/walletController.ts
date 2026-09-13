@@ -188,6 +188,20 @@ export async function adminIndex(_req: Request, res: Response) {
       employer,
     };
   });
+
+  const guardIds = [...new Set(transactions.map((tx) => tx.guardUserId).filter(Boolean))] as string[];
+  const jobIds = [...new Set(transactions.map((tx) => tx.jobId).filter(Boolean))] as string[];
+  const [guards, jobs] = await Promise.all([
+    guardIds.length
+      ? prisma.user.findMany({ where: { id: { in: guardIds } }, select: { id: true, fullName: true, email: true } })
+      : Promise.resolve([]),
+    jobIds.length
+      ? prisma.jobPost.findMany({ where: { id: { in: jobIds } }, select: { id: true, title: true } })
+      : Promise.resolve([]),
+  ]);
+  const guardsById = new Map(guards.map((guard) => [guard.id, guard]));
+  const jobsById = new Map(jobs.map((job) => [job.id, job]));
+
   return res.json({
     totals: {
       balance: summaries.reduce((sum, wallet) => sum + wallet.balance, 0),
@@ -198,7 +212,11 @@ export async function adminIndex(_req: Request, res: Response) {
       total_debited: summaries.reduce((sum, wallet) => sum + wallet.total_debited, 0),
     },
     wallets: snakeKeys(summaries),
-    transactions: snakeKeys(transactions),
+    transactions: snakeKeys(transactions.map((tx) => ({
+      ...tx,
+      associate: tx.guardUserId ? guardsById.get(tx.guardUserId) ?? null : null,
+      job: tx.jobId ? jobsById.get(tx.jobId) ?? null : null,
+    }))),
   });
 }
 
@@ -245,42 +263,63 @@ export async function adminGrantCredit(req: Request, res: Response) {
 export async function guardShow(req: Request, res: Response) {
   const wallet = await syncAssociateWallet(req.user!.id);
   const available = Number(wallet.availableBalance);
+  const reserved = Number(wallet.reservedBalance);
   return res.json({
     balance_coins: available,
     balance_inr: available,
-    reserved_balance_inr: Number(wallet.reservedBalance),
+    processing_balance_inr: reserved,
+    reserved_balance_inr: reserved,
+    total_balance_inr: available + reserved,
     coin_value_inr: 1,
   });
 }
 
 export async function guardTransactions(req: Request, res: Response) {
-  const payments = await prisma.payment.findMany({
-    where: { guardUserId: req.user!.id, paymentStatus: 'completed' },
-    include: {
-      job: {
-        include: {
-          company: { select: { id: true, companyName: true } },
-          site: { select: { id: true, siteName: true, address: true, city: true, state: true, pincode: true } },
-        },
-      },
-    },
-    orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
+  const wallet = await syncAssociateWallet(req.user!.id);
+  const ledger = await prisma.associateWalletTransaction.findMany({
+    where: { walletId: wallet.id },
+    orderBy: { createdAt: 'desc' },
     take: 200,
   });
 
-  const jobIds = [...new Set(payments.map(payment => payment.jobId).filter(Boolean))] as string[];
-  const attendance = jobIds.length
+  const paymentIds = [...new Set(ledger
+    .filter((row) => row.referenceType === 'payment' && row.referenceId)
+    .map((row) => row.referenceId!))];
+
+  const payments = paymentIds.length
+    ? await prisma.payment.findMany({
+        where: { id: { in: paymentIds }, guardUserId: req.user!.id },
+        include: {
+          job: {
+            include: {
+              company: { select: { id: true, companyName: true } },
+              site: { select: { id: true, siteName: true, address: true, city: true, state: true, pincode: true } },
+            },
+          },
+        },
+      })
+    : [];
+  const paymentsById = new Map(payments.map((payment) => [payment.id, payment]));
+
+  const attendanceIds = [...new Set(payments.map(payment => payment.attendanceId).filter(Boolean))] as string[];
+  const attendance = attendanceIds.length
     ? await prisma.attendanceRecord.findMany({
         where: {
           guardUserId: req.user!.id,
-          jobId: { in: jobIds },
-          status: { in: ['approved', 'verified'] },
-          outTime: { not: null },
+          id: { in: attendanceIds },
         },
         orderBy: { attendanceDate: 'desc' },
         take: 500,
       })
     : [];
+
+  const sessionsByPayment = new Map<string, typeof attendance>();
+  const attendanceById = new Map(attendance.map((session) => [session.id, session]));
+  for (const payment of payments) {
+    if (!payment.attendanceId) continue;
+    const session = attendanceById.get(payment.attendanceId);
+    if (session) sessionsByPayment.set(payment.id, [session]);
+  }
 
   const sessionsByJob = new Map<string, typeof attendance>();
   for (const session of attendance) {
@@ -290,19 +329,23 @@ export async function guardTransactions(req: Request, res: Response) {
     sessionsByJob.set(session.jobId, sessions);
   }
 
-  const rows = payments.map(payment => {
-    const sessions = payment.jobId ? (sessionsByJob.get(payment.jobId) ?? []).slice(0, 31) : [];
+  const rows = ledger.map(row => {
+    const payment = row.referenceType === 'payment' && row.referenceId ? paymentsById.get(row.referenceId) : null;
+    const sessions = payment
+      ? (sessionsByPayment.get(payment.id) ?? (payment.jobId ? (sessionsByJob.get(payment.jobId) ?? []).slice(0, 31) : []))
+      : [];
     const totalHours = Math.round(sessions.reduce((sum, session) => sum + Number(session.totalHours ?? 0), 0) * 100) / 100;
-    const job = payment.job;
+    const job = payment?.job;
     return {
-      id: payment.id,
-      type: 'credit',
-      amount: Number(payment.amount),
-      purpose: job ? `Shift payout - ${job.title}` : 'Work payout',
-      status: payment.paymentStatus,
-      posted_at: payment.paymentDate ?? payment.createdAt,
-      payment_method: payment.paymentMethod,
-      reference: `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
+      id: row.id,
+      type: row.transactionType,
+      amount: Number(row.amount),
+      purpose: row.purpose ?? (job ? `Shift payout - ${job.title}` : 'Wallet transaction'),
+      status: row.status,
+      posted_at: row.createdAt,
+      payment_status: payment?.paymentStatus ?? row.status,
+      payment_method: payment?.paymentMethod,
+      reference: payment ? `PAY-${payment.id.slice(0, 8).toUpperCase()}` : row.referenceId,
       job: job ? snakeKeys(job) : null,
       work_summary: {
         shift_count: sessions.length,

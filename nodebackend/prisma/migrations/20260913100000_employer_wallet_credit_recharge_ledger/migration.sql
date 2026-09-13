@@ -18,3 +18,10 @@ ALTER TABLE wallet_transactions ADD balance_after DECIMAL(12, 2) NULL;
 ALTER TABLE wallet_transactions ADD metadata NVARCHAR(MAX) NULL;
 
 CREATE INDEX wallet_transactions_reference_type_reference_id_idx ON wallet_transactions(reference_type, reference_id);
+
+ALTER TABLE payments ADD attendance_id NVARCHAR(36) NULL;
+CREATE INDEX payments_attendance_id_idx ON payments(attendance_id);
+CREATE UNIQUE INDEX payments_attendance_id_unique ON payments(attendance_id) WHERE attendance_id IS NOT NULL;
+
+ALTER TABLE guard_profiles ADD daily_rate DECIMAL(12, 2) NULL;
+ALTER TABLE guard_profiles ADD hourly_rate DECIMAL(12, 2) NULL;

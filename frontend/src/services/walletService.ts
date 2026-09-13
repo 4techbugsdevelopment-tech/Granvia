@@ -51,7 +51,14 @@ export async function grantEmployerWalletCredit(employerId: string, amount: numb
 
 export async function getMyGuardWallet() {
   const { data } = await apiClient.get('/guard/wallet');
-  return data as { balance_coins: number; balance_inr: number; coin_value_inr: number };
+  return data as {
+    balance_coins: number;
+    balance_inr: number;
+    processing_balance_inr: number;
+    reserved_balance_inr: number;
+    total_balance_inr: number;
+    coin_value_inr: number;
+  };
 }
 
 export async function listMyGuardTransactions() {

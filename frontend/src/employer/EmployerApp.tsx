@@ -167,7 +167,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'companies':   return <CompaniesPage employer={employer} activeCompanyId={activeCompany?.id ?? null} onSwitch={switchCompany} key={refresh} onChanged={reload} />;
       case 'documents':   return aadhaarVerified && activeCompany ? <CompanyDocumentsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'sites':       return aadhaarVerified && activeCompany ? <SitesPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'post-job':    return activeCompany ? <JobFormPage employer={employer} company={activeCompany} key={refresh} onSaved={handleJobCreated} onBack={() => setPage('jobs')} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'post-job':    return activeCompany ? <JobFormPage employer={employer} company={activeCompany} key={refresh} onSaved={handleJobCreated} onBack={() => setPage('jobs')} onDeposit={() => setPage('wallet')} /> : <CompanyRequired onNavigate={setPage} />;
       case 'jobs':        return activeCompany ? <JobsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} onCreate={() => setPage('post-job')} /> : <CompanyRequired onNavigate={setPage} />;
       case 'applicants':  return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'interviews':  return activeCompany ? <InterviewsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
@@ -476,6 +476,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
   const [jobs, setJobs] = useState<any[]>([]);
   const [apps, setApps] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
+  const [showDepositAlert, setShowDepositAlert] = useState(false);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -499,6 +500,12 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
       setSites(s ?? []);
     }).finally(() => setLoading(false));
   }, [company?.id]);
+
+  useEffect(() => {
+    if (!loading && wallet && Number(wallet.deposit_balance ?? 0) < 10000) {
+      setShowDepositAlert(true);
+    }
+  }, [loading, wallet]);
 
   if (companies.length === 0) {
     return (
@@ -541,6 +548,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
         <MetricCard label="Pending Attendance"  value={pendingAttendance.length} icon={<CalendarCheck size={20} />} color="#854d0e" onClick={() => onNavigate('attendance')} />
         <MetricCard label="Pending Payments"    value={pendingPayments.length}   icon={<CreditCard size={20} />}    color="#7c2d12" onClick={() => onNavigate('payments')} />
         <MetricCard label="Wallet Balance"      value={`Rs ${wallet?.balance ?? 0}`} icon={<Wallet size={20} />} color="#065f46" onClick={() => onNavigate('wallet')} />
+        <MetricCard label="Deposited Balance"   value={`Rs ${wallet?.deposit_balance ?? 0}`} icon={<Wallet size={20} />} color="#0f766e" onClick={() => onNavigate('wallet')} />
         <MetricCard label="Closed Jobs"         value={jobs.filter(j => j.status === 'closed').length} icon={<XCircle size={20} />} color="#7c2d12" onClick={() => onNavigate('jobs')} />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1086,6 +1094,23 @@ function SuccessModal({ message, onClose }: { message: string; onClose: () => vo
         <h3 id="site-success-title" className="text-lg font-bold text-gray-900">Site added successfully</h3>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
       </div>
+      {showDepositAlert && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" onClick={() => setShowDepositAlert(false)}>
+          <motion.div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Deposit required</h3>
+                <p className="mt-2 text-sm text-gray-600">Your deposited wallet balance is below Rs 10,000. Please deposit at least Rs 10,000 to post jobs. Super Admin credit is separate and does not count for this requirement.</p>
+              </div>
+              <button onClick={() => setShowDepositAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setShowDepositAlert(false)} className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Later</button>
+              <button onClick={() => { setShowDepositAlert(false); onNavigate('wallet'); }} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Deposit</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1624,9 +1649,10 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
 // ── Post job ──────────────────────────────────────────────────────────────────
 
-function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employer: EmployerInfo; company: any; onSaved: () => void; onBack: () => void }) {
+function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit }: { employer: EmployerInfo; company: any; onSaved: () => void; onBack: () => void; onDeposit: () => void }) {
   const [sites, setSites] = useState<any[]>([]);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
+  const [wallet, setWallet] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [creatingSite, setCreatingSite] = useState(false);
   const [siteErrors, setSiteErrors] = useState<ValidationErrors>({});
@@ -1666,6 +1692,10 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
         setJob(current => current.guard_type ? current : { ...current, guard_type: rows[0]?.code ?? '' });
       })
       .catch(() => setAssociateTypes([]));
+  }, []);
+
+  useEffect(() => {
+    getEmployerWallet().then(setWallet).catch(() => setWallet(null));
   }, []);
 
   const saveSiteInline = async () => {
@@ -1717,6 +1747,11 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
 
   const saveJob = async () => {
     if (!job.site_id || !job.title || !job.guard_type || !job.salary_amount || !job.start_date) { alert('Select a site and complete title, associate type, salary and start date.'); return; }
+    if (!wallet || Number(wallet.deposit_balance ?? 0) < 10000) {
+      alert('Please deposit at least Rs 10,000 in your wallet before posting a job. Super Admin credit cannot be used for this minimum deposit requirement.');
+      onDeposit();
+      return;
+    }
     setSaving(true);
     try {
       await createJobPost({
@@ -1810,6 +1845,12 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
       {siteSuccessMessage && <SuccessModal message={siteSuccessMessage} onClose={() => setSiteSuccessMessage('')} />}
       <Card className="p-5">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Post New Job</h2>
+        {Number(wallet?.deposit_balance ?? 0) < 10000 && (
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Deposited wallet balance is below Rs 10,000. Deposit is required before posting a job.</span>
+            <button type="button" onClick={onDeposit} className="rounded-lg px-3 py-2 text-xs font-bold text-white" style={{ background: '#0f1e3c' }}>Deposit</button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Job Title" value={job.title} onChange={v => setJob({ ...job, title: v })} />
           <Sel label="Site / Location" value={job.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={v => setJob({ ...job, site_id: v })} />
@@ -2689,7 +2730,7 @@ function WalletPage() {
           <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} className="form-input" placeholder="Amount" />
           <input value={remarks} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Recharge note" />
           <button onClick={addBalance} disabled={busy} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
-            {busy ? 'Processing...' : 'Recharge'}
+            {busy ? 'Processing...' : 'Make Payment'}
           </button>
         </div>
       </Card>

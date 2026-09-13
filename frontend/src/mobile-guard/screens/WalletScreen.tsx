@@ -8,7 +8,7 @@ import { listMyWithdrawals, requestWithdrawal, type WithdrawalRow } from '../../
 export default function WalletScreen() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [amount, setAmount] = useState('');
-  const [wallet, setWallet] = useState({ balance_coins: 0, balance_inr: 0, coin_value_inr: 1 });
+  const [wallet, setWallet] = useState({ balance_coins: 0, balance_inr: 0, processing_balance_inr: 0, total_balance_inr: 0, coin_value_inr: 1 });
   const [transactions, setTransactions] = useState<any[]>([]);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +60,7 @@ export default function WalletScreen() {
           <Wallet size={14} /> Available Balance
         </div>
         <div className="text-3xl font-bold">{wallet.balance_coins.toLocaleString()} <span className="text-lg font-medium opacity-80">coins</span></div>
-        <div className="text-xs text-blue-100 mt-1">≈ ₹{wallet.balance_inr.toLocaleString()} · 1 coin = ₹{wallet.coin_value_inr}</div>
+        <div className="text-xs text-blue-100 mt-1">Processing: ₹{wallet.processing_balance_inr.toLocaleString('en-IN')} · Total: ₹{(wallet.total_balance_inr || wallet.balance_inr).toLocaleString('en-IN')} · 1 coin = ₹{wallet.coin_value_inr}</div>
         <button
           onClick={() => setWithdrawOpen(true)}
           className="mt-4 w-full py-3 rounded-2xl text-sm font-bold"
@@ -94,7 +94,7 @@ export default function WalletScreen() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{tx.purpose}</p>
-                  <p className="text-xs text-gray-400">{new Date(tx.posted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-xs text-gray-400">{new Date(tx.posted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {tx.status}</p>
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 ml-2">
@@ -105,7 +105,7 @@ export default function WalletScreen() {
               </div>
             </motion.div>
           ))}
-          {!loading && !error && transactions.length === 0 && <div className="text-center py-10 text-sm text-gray-400">No completed work payments yet.</div>}
+          {!loading && !error && transactions.length === 0 && <div className="text-center py-10 text-sm text-gray-400">No wallet statement yet.</div>}
         </div>
       </div>
 
@@ -137,7 +137,7 @@ export default function WalletScreen() {
 
                 <div className="rounded-2xl p-4 mb-4 flex items-center justify-between bg-green-50">
                   <div>
-                    <p className="text-xs text-green-700">Completed payment</p>
+                    <p className="text-xs text-green-700">{selectedTx.status === 'processing' ? 'Processing payment' : 'Completed payment'}</p>
                     <p className="text-sm font-semibold text-gray-800 mt-0.5">{new Date(selectedTx.posted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
                   <p className="text-2xl font-bold text-green-700">+{Number(selectedTx.amount).toLocaleString()} coins</p>
@@ -180,6 +180,7 @@ export default function WalletScreen() {
                 <div className="mt-4 text-xs text-gray-400 space-y-1">
                   <p>Payment method: {selectedTx.payment_method ?? '—'}</p>
                   <p>Status: {selectedTx.status}</p>
+                  {selectedTx.status === 'processing' && <p>This amount is credited to your processing balance and is awaiting payout processing.</p>}
                 </div>
               </div>
             </motion.div>

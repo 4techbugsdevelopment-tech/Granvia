@@ -28,6 +28,8 @@ export function toGuardView(user: any): Guard {
     skills: Array.isArray(p.skills) ? p.skills : [],
     languages: Array.isArray(p.languages) ? p.languages : [],
     experience: p.experience ?? '',
+    dailyRate: p.daily_rate != null ? String(p.daily_rate) : '',
+    hourlyRate: p.hourly_rate != null ? String(p.hourly_rate) : '',
     aadhaarStatus: title(p.aadhaar_status) as Guard['aadhaarStatus'],
     policeVerification: title(p.police_verification_status) as Guard['policeVerification'],
     bankDetails: p.bank_account_number ? { accountNumber: p.bank_account_number } : null,
@@ -59,6 +61,8 @@ export type CreateGuardInput = {
   skills?: string[];
   languages?: string[];
   experience?: string;
+  daily_rate?: number;
+  hourly_rate?: number;
   account_status?: 'active' | 'blocked';
 };
 

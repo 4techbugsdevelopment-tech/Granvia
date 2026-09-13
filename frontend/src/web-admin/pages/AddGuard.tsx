@@ -125,7 +125,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [form, setForm] = useState({
     fullName: '', mobile: '', email: '', password: '',
     profileType: '', gender: '', dob: '', address: '', city: '', state: '', pincode: '',
-    latitude: '', longitude: '', experience: '',
+    latitude: '', longitude: '', experience: '', dailyRate: '', hourlyRate: '',
     skills: [] as string[], languages: [] as string[], status: 'Active',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -242,6 +242,8 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         skills: form.skills,
         languages: form.languages,
         experience: form.experience.trim() || undefined,
+        daily_rate: form.dailyRate ? Number(form.dailyRate) : undefined,
+        hourly_rate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
         account_status: form.status === 'Blocked' ? 'blocked' : 'active',
       });
       setSuccess(true);
@@ -280,6 +282,8 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           <SelectInput label="Gender" value={form.gender} onChange={set('gender')} options={['Male', 'Female', 'Other']} required />
           <FloatingInput label="Date of Birth" value={form.dob} onChange={set('dob')} type="date" required error={errors.dob} />
           <FloatingInput label="Experience" value={form.experience} onChange={set('experience')} placeholder="e.g. 3 years" />
+          <FloatingInput label="Daily Rate" value={form.dailyRate} onChange={v => set('dailyRate')(v.replace(/[^\d.]/g, ''))} placeholder="e.g. 900" />
+          <FloatingInput label="Hourly Rate" value={form.hourlyRate} onChange={v => set('hourlyRate')(v.replace(/[^\d.]/g, ''))} placeholder="e.g. 120" />
         </div>
       ),
     },

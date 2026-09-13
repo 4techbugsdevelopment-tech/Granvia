@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
@@ -6,6 +7,7 @@ import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { autoCheckoutExpiredAttendance, scheduledCheckout } from '../services/attendanceAutoCheckout';
 import { env } from '../config/env';
+import { debitEmployerWalletForPayment } from './walletController';
 
 // Guard-facing attendance controller.
 
@@ -299,6 +301,167 @@ const updateAttendanceSchema = z.object({
   employer_remarks: z.string().max(2000).nullish(),
 });
 
+function payableAmount(record: {
+  totalHours: Prisma.Decimal | number | null;
+  job: { salaryAmount: Prisma.Decimal | null; paymentType: string | null } | null;
+  guardProfile: { dailyRate: Prisma.Decimal | null; hourlyRate: Prisma.Decimal | null } | null;
+}) {
+  const paymentType = String(record.job?.paymentType ?? 'Daily').toLowerCase();
+  if (paymentType.includes('hour')) {
+    const rate = Number(record.guardProfile?.hourlyRate ?? record.job?.salaryAmount ?? 0);
+    if (rate <= 0) throw new HttpError(422, 'Associate hourly rate or job hourly amount is required before attendance can be settled.');
+    const hours = Number(record.totalHours ?? 0);
+    return Math.round(rate * hours * 100) / 100;
+  }
+  const rate = Number(record.guardProfile?.dailyRate ?? record.job?.salaryAmount ?? 0);
+  if (rate <= 0) throw new HttpError(422, 'Associate daily rate or job salary/payment amount is required before attendance can be settled.');
+  return Math.round(rate * 100) / 100;
+}
+
+async function notifyRole(role: string, title: string, message: string, type = 'attendance_settlement') {
+  const users = await prisma.user.findMany({ where: { role, accountStatus: 'active' }, select: { id: true } });
+  if (!users.length) return;
+  await prisma.notification.createMany({ data: users.map((user) => ({ userId: user.id, title, message, type })) });
+}
+
+async function decideAttendance(recordId: string, actorId: string, actorRole: 'employer' | 'super_admin', data: z.infer<typeof updateAttendanceSchema>) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const record = await tx.attendanceRecord.findUnique({
+      where: { id: recordId },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            salaryAmount: true,
+            paymentType: true,
+          },
+        },
+      },
+    });
+    if (!record) throw new HttpError(404, 'Not found.');
+    if (actorRole === 'employer' && record.employerUserId !== actorId) throw new HttpError(403, 'Forbidden.');
+
+    if (!record.inTime || !record.outTime || record.totalHours == null || Number(record.totalHours) <= 0) {
+      throw new HttpError(422, 'Only completed attendance with valid hours can be approved or rejected.');
+    }
+    if (['approved', 'verified'].includes(record.status)) {
+      throw new HttpError(422, 'This attendance is already approved.');
+    }
+    if (record.status === 'rejected') {
+      throw new HttpError(422, 'This attendance is already rejected. Ask the associate to edit and resubmit it.');
+    }
+    if (data.status === 'rejected' && !data.employer_remarks?.trim()) {
+      throw new HttpError(422, 'Remarks are required when rejecting attendance.');
+    }
+
+    if (data.status === 'rejected') {
+      return tx.attendanceRecord.update({
+        where: { id: record.id },
+        data: {
+          status: 'rejected',
+          employerRemarks: data.employer_remarks!.trim(),
+        },
+      });
+    }
+
+    if (!record.employerUserId) throw new HttpError(422, 'Attendance is not linked to an employer.');
+    if (!record.jobId || !record.job) throw new HttpError(422, 'Attendance is not linked to a payable job.');
+
+    const existingPayment = await tx.payment.findFirst({
+      where: { attendanceId: record.id, paymentStatus: { in: ['pending', 'otp_sent', 'processing', 'completed'] } } as never,
+    });
+    if (existingPayment) throw new HttpError(409, 'This attendance already has a settlement record.');
+
+    const guardProfile = await tx.guardProfile.findUnique({
+      where: { userId: record.guardUserId },
+      select: { dailyRate: true, hourlyRate: true },
+    });
+    const amount = payableAmount({ ...record, guardProfile });
+    const payment = await tx.payment.create({
+      data: {
+        guardUserId: record.guardUserId,
+        employerUserId: record.employerUserId,
+        jobId: record.jobId,
+        attendanceId: record.id,
+        amount,
+        paymentMethod: 'wallet_attendance',
+        paymentStatus: 'processing',
+        paymentDate: new Date(),
+      } as never,
+    });
+
+    await debitEmployerWalletForPayment(tx, {
+      employerUserId: record.employerUserId,
+      amount,
+      paymentId: payment.id,
+      jobId: record.jobId,
+      guardUserId: record.guardUserId,
+      purpose: `Attendance settlement - ${record.job.title}`,
+      metadata: {
+        attendance_id: record.id,
+        attendance_date: record.attendanceDate.toISOString(),
+        approved_by: actorId,
+        approved_by_role: actorRole,
+        payment_type: record.job.paymentType,
+        total_hours: Number(record.totalHours),
+      },
+    });
+
+    const associateWallet = await tx.associateWallet.upsert({
+      where: { guardUserId: record.guardUserId },
+      create: { guardUserId: record.guardUserId },
+      update: {},
+    });
+    await tx.associateWallet.update({
+      where: { id: associateWallet.id },
+      data: { reservedBalance: { increment: amount } },
+    });
+    await tx.associateWalletTransaction.create({
+      data: {
+        walletId: associateWallet.id,
+        transactionType: 'credit',
+        amount,
+        purpose: `Processing attendance settlement - ${record.job.title}`,
+        status: 'processing',
+        referenceType: 'payment',
+        referenceId: payment.id,
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: record.guardUserId,
+        title: 'Attendance approved',
+        message: `Rs ${amount.toLocaleString('en-IN')} is now processing for ${record.job.title}.`,
+        type: 'attendance_settlement',
+      },
+    });
+    await tx.notification.create({
+      data: {
+        userId: record.employerUserId,
+        title: 'Wallet debited',
+        message: `Rs ${amount.toLocaleString('en-IN')} was debited for approved attendance on ${record.job.title}.`,
+        type: 'attendance_settlement',
+      },
+    });
+
+    return tx.attendanceRecord.update({
+      where: { id: record.id },
+      data: {
+        status: 'approved',
+        employerRemarks: data.employer_remarks?.trim() || `Approved by ${actorRole === 'super_admin' ? 'Super Admin' : 'employer'}`,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  if (data.status === 'approved') {
+    await notifyRole('super_admin', 'Associate transfer processing', 'A verified attendance settlement is ready for Associate payout review.');
+  }
+
+  return updated;
+}
+
 /** GET /employer/attendance */
 export async function employerIndex(req: Request, res: Response) {
   await autoCheckoutExpiredAttendance();
@@ -315,30 +478,14 @@ export async function employerIndex(req: Request, res: Response) {
 
 /** PATCH /employer/attendance/:record/status */
 export async function updateStatus(req: Request, res: Response) {
-  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record } });
-  if (!record) throw new HttpError(404, 'Not found.');
-  if (record.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
-
   const data = updateAttendanceSchema.parse(req.body);
-  if (!record.inTime || !record.outTime || record.totalHours == null || Number(record.totalHours) <= 0) {
-    throw new HttpError(422, 'Only completed attendance with valid hours can be approved or rejected.');
-  }
-  if (['approved', 'verified'].includes(record.status)) {
-    throw new HttpError(422, 'This attendance is already approved.');
-  }
-  if (record.status === 'rejected') {
-    throw new HttpError(422, 'This attendance is already rejected. Ask the associate to edit and resubmit it.');
-  }
-  if (data.status === 'rejected' && !data.employer_remarks?.trim()) {
-    throw new HttpError(422, 'Remarks are required when rejecting attendance.');
-  }
+  const updated = await decideAttendance(req.params.record, req.user!.id, 'employer', data);
+  return res.json(snakeKeys(updated));
+}
 
-  const updated = await prisma.attendanceRecord.update({
-    where: { id: record.id },
-    data: {
-      status: data.status,
-      employerRemarks: data.employer_remarks?.trim() || (data.status === 'approved' ? 'Approved by employer' : null),
-    },
-  });
+/** PATCH /admin/attendance/:record/status */
+export async function adminUpdateStatus(req: Request, res: Response) {
+  const data = updateAttendanceSchema.parse(req.body);
+  const updated = await decideAttendance(req.params.record, req.user!.id, 'super_admin', data);
   return res.json(snakeKeys(updated));
 }

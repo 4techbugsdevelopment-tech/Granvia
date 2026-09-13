@@ -23,6 +23,8 @@ export type Guard = {
   skills: string[];
   languages: string[];
   experience: string;
+  dailyRate: string;
+  hourlyRate: string;
   aadhaarStatus: VerificationStatus;
   policeVerification: VerificationStatus;
   bankDetails: object | null;

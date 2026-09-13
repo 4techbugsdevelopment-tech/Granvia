@@ -38,6 +38,7 @@ export type AdminAttendanceRecord = {
   checkout_method: string | null;
   total_hours: number | null;
   status: string;
+  settlement: { id: string; amount: number | string; payment_status: string; payment_date: string | null } | null;
 };
 
 export type AdminAttendance = {
@@ -47,6 +48,14 @@ export type AdminAttendance = {
 
 export async function getAdminAttendance(): Promise<AdminAttendance> {
   const { data } = await apiClient.get('/admin/attendance');
+  return data;
+}
+
+export async function updateAdminAttendanceStatus(recordId: string, status: 'approved' | 'rejected', remarks?: string) {
+  const { data } = await apiClient.patch(`/admin/attendance/${recordId}/status`, {
+    status,
+    employer_remarks: remarks,
+  });
   return data;
 }
 

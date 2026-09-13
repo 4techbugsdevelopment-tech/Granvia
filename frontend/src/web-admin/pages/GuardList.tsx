@@ -27,7 +27,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [editingGuard, setEditingGuard] = useState(false);
   const [guardSaving, setGuardSaving] = useState(false);
-  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', profileType: '', city: '', state: '', address: '' });
+  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', profileType: '', city: '', state: '', address: '', dailyRate: '', hourlyRate: '' });
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
 
   useEffect(() => {
@@ -100,6 +100,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     setEditDraft({
       fullName: guard.fullName, email: guard.email, mobile: guard.mobile,
       profileType: guard.profileType, city: guard.city, state: guard.state, address: guard.address,
+      dailyRate: guard.dailyRate, hourlyRate: guard.hourlyRate,
     });
     setEditingGuard(true);
   };
@@ -112,6 +113,8 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       const updated = await updateGuard(selectedGuard.id, {
         full_name: editDraft.fullName.trim(), email: editDraft.email.trim().toLowerCase(), mobile: editDraft.mobile.trim(),
         profile_type: editDraft.profileType, city: editDraft.city.trim(), state: editDraft.state.trim(), address: editDraft.address.trim(),
+        daily_rate: editDraft.dailyRate ? Number(editDraft.dailyRate) : undefined,
+        hourly_rate: editDraft.hourlyRate ? Number(editDraft.hourlyRate) : undefined,
       });
       setGuards(current => current.map(guard => guard.id === updated.id ? updated : guard));
       setSelectedGuard(updated);
@@ -427,13 +430,13 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-gray-100">
                   {([ 
                     ['Full Name', 'fullName'], ['Email', 'email'], ['Mobile', 'mobile'],
-                    ['City', 'city'], ['State', 'state'], ['Address', 'address'],
+                    ['City', 'city'], ['State', 'state'], ['Address', 'address'], ['Daily Rate', 'dailyRate'], ['Hourly Rate', 'hourlyRate'],
                   ] as const).map(([label, key]) => (
                     <label key={key} className="block">
                       <span className="form-label">{label}</span>
                       <input
                         value={editDraft[key]}
-                        onChange={event => setEditDraft(current => ({ ...current, [key]: key === 'mobile' ? event.target.value.replace(/\D/g, '').slice(0, 10) : event.target.value }))}
+                        onChange={event => setEditDraft(current => ({ ...current, [key]: key === 'mobile' ? event.target.value.replace(/\D/g, '').slice(0, 10) : key === 'dailyRate' || key === 'hourlyRate' ? event.target.value.replace(/[^\d.]/g, '') : event.target.value }))}
                         className="form-input"
                       />
                     </label>
@@ -462,6 +465,8 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                   { label: 'Associate Type', value: selectedGuard.profileTypeLabel },
                   { label: 'Date of Birth', value: selectedGuard.dob },
                   { label: 'Experience', value: selectedGuard.experience },
+                  { label: 'Daily Rate', value: selectedGuard.dailyRate ? `Rs ${selectedGuard.dailyRate}` : 'Not set' },
+                  { label: 'Hourly Rate', value: selectedGuard.hourlyRate ? `Rs ${selectedGuard.hourlyRate}` : 'Not set' },
                   { label: 'City', value: selectedGuard.city },
                   { label: 'State', value: selectedGuard.state },
                   { label: 'Address', value: selectedGuard.address },

@@ -52,6 +52,7 @@ const updateSchema = z.object({ company_id: z.string().uuid(), title: z.string()
 
 const companySelect = { company: { select: { id: true, companyName: true } } };
 const siteSelect = { site: { select: { id: true, siteName: true, city: true, state: true } } };
+const MIN_EMPLOYER_DEPOSIT_BALANCE = 10000;
 
 async function assertActiveAssociateType(code: string) {
   const row = await prisma.associateType.findFirst({ where: { code, status: 'active' }, select: { id: true } });
@@ -73,6 +74,11 @@ export async function mine(req: Request, res: Response) {
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
   await assertActiveAssociateType(data.guard_type);
+  const wallet = await prisma.employerWallet.findUnique({ where: { employerUserId: req.user!.id } });
+  if (!wallet || Number(wallet.depositBalance) < MIN_EMPLOYER_DEPOSIT_BALANCE) {
+    throw new HttpError(422, `Please deposit at least INR ${MIN_EMPLOYER_DEPOSIT_BALANCE.toLocaleString('en-IN')} in your wallet before posting a job. Super Admin credit cannot be used for this minimum deposit requirement.`);
+  }
+
   const company = await prisma.employerCompany.findFirst({
     where: { id: data.company_id, employerUserId: req.user!.id },
   });

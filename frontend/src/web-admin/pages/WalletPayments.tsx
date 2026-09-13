@@ -133,11 +133,15 @@ export default function WalletPayments() {
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-gray-900 mb-3">Recent Platform Transactions</h2>
-        <Table headers={['Txn ID', 'Date', 'Purpose', 'Type', 'Source', 'Amount', 'Balance', 'Status']}>
+        <Table headers={['Txn ID', 'Date', 'Associate / Job', 'Purpose', 'Type', 'Source', 'Amount', 'Balance', 'Status']}>
           {data?.transactions.map(tx => (
             <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50/60">
               <td className="px-4 py-3.5 text-xs font-mono font-bold" style={{ color: '#8b1a1a' }}>{String(tx.id).slice(0, 8)}</td>
               <td className="px-4 py-3.5 text-xs text-gray-500">{new Date(tx.posted_at || tx.created_at).toLocaleString('en-IN')}</td>
+              <td className="px-4 py-3.5">
+                <div className="text-sm font-semibold text-gray-900">{tx.associate?.full_name || '--'}</div>
+                <div className="text-xs text-gray-400">{tx.job?.title || '--'}</div>
+              </td>
               <td className="px-4 py-3.5 text-sm text-gray-700">{tx.purpose}</td>
               <td className="px-4 py-3.5">
                 <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: tx.transaction_type === 'credit' ? '#166534' : '#7c2d12' }}>

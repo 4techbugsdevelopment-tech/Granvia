@@ -27,6 +27,8 @@ const guardSchema = z.object({
   skills: z.array(z.string()).nullish(),
   languages: z.array(z.string()).nullish(),
   experience: z.string().nullish(),
+  daily_rate: z.coerce.number().positive().nullish(),
+  hourly_rate: z.coerce.number().positive().nullish(),
   verification_status: z.enum(['pending', 'verified', 'rejected']).nullish(),
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
@@ -68,6 +70,8 @@ function guardProfileWrite(d: Partial<z.infer<typeof guardSchema>>) {
   pass('skills', 'skills', true);
   pass('languages', 'languages', true);
   pass('experience', 'experience');
+  pass('daily_rate', 'dailyRate');
+  pass('hourly_rate', 'hourlyRate');
   pass('verification_status', 'verificationStatus');
   return out;
 }

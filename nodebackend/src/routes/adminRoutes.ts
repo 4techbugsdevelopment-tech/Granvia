@@ -16,6 +16,7 @@ import * as associateAgreement from '../controllers/adminAssociateAgreementContr
 import * as internalStaff from '../controllers/internalStaffController';
 import * as application from '../controllers/applicationController';
 import * as wallet from '../controllers/walletController';
+import * as attendance from '../controllers/attendanceController';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.post('/admin/guards/:guard/agreement/:agreement/supersede', asyncHandler(
 router.get('/admin/reports/counts', asyncHandler(report.adminCounts));
 router.get('/admin/reports/analytics', asyncHandler(adminReport.analytics));
 router.get('/admin/attendance', asyncHandler(adminReport.attendance));
+router.patch('/admin/attendance/:record/status', asyncHandler(attendance.adminUpdateStatus));
 router.get('/admin/hiring', asyncHandler(adminReport.hiring));
 router.get('/admin/email-logs', asyncHandler(emailLog.index));
 router.get('/admin/wallets', asyncHandler(wallet.adminIndex));
