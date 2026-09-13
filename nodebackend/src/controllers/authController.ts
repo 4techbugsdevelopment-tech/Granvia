@@ -49,6 +49,7 @@ const registerGuardSchema = z.object({
   mobile: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8),
+  profile_type: z.string().min(1),
   gender: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -200,6 +201,14 @@ export async function registerGuard(req: Request, res: Response) {
   const data = registerGuardSchema.parse(req.body);
   await assertEmailAvailable(data.email);
   await assertMobileAvailable(data.mobile);
+  const associateType = await prisma.associateType.findFirst({
+    where: { code: data.profile_type, status: 'active' },
+  });
+  if (!associateType) {
+    throw new HttpError(422, 'Select a valid associate type.', {
+      errors: { profile_type: ['Select a valid associate type.'] },
+    });
+  }
 
   let user;
   try {
@@ -211,7 +220,7 @@ export async function registerGuard(req: Request, res: Response) {
           mobile: data.mobile,
           password: await hashPassword(data.password),
           role: 'guard',
-          profileType: 'guard',
+          profileType: associateType.code,
           accountStatus: 'active',
         },
       });

@@ -16,6 +16,14 @@ interface NotificationItem {
   type: string;
   documentType: HiringDocument | null;
   verificationRequired: boolean;
+  employerDetails: EmployerNotificationDetails | null;
+}
+
+interface EmployerNotificationDetails {
+  employer: string;
+  address: string;
+  mapLink: string;
+  message: string;
 }
 
 const ICONS: Record<Kind, JSX.Element> = {
@@ -50,6 +58,23 @@ function relativeTime(iso?: string): string {
   return d === 1 ? '1 day ago' : `${d} days ago`;
 }
 
+function lineValue(message: string, label: string): string {
+  const line = message.split(/\r?\n/).find((entry) => entry.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+  return line ? line.slice(label.length + 1).trim() : '';
+}
+
+function employerDetailsFromNotification(n: any): EmployerNotificationDetails | null {
+  const type = String(n.type ?? '');
+  const message = String(n.message ?? n.body ?? '');
+  if (!type.startsWith('interview_scheduled')) return null;
+  return {
+    employer: lineValue(message, 'Employer') || 'Employer',
+    address: lineValue(message, 'Address') || 'Address not available',
+    mapLink: lineValue(message, 'Google Maps'),
+    message,
+  };
+}
+
 function mapNotification(n: any): NotificationItem {
   return {
     id: n.id,
@@ -61,6 +86,7 @@ function mapNotification(n: any): NotificationItem {
     type: n.type ?? '',
     documentType: n.type?.startsWith('hiring_offer_letter:') ? 'offer-letter' : n.type?.startsWith('hiring_employment_agreement:') ? 'employment-agreement' : null,
     verificationRequired: n.type?.startsWith('hiring_verification_required:'),
+    employerDetails: employerDetailsFromNotification(n),
   };
 }
 
@@ -69,6 +95,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [employerDetails, setEmployerDetails] = useState<EmployerNotificationDetails | null>(null);
 
   const load = async (manual = false) => {
     if (manual) setRefreshing(true); else setLoading(true);
@@ -157,6 +184,7 @@ export default function NotificationsScreen() {
               </div>
               <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
               <p className="text-xs text-gray-400 mt-1">{n.time}</p>
+              {n.employerDetails && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); setEmployerDetails(n.employerDetails); }} className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">View employer details</button>}
               {(n.type === 'associate_verification' || n.verificationRequired) && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
               {n.documentType && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); void downloadHiringDocument(n.documentType as HiringDocument); }} className="mt-3 text-xs font-semibold text-blue-700 underline underline-offset-2">Click here to download {n.documentType === 'offer-letter' ? 'your offer letter' : 'the employment agreement'}</button>}
             </div>
@@ -170,6 +198,35 @@ export default function NotificationsScreen() {
           </div>
         )}
       </div>
+
+      {employerDetails && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" onClick={() => setEmployerDetails(null)}>
+          <motion.div
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-gray-900">Employer details</h2>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-start justify-between gap-4 rounded-xl bg-gray-50 p-3">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Employer</span>
+                <span className="text-right text-sm font-semibold text-gray-900">{employerDetails.employer}</span>
+              </div>
+              <div className="flex items-start justify-between gap-4 rounded-xl bg-gray-50 p-3">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Address</span>
+                <span className="text-right text-sm font-semibold text-gray-900">{employerDetails.address}</span>
+              </div>
+              {employerDetails.mapLink && (
+                <a href={employerDetails.mapLink} target="_blank" rel="noreferrer" className="block rounded-xl bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700">
+                  Open Google Maps
+                </a>
+              )}
+            </div>
+            <button onClick={() => setEmployerDetails(null)} className="mt-5 w-full rounded-xl bg-[#0f1e3c] px-4 py-3 text-sm font-semibold text-white">Close</button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

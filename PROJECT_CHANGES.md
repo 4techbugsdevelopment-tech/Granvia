@@ -30,7 +30,7 @@
 | Integration | Status |
 |---|---|
 | Aadhaar verification API (client-provided) | **Mocked.** Real flow is a self-generated 6-digit OTP emailed via Laravel SMTP (`AadhaarVerificationController.php`, `AadhaarOtpMail`). Returns `dev_otp` in debug mode. Employer-only; no guard Aadhaar flow. No external Aadhaar provider called. |
-| Google Maps API (client-provided) | **Not wired.** Map system uses Leaflet (`VITE_MAP_PROVIDER=leaflet`); Google branch in `frontend/src/components/map/MapView.tsx` is a commented stub. `VITE_GOOGLE_MAPS_API_KEY` is an empty placeholder in `frontend/.env.example`. |
+| Google Maps API (client-provided) | **Wired.** Shared map system renders Google Maps via `frontend/src/components/map/google/*`; paste the browser key as `VITE_GOOGLE_MAPS_API_KEY` in `frontend/.env`. |
 | Payment Gateway (client-provided) | **Absent.** `VITE_PAYMENT_GATEWAY_PUBLIC_KEY` placeholder only; no gateway SDK in either `package.json` or `composer.json`; no charge/withdraw endpoints. |
 | SMS OTP API (client-provided) | **Absent.** No SMS provider anywhere. Email works (Laravel mailer: Aadhaar OTP, welcome mail, email verification). |
 
@@ -52,7 +52,7 @@
 ### Guard panel
 - [x] Job search (text + day/night shift filter) with live API data — `frontend/src/mobile-guard/screens/JobSearch.tsx`, `GET /api/jobs`
 - [x] Apply for job + duplicate-application guard — `POST /api/guard/jobs/{job}/apply`, `ApplicationController::apply`
-- [x] Map view of jobs with radius circle (Leaflet, visual) — `frontend/src/components/map/JobRadiusMap.tsx`
+- [x] Map view of jobs with radius circle (Google Maps, visual) — `frontend/src/components/map/JobRadiusMap.tsx`
 
 ### Employer panel
 - [x] Multiple companies CRUD + logo upload — `CompanyController.php`, `backend/routes/api/employer.php`
@@ -214,7 +214,7 @@
 ### Integrations (client-provided — all currently placeholder/mock)
 
 11. **Real Aadhaar API** — replace email-OTP simulation in `AadhaarVerificationController` with client's provider; extend to guards. Depends on **client API credentials + docs**. **Medium**
-12. **Google Maps** — implement `google/GoogleMapView.tsx` + `GoogleLocationPicker.tsx` behind the existing provider switch (`MapView.tsx` — architecture already prepared, zero consumer changes needed); set `VITE_MAP_PROVIDER=google`. Depends on **API key (client)**. **Small–Medium** — note Leaflet already works; confirm whether Google is contractually required (§5 Q6).
+12. **Google Maps** — implemented through `google/GoogleMapView.tsx` + `GoogleLocationPicker.tsx` behind the existing shared components. Paste the browser-restricted API key into `frontend/.env` as `VITE_GOOGLE_MAPS_API_KEY` before runtime verification. **Small**
 13. **Payment Gateway** — pick/wire gateway (server-side SDK in Laravel + webhooks). Blocks items 2, 3. Depends on **client gateway account**. **Large**
 14. **SMS OTP API** — provider wiring for items 4, 7. Depends on **client**. **Small**
 
@@ -227,7 +227,7 @@
 3. **Commission** — Commission on what (job value, guard wage, wallet transactions)? Flat or percentage? Configurable per employer? This defines the commission-report data model.
 4. **Discount rules (Sales Executive)** — Percentage vs fixed, caps, admin approval needed? Applied to invoices, wallet charges, or job postings?
 5. **Sub Admin semantics** — Is a Sub Admin (a) a platform staff member with limited admin rights, or (b) a security *agency* managing its own guards and clients? "Manage own security guards / own clients" suggests (b), which conflicts with the current direct guard↔employer marketplace model. This changes the data model significantly.
-6. **Google Maps vs Leaflet** — Leaflet (free, no key) is fully working. Is Google Maps contractually required, or is the requirement just "map + radius search"?
+6. **Google Maps key restrictions** — confirm allowed production/staging/local HTTP referrers in Google Cloud before release.
 7. **Telephonic/video conversation (3.2.3)** — Is the current "interview request with preferred date/time" (call happens off-platform) sufficient, or is in-app calling (Twilio/Agora/etc.) required? Big cost difference.
 8. **OTP channel for cash confirmation** — SMS to guard's mobile, or in-app/email acceptable? SRS says SMS/Email API "provided by client, if required".
 9. **Aadhaar for guards vs employers** — Current flow verifies *employers*. SRS 3.1.2 puts Aadhaar under the *guard* panel. Do employers still need Aadhaar KYC, or was that a first-build addition to keep?

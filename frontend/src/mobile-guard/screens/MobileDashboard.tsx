@@ -95,6 +95,20 @@ function formatTime(value: string | null | undefined) {
   return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'accepted', 'offer_sent', 'selected'];
+
+function currentJobApplication(applications: any[]) {
+  return applications.find((app) => CURRENT_JOB_STATUSES.includes(String(app.status ?? '').toLowerCase())) ?? null;
+}
+
+function jobAddress(job: any) {
+  const site = job?.site;
+  const company = job?.company;
+  return site?.address || [site?.site_name, site?.city, site?.state, site?.pincode].filter(Boolean).join(', ')
+    || company?.registered_address || company?.billing_address || [company?.city, company?.state, company?.pincode].filter(Boolean).join(', ')
+    || 'Address not set';
+}
+
 export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
   const { profile, guardProfile } = useAuth();
   const [attendance, setAttendance] = useState<any[]>([]);
@@ -113,6 +127,8 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
 
   const todayAtt = attendance.find(a => new Date(a.attendance_date).toDateString() === new Date().toDateString());
   const totalHours = attendance.reduce((sum, a) => sum + (Number(a.total_hours) || 0), 0);
+  const currentApp = currentJobApplication(applications);
+  const currentJob = currentApp?.job;
 
   const quickLinks = [
     { label: 'Find Jobs', icon: '🔍', screen: 'jobs', color: '#0f1e3c' },
@@ -179,28 +195,36 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
           transition={{ delay: 0.2 }}
         >
           <DashboardFlipCard
-            heightClass="h-16"
+            heightClass="h-20"
             front={(
               <div
                 className="h-full rounded-2xl p-4 flex items-center justify-between"
                 style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.12)' }}
               >
-                <div className="flex items-center gap-2">
-                  <motion.div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: active ? '#22c55e' : '#ef4444' }}
-                    animate={{ scale: [1, 1.4, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  <span className="text-white text-sm font-medium">{active ? 'Active' : 'Blocked'}</span>
+                <div className="w-1/2 pr-3 border-r border-white/10">
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: active ? '#22c55e' : '#ef4444' }}
+                      animate={{ scale: [1, 1.4, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                    <span className="text-white text-xs font-semibold">{active ? 'Active' : 'Blocked'}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-blue-200 text-[11px]">
+                    <MapPin size={10} />
+                    <span className="truncate">{city}</span>
+                  </div>
+                  <div className="mt-1 text-white text-[11px]">
+                    <span className="opacity-60">Today: </span>
+                    <span className="font-semibold">{todayAtt ? (todayAtt.out_time ? 'Complete' : 'Checked In') : 'Not Marked'}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-blue-200 text-xs">
-                  <MapPin size={11} />
-                  <span>{city}</span>
-                </div>
-                <div className="text-white text-xs">
-                  <span className="opacity-60">Today: </span>
-                  <span className="font-semibold">{todayAtt ? (todayAtt.out_time ? 'Complete' : 'Checked In') : 'Not Marked'}</span>
+                <div className="w-1/2 min-w-0 pl-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">Current job</p>
+                  <p className="mt-0.5 truncate text-xs font-bold text-white">{currentJob?.title ?? 'No active assignment'}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-blue-100">{currentJob?.company?.company_name ?? 'Company not set'}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-blue-200">{currentJob ? jobAddress(currentJob) : 'Assigned job will appear here'}</p>
                 </div>
               </div>
             )}

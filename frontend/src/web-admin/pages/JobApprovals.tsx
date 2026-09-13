@@ -8,6 +8,7 @@ import { approveJob, createAdminJob, deleteAdminJob, listAllJobsForAdmin, reject
 import { listEmployerManagementData } from '../../services/adminEmployerService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
 
@@ -46,6 +47,7 @@ function skillList(raw: unknown): string[] {
 
 const EMPTY_JOB_FORM = {
   company_id: '', site_id: '', title: '', guards_required: '1', salary_amount: '',
+  guard_type: '',
   payment_type: 'Monthly', shift_type: 'Day', duty_hours: '8 hours', start_date: '',
   end_date: '', description: '', status: 'pending_approval',
 };
@@ -60,6 +62,7 @@ export default function JobApprovals() {
   const [expanded, setExpanded]       = useState<Set<string>>(new Set());
   const [companies, setCompanies]     = useState<any[]>([]);
   const [sites, setSites]             = useState<any[]>([]);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [formOpen, setFormOpen]       = useState(false);
   const [editingJob, setEditingJob]   = useState<any | null>(null);
   const [jobForm, setJobForm]         = useState({ ...EMPTY_JOB_FORM });
@@ -84,12 +87,15 @@ export default function JobApprovals() {
     listEmployerManagementData()
       .then(data => { setCompanies(data.companies ?? []); setSites(data.sites ?? []); })
       .catch(e => setError(getErrorMessage(e, 'Failed to load employer companies.')));
+    listActiveAssociateTypes()
+      .then(setAssociateTypes)
+      .catch(() => setAssociateTypes([]));
   }, []);
 
   const openCreate = () => {
     const companyId = companies[0]?.id ?? '';
     setEditingJob(null);
-    setJobForm({ ...EMPTY_JOB_FORM, company_id: companyId, site_id: sites.find(site => site.companyId === companyId)?.id ?? '' });
+    setJobForm({ ...EMPTY_JOB_FORM, company_id: companyId, site_id: sites.find(site => site.companyId === companyId)?.id ?? '', guard_type: associateTypes[0]?.code ?? '' });
     setFormError('');
     setFormOpen(true);
   };
@@ -99,6 +105,7 @@ export default function JobApprovals() {
     setJobForm({
       company_id: job.employer_companies?.id ?? '', site_id: job.company_sites?.id ?? '', title: job.title ?? '',
       guards_required: String(job.guards_required ?? 1), salary_amount: String(job.salary_amount ?? ''),
+      guard_type: job.guard_type ?? associateTypes[0]?.code ?? '',
       payment_type: job.payment_type ?? 'Monthly', shift_type: job.shift_type ?? 'Day', duty_hours: job.duty_hours ?? '8 hours',
       start_date: job.start_date ? String(job.start_date).slice(0, 10) : '', end_date: job.end_date ? String(job.end_date).slice(0, 10) : '',
       description: job.description ?? '', status: job.status ?? 'pending_approval',
@@ -108,8 +115,8 @@ export default function JobApprovals() {
   };
 
   const saveJob = async () => {
-    if (!jobForm.company_id || !jobForm.title.trim() || !jobForm.salary_amount || !jobForm.start_date) {
-      setFormError('Company, job title, salary and start date are required.');
+    if (!jobForm.company_id || !jobForm.title.trim() || !jobForm.guard_type || !jobForm.salary_amount || !jobForm.start_date) {
+      setFormError('Company, job title, associate type, salary and start date are required.');
       return;
     }
     setActing(editingJob?.id ?? 'create');
@@ -186,6 +193,8 @@ export default function JobApprovals() {
   };
 
   const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter);
+  const associateTypeLabel = (code: string | null | undefined) =>
+    associateTypes.find(type => type.code === code)?.name ?? code ?? '--';
 
   // Count per tab
   const counts = jobs.reduce<Record<string, number>>((acc, j) => {
@@ -356,7 +365,7 @@ export default function JobApprovals() {
                       <div className="pt-2 pb-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600 border-t border-gray-50 mt-2">
                         {[
                           ['Category', job.category],
-                          ['Associate Type', job.guard_type],
+                          ['Associate Type', associateTypeLabel(job.guard_type)],
                           ['Gender Pref', job.gender_preference],
                           ['Experience', job.experience_required],
                           ['Duration', job.duration_type],
@@ -504,6 +513,13 @@ export default function JobApprovals() {
               </label>
               <JobField label="Job Title *" value={jobForm.title} onChange={value => setJobForm(current => ({ ...current, title: value }))} className="sm:col-span-2" />
               <JobField label="Openings" value={jobForm.guards_required} onChange={value => setJobForm(current => ({ ...current, guards_required: value.replace(/\D/g, '') }))} />
+              <label>
+                <span className="form-label">Associate Type *</span>
+                <select value={jobForm.guard_type} onChange={event => setJobForm(current => ({ ...current, guard_type: event.target.value }))} className="form-input">
+                  <option value="">Select associate type</option>
+                  {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
+                </select>
+              </label>
               <JobField label="Salary *" value={jobForm.salary_amount} onChange={value => setJobForm(current => ({ ...current, salary_amount: value.replace(/[^\d.]/g, '') }))} />
               <JobField label="Payment Type" value={jobForm.payment_type} onChange={value => setJobForm(current => ({ ...current, payment_type: value }))} />
               <JobField label="Shift" value={jobForm.shift_type} onChange={value => setJobForm(current => ({ ...current, shift_type: value }))} />

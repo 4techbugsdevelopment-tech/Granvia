@@ -10,6 +10,8 @@ export type Guard = {
   mobile: string;
   email: string;
   password: string;
+  profileType: string;
+  profileTypeLabel: string;
   gender: string;
   dob: string;
   address: string;

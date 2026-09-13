@@ -29,6 +29,13 @@ export async function apply(req: Request, res: Response) {
   }
 
   const data = applySchema.parse(req.body);
+  const associateType = req.user!.profileType;
+  if (!associateType) {
+    throw new HttpError(422, 'Complete your associate type before applying for jobs.');
+  }
+  if (job.guardType !== associateType) {
+    throw new HttpError(403, 'This job is for a different associate type.');
+  }
 
   const existing = await prisma.jobApplication.findFirst({ where: { jobId: job.id, guardUserId: req.user!.id } });
   if (existing) throw new HttpError(409, 'You have already applied for this job.');
@@ -127,7 +134,7 @@ export async function mine(req: Request, res: Response) {
     include: {
       job: {
         include: {
-          company: { select: { id: true, companyName: true } },
+          company: { select: { id: true, companyName: true, registeredAddress: true, billingAddress: true, city: true, state: true, pincode: true } },
           site: true,
         },
       },
@@ -163,10 +170,44 @@ const updateStatusSchema = z.object({
 
 const schedulingSchema = z.object({ remarks: z.string().trim().min(1).max(4000) });
 
+function googleMapsLinkForCompany(company: { companyName: string; registeredAddress: string | null; billingAddress: string | null } | null) {
+  const address = company?.registeredAddress || company?.billingAddress || '';
+  const query = [company?.companyName, address].filter(Boolean).join(', ');
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : '';
+}
+
+function interviewNotificationMessage(application: {
+  job: {
+    title: string;
+    company: { companyName: string; registeredAddress: string | null; billingAddress: string | null } | null;
+  };
+}, remarks: string) {
+  const company = application.job.company;
+  const companyName = company?.companyName || 'Employer';
+  const address = company?.registeredAddress || company?.billingAddress || 'Address not available';
+  const mapLink = googleMapsLinkForCompany(company);
+  return [
+    `Your interview for ${application.job.title} has been scheduled.`,
+    `Employer: ${companyName}`,
+    `Address: ${address}`,
+    mapLink ? `Google Maps: ${mapLink}` : null,
+    `Remarks: ${remarks}`,
+  ].filter(Boolean).join('\n');
+}
+
 async function applicationWithScope(applicationId: string, user: NonNullable<Request['user']>, admin = false) {
   const application = await prisma.jobApplication.findUnique({
     where: { id: applicationId },
-    include: { job: { select: { id: true, title: true, employerUserId: true } } },
+    include: {
+      job: {
+        select: {
+          id: true,
+          title: true,
+          employerUserId: true,
+          company: { select: { companyName: true, registeredAddress: true, billingAddress: true } },
+        },
+      },
+    },
   });
   if (!application) throw new HttpError(404, 'Application not found.');
   if (!admin && (user.role !== 'employer' || application.employerUserId !== user.id)) throw new HttpError(403, 'Forbidden.');
@@ -302,6 +343,6 @@ export async function scheduleInterview(req: Request, res: Response) {
     prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'scheduled', remarks: data.remarks } }),
     prisma.interviewRequest.create({ data: { applicationId: application.id, jobId: application.jobId, guardUserId: application.guardUserId, employerUserId: application.employerUserId, companyId: application.companyId, requestType: 'Offline Interview', message: data.remarks, status: 'scheduled' } }),
   ]);
-  await notifyApplicationParties(application, 'Interview scheduled', `Your interview for ${application.job.title} has been scheduled. Remarks: ${data.remarks}`);
+  await notifyApplicationParties(application, 'Interview scheduled', interviewNotificationMessage(application, data.remarks), 'interview_scheduled');
   return res.json(snakeKeys(updated));
 }

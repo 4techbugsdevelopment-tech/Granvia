@@ -207,6 +207,7 @@ export async function storeJob(req: Request, res: Response) {
       company_id: z.string().uuid(),
       site_id: z.string().uuid().nullish(),
       title: z.string(),
+      guard_type: z.string().trim().min(1, 'Select an associate type.'),
       duty_hours: z.string().nullish(),
       guards_required: z.coerce.number().int().min(1).nullish(),
       experience_required: z.string().nullish(),
@@ -234,6 +235,12 @@ export async function storeJob(req: Request, res: Response) {
   });
   if (!company) throw new HttpError(422, 'Company does not belong to this client.');
 
+  const associateType = await prisma.associateType.findFirst({
+    where: { code: data.guard_type, status: 'active' },
+    select: { id: true },
+  });
+  if (!associateType) throw new HttpError(422, 'Select a valid associate type.');
+
   if (data.site_id) {
     const site = await prisma.companySite.findUnique({ where: { id: data.site_id } });
     if (!site || site.companyId !== company.id) {
@@ -247,6 +254,7 @@ export async function storeJob(req: Request, res: Response) {
       companyId: data.company_id,
       siteId: data.site_id ?? null,
       title: data.title,
+      guardType: data.guard_type,
       dutyHours: data.duty_hours ?? null,
       guardsRequired: data.guards_required ?? 1,
       experienceRequired: data.experience_required ?? null,

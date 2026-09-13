@@ -7,6 +7,7 @@ import * as profile from '../controllers/profileController';
 import * as notification from '../controllers/notificationController';
 import * as support from '../controllers/supportTicketController';
 import * as roles from '../controllers/roleController';
+import * as associateTypes from '../controllers/associateTypeController';
 import { env } from '../config/env';
 import * as hiringDocument from '../controllers/hiringDocumentController';
 
@@ -18,9 +19,13 @@ const router = Router();
 
 // Public.
 router.get('/jobs', asyncHandler(job.active));
+router.get('/associate-types', asyncHandler(associateTypes.active));
 router.get('/config/public', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  return res.json({ location_capture_enabled: env.locationCaptureEnabled });
+  return res.json({
+    location_capture_enabled: env.locationCaptureEnabled,
+    google_maps_api_key: env.googleMapsApiKey,
+  });
 });
 
 // Any authenticated role, under /me.

@@ -13,6 +13,7 @@ import WalletPayments from './pages/WalletPayments';
 import Reports from './pages/Reports';
 import EmailLogs from './pages/EmailLogs';
 import RoleMaster from './pages/RoleMaster';
+import AssociateTypeMaster from './pages/AssociateTypeMaster';
 import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
@@ -35,6 +36,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   reports: 'Reports',
   'email-logs': 'Email Logs',
   roles: 'Manage Roles',
+  'associate-types': 'Associate Types',
   settings: 'Settings',
 };
 
@@ -49,6 +51,7 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/wallet') return 'wallet';
   if (pathname === '/admin/reports') return 'reports';
   if (pathname === '/admin/roles') return 'roles';
+  if (pathname === '/admin/associate-types') return 'associate-types';
   if (pathname === '/admin/settings') return 'settings';
   return 'dashboard';
 }
@@ -56,6 +59,7 @@ function getAdminPageFromPath(pathname: string): AdminPage {
 function getAdminPath(page: AdminPage): string {
   if (page === 'email-logs') return '/admin/email-logs';
   if (page === 'roles') return '/admin/roles';
+  if (page === 'associate-types') return '/admin/associate-types';
   if (page === 'guards' || page === 'add-guard') return page === 'guards' ? '/admin/guards' : '/admin/guards/add';
   return page === 'dashboard' ? '/admin' : `/admin/${page}`;
 }
@@ -92,6 +96,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'reports': return <Reports />;
       case 'email-logs': return <EmailLogs />;
       case 'roles': return <RoleMaster />;
+      case 'associate-types': return <AssociateTypeMaster />;
       case 'settings': return <SettingsPage />;
       default: return <PlaceholderPage page={page} />;
     }

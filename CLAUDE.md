@@ -399,11 +399,11 @@ When fixing Aadhaar OTP display bugs, **both components must be updated**. The m
 
 ### Provider Abstraction (IMPORTANT — read before touching any map code)
 
-Maps are implemented through a **two-level abstraction** so Leaflet can be swapped for Google Maps by changing one env var.
+Maps are implemented through shared provider-agnostic components while Google Maps is the active provider.
 
 ```
-VITE_MAP_PROVIDER=leaflet   ← current default (no API key needed)
-VITE_MAP_PROVIDER=google    ← future (requires VITE_GOOGLE_MAPS_API_KEY + Google provider impl)
+VITE_MAP_PROVIDER=google
+VITE_GOOGLE_MAPS_API_KEY=your_browser_restricted_google_maps_key
 ```
 
 **Files:**
@@ -411,10 +411,11 @@ VITE_MAP_PROVIDER=google    ← future (requires VITE_GOOGLE_MAPS_API_KEY + Goog
 | File | Role |
 |------|------|
 | `src/components/map/types.ts` | Shared TS types: `LatLng`, `MapMarker`, `MapViewProps`, `LocationPickerProps` |
-| `src/components/map/MapView.tsx` | **Provider switch** — reads `VITE_MAP_PROVIDER`, renders correct impl |
-| `src/components/map/LocationPicker.tsx` | **Provider switch** for click-to-pin picker |
-| `src/components/map/leaflet/LeafletMapView.tsx` | Leaflet impl of `MapViewProps` |
-| `src/components/map/leaflet/LeafletLocationPicker.tsx` | Leaflet impl of `LocationPickerProps` |
+| `src/components/map/MapView.tsx` | Shared wrapper that renders the Google implementation |
+| `src/components/map/LocationPicker.tsx` | Shared wrapper for click-to-pin picker |
+| `src/components/map/google/GoogleMapView.tsx` | Google Maps impl of `MapViewProps` |
+| `src/components/map/google/GoogleLocationPicker.tsx` | Google Maps impl of `LocationPickerProps` |
+| `src/config/googleMaps.ts` | Google Maps API key and script config |
 | `src/components/map/index.ts` | Barrel export |
 | `src/lib/geoUtils.ts` | `distanceKm()` (haversine) + `getCurrentPosition()` (browser geolocation) |
 
@@ -426,14 +427,12 @@ VITE_MAP_PROVIDER=google    ← future (requires VITE_GOOGLE_MAPS_API_KEY + Goog
 | `src/components/map/AdminOverviewMap.tsx` | Admin `Dashboard.tsx` | Guards (green) + Sites (red) + Jobs (blue) overview |
 | `LocationPicker` (inline) | Employer `EmployerApp.tsx` site form | Click map → sets `form.latitude` / `form.longitude` |
 
-### Switching to Google Maps later
+### Google Maps setup
 
-1. Create `src/components/map/google/GoogleMapView.tsx` implementing `MapViewProps`
-2. Create `src/components/map/google/GoogleLocationPicker.tsx` implementing `LocationPickerProps`
-3. In `MapView.tsx` and `LocationPicker.tsx`, uncomment the `google` branch (marked with `// future`)
-4. Set `VITE_MAP_PROVIDER=google` in `.env`
-5. Remove Leaflet CSS import from `src/main.tsx`
-6. **Zero changes needed** in any consumer component (`JobRadiusMap`, `AdminOverviewMap`, site form)
+1. Enable Maps JavaScript API in Google Cloud.
+2. Restrict the browser key by HTTP referrer for local, staging, and production domains.
+3. Paste the key in `frontend/.env` as `VITE_GOOGLE_MAPS_API_KEY`.
+4. Keep consumer components provider-agnostic (`JobRadiusMap`, `AdminOverviewMap`, site form).
 
 ### Marker colour convention
 - **Blue `#1d4ed8`** — Jobs
@@ -460,13 +459,13 @@ The project is scoped across 3 phases (12–15 weeks total). Use this as the aut
 | Profile Creation (Guard + Employer) | Implemented |
 | Document Upload (ID, Police Verification, Bank Details) | Implemented (`storageService.ts`) |
 | Aadhaar API Integration (client-provided API) | Implemented (`aadhaarService.ts`) |
-| **Google Maps Integration — Location & Radius-based job search** | API key present (`VITE_GOOGLE_MAPS_API_KEY`), **implementation missing** |
+| **Google Maps Integration — Location & Radius-based job search** | Implemented through shared Google Maps components; runtime needs `VITE_GOOGLE_MAPS_API_KEY` |
 | Employer: Create Company / Site | Implemented |
 | Employer: Post Job | Implemented |
 | Guard: Search Job (radius-based via Maps) | UI exists (`JobSearch.tsx`), radius filtering **not implemented** |
 | Guard: Apply for Job | Implemented |
 
-**Google Maps requirement:** Job search must filter by geographic radius. Guard sets location; jobs within radius are shown on map. Requires `VITE_GOOGLE_MAPS_API_KEY` and a Maps SDK (`@vis.gl/react-google-maps` or `@react-google-maps/api`).
+**Google Maps requirement:** Job search must filter by geographic radius. Guard sets location; jobs within radius are shown on the shared Google map. Requires `VITE_GOOGLE_MAPS_API_KEY`.
 
 ---
 
@@ -510,7 +509,7 @@ The project is scoped across 3 phases (12–15 weeks total). Use this as the aut
 ---
 
 ### Key Missing Features Summary (not yet in codebase)
-1. **Google Maps radius-based job search** — highest priority Phase 1 gap
+1. **Google Maps runtime verification with purchased key** — confirm browser referrers and map loading in local/staging/production
 2. **Sub Admin panel + role** — Phase 3 prerequisite
 3. **Call/Video interaction** — Phase 2 (likely third-party: Twilio / Agora / Daily.co)
 4. **OTP for cash payment** — Phase 2

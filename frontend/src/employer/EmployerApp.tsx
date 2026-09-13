@@ -29,6 +29,7 @@ import { listCompanyDocuments, createDocumentRecord, updateDocumentRecord, delet
 import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
@@ -1624,6 +1625,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
 function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employer: EmployerInfo; company: any; onSaved: () => void; onBack: () => void }) {
   const [sites, setSites] = useState<any[]>([]);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [creatingSite, setCreatingSite] = useState(false);
   const [siteErrors, setSiteErrors] = useState<ValidationErrors>({});
@@ -1636,7 +1638,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
     latitude: '', longitude: '', shift_details: '', notes: '', status: 'active',
   });
   const [job, setJob] = useState({
-    title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: 'Associate',
+    title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: '',
     gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
     duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '', duration_type: 'Monthly',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
@@ -1655,6 +1657,15 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
       if (active.length > 0) setJob(j => ({ ...j, site_id: active[0].id }));
     }).catch(console.error);
   }, [company.id]);
+
+  useEffect(() => {
+    listActiveAssociateTypes()
+      .then(rows => {
+        setAssociateTypes(rows);
+        setJob(current => current.guard_type ? current : { ...current, guard_type: rows[0]?.code ?? '' });
+      })
+      .catch(() => setAssociateTypes([]));
+  }, []);
 
   const saveSiteInline = async () => {
     const validationErrors = validateSiteForm(siteForm);
@@ -1704,7 +1715,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
   };
 
   const saveJob = async () => {
-    if (!job.site_id || !job.title || !job.salary_amount || !job.start_date) { alert('Select a site and complete title, salary and start date.'); return; }
+    if (!job.site_id || !job.title || !job.guard_type || !job.salary_amount || !job.start_date) { alert('Select a site and complete title, associate type, salary and start date.'); return; }
     setSaving(true);
     try {
       await createJobPost({
@@ -1803,7 +1814,13 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
           <Sel label="Site / Location" value={job.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={v => setJob({ ...job, site_id: v })} />
           <Input label="Associates Required" value={job.guards_required} onChange={v => setJob({ ...job, guards_required: v })} />
           <Input label="Category" value={job.category} onChange={v => setJob({ ...job, category: v })} />
-          <Input label="Associate Type" value={job.guard_type} onChange={v => setJob({ ...job, guard_type: v })} />
+          <Sel
+            label="Associate Type"
+            value={job.guard_type}
+            options={associateTypes.map(type => type.code)}
+            labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))}
+            onChange={v => setJob({ ...job, guard_type: v })}
+          />
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
@@ -1845,6 +1862,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack }: { employ
 function JobsPage({ employer: _employer, company, onChanged, onCreate }: { employer: EmployerInfo; company: any; onChanged: () => void; onCreate: () => void }) {
   const [jobs, setJobs]           = useState<any[]>([]);
   const [sites, setSites]         = useState<any[]>([]);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [search, setSearch]       = useState('');
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [editForm, setEditForm]   = useState<Record<string, any>>({});
@@ -1865,8 +1883,12 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
   useEffect(() => {
     reload();
     listCompanySites(company.id).then(data => setSites((data ?? []).filter((s: any) => s.status === 'active'))).catch(console.error);
+    listActiveAssociateTypes().then(setAssociateTypes).catch(() => setAssociateTypes([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.id]);
+
+  const associateTypeLabel = (code: string | null | undefined) =>
+    associateTypes.find(type => type.code === code)?.name ?? code ?? '--';
 
   const openEdit = (job: any) => {
     setEditingJob(job);
@@ -1882,7 +1904,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
       end_date:            job.end_date ?? '',
       duration_type:       job.duration_type ?? 'Monthly',
       experience_required: job.experience_required ?? '',
-      guards_type:         job.guard_type ?? '',
+      guard_type:          job.guard_type ?? associateTypes[0]?.code ?? '',
       description:         job.description ?? '',
       required_skills:     Array.isArray(job.required_skills) ? job.required_skills.join(', ') : (job.required_skills ?? ''),
     });
@@ -1904,6 +1926,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
         end_date:            editForm.end_date || null,
         duration_type:       editForm.duration_type,
         experience_required: editForm.experience_required,
+        guard_type:          editForm.guard_type,
         description:         editForm.description,
         required_skills:     editForm.required_skills.split(',').map((s: string) => s.trim()).filter(Boolean),
       });
@@ -1968,7 +1991,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
         {loadingJobs && <LoadingState />}
         {!loadingJobs && !jobsError && (
           <>
-        <DataTable headers={['Job', 'Site', 'Openings', 'Pay', 'Shift', 'Status', 'Actions']}>
+        <DataTable headers={['Job', 'Site', 'Type', 'Openings', 'Pay', 'Shift', 'Status', 'Actions']}>
           {filtered.map((job: any) => (
             <tr key={job.id} className="border-b border-gray-50">
               <Td><b>{job.title}</b></Td>
@@ -1976,6 +1999,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
                 {job.company_sites?.site_name}
                 <div className="text-xs text-gray-400">{job.company_sites?.city}</div>
               </Td>
+              <Td>{associateTypeLabel(job.guard_type)}</Td>
               <Td>{job.guards_required}</Td>
               <Td>
                 ₹{job.salary_amount}
@@ -2055,6 +2079,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
                 <Sel   label="Site"            value={ef.site_id}             options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
                 <Input label="Associates Required" value={ef.guards_required} onChange={set('guards_required')} />
                 <Input label="Salary"          value={ef.salary_amount}       onChange={set('salary_amount')} />
+                <Sel   label="Associate Type"  value={ef.guard_type}          options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
                 <Sel   label="Payment Type"    value={ef.payment_type}        options={['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
@@ -2097,11 +2122,56 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
 
 // ── Applicants ────────────────────────────────────────────────────────────────
 
+function profileValue(value: unknown, fallback = '--') {
+  if (value == null) return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+}
+
+function profileList(value: unknown) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ') || '--';
+  return profileValue(value);
+}
+
+function profileDate(value: unknown) {
+  if (!value) return '--';
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleDateString('en-IN');
+}
+
+function companyInterviewAddress(company: any) {
+  return profileValue(company?.registered_address || company?.billing_address, 'company address');
+}
+
+function companyGoogleMapsLink(company: any) {
+  const address = companyInterviewAddress(company);
+  const query = [company?.company_name, address].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function interviewMessageSample(company: any) {
+  return `Interview scheduled at ${company?.company_name ?? 'our company'} office.
+Address: ${companyInterviewAddress(company)}
+Google Maps: ${companyGoogleMapsLink(company)}
+Please visit on the scheduled date and carry your ID proof and relevant documents.`;
+}
+
+function ApplicantDetailItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-xl bg-gray-50 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
+      <div className="min-w-0 text-right text-sm font-medium text-gray-800 break-words">{value}</div>
+    </div>
+  );
+}
+
 function ApplicantsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [apps, setApps] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'selected'>('all');
+  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'scheduled' | 'selected'>('all');
+  const [detailsApp, setDetailsApp] = useState<any | null>(null);
+  const [paidFeatureAlert, setPaidFeatureAlert] = useState(false);
   const [interviewApp, setInterviewApp] = useState<any | null>(null);
   const [interviewRemarks, setInterviewRemarks] = useState('');
   const [savingInterview, setSavingInterview] = useState(false);
@@ -2164,6 +2234,8 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
 
   const visibleApps = filter === 'shortlisted'
     ? apps.filter((app: any) => app.status === 'shortlisted')
+    : filter === 'scheduled'
+      ? apps.filter((app: any) => app.status === 'scheduled')
     : filter === 'selected'
       ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(app.status))
       : apps;
@@ -2178,13 +2250,21 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review every associate who applied for this job.</p></div>
           <div className="flex flex-wrap gap-2">
-            {(['all', 'shortlisted', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value}</button>)}
+            {(['all', 'shortlisted', 'scheduled', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value === 'scheduled' ? 'Interview scheduled' : value}</button>)}
           </div>
         </div>
         <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
           {visibleApps.map((app: any) => (
             <tr key={app.id} className="border-b border-gray-50">
-              <Td><b>{app.guard_profiles?.full_name ?? 'Associate'}</b><div className="text-xs text-gray-400">{app.guard_profiles?.city} · {app.guard_profiles?.mobile}</div></Td>
+              <Td>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <b className="break-words">{app.guard_profiles?.full_name ?? 'Associate'}</b>
+                    <div className="text-xs text-gray-400">{app.guard_profiles?.city ?? 'Location not set'}</div>
+                  </div>
+                  <button onClick={() => setDetailsApp(app)} className="table-action tone-blue shrink-0">View details</button>
+                </div>
+              </Td>
               <Td>{app.job_posts?.title}</Td>
               <Td>{app.guard_profiles?.skills?.join(', ') ?? '--'}</Td>
               <Td>
@@ -2199,7 +2279,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
                 {app.guard_profiles?.aadhaar_status !== 'verified' && (
                   <button onClick={() => markAadhaar(app, 'verified')} className="table-action tone-green" title="Manually declare Aadhaar verified">Aadhaar ✓</button>
                 )}
-                <button onClick={() => { setInterviewApp(app); setInterviewRemarks(''); }} className="table-action">Schedule interview</button>
+                <button onClick={() => { setInterviewApp(app); setInterviewRemarks(interviewMessageSample(company)); }} className="table-action">Schedule interview</button>
                 <button onClick={() => updateStatus(app.id, 'hired')} className="table-action tone-green">Hired</button>
                 <button onClick={() => updateStatus(app.id, 'not_hired')} className="table-action tone-red">Not hired</button>
                 <button onClick={() => sendOffer(app)} className="table-action">Offer</button>
@@ -2210,7 +2290,9 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
         {visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
       </Card>
       <AnimatePresence>
-        {interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder="Enter interview date, time, location, or other remarks" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}
+        {detailsApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsApp(null)}><motion.div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-gray-900">{detailsApp.guard_profiles?.full_name ?? 'Associate Partner'}</h3><p className="text-xs text-gray-500">{detailsApp.job_posts?.title ?? selectedJob.title} application details</p></div><button onClick={() => setDetailsApp(null)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={18} /></button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><ApplicantDetailItem label="Mobile" value={<button onClick={() => setPaidFeatureAlert(true)} className="text-sm font-bold text-blue-700 hover:underline">View</button>} /><ApplicantDetailItem label="City" value={profileValue(detailsApp.guard_profiles?.city)} /><ApplicantDetailItem label="State" value={profileValue(detailsApp.guard_profiles?.state)} /><ApplicantDetailItem label="Address" value={profileValue(detailsApp.guard_profiles?.address)} /><ApplicantDetailItem label="Pincode" value={profileValue(detailsApp.guard_profiles?.pincode)} /><ApplicantDetailItem label="Gender" value={profileValue(detailsApp.guard_profiles?.gender)} /><ApplicantDetailItem label="Date of birth" value={profileDate(detailsApp.guard_profiles?.dob)} /><ApplicantDetailItem label="Skills" value={profileList(detailsApp.guard_profiles?.skills)} /><ApplicantDetailItem label="Languages" value={profileList(detailsApp.guard_profiles?.languages)} /><ApplicantDetailItem label="Experience" value={profileValue(detailsApp.guard_profiles?.experience)} /><ApplicantDetailItem label="Qualification" value={profileValue(detailsApp.guard_profiles?.qualification)} /><ApplicantDetailItem label="Profile verification" value={statusBadge(detailsApp.guard_profiles?.verification_status ?? 'pending')} /><ApplicantDetailItem label="Aadhaar" value={statusBadge(detailsApp.guard_profiles?.aadhaar_status ?? 'pending')} /><ApplicantDetailItem label="Police verification" value={statusBadge(detailsApp.guard_profiles?.police_verification_status ?? 'pending')} /><ApplicantDetailItem label="Application status" value={statusBadge(detailsApp.status)} /><ApplicantDetailItem label="Applied on" value={profileDate(detailsApp.applied_at)} /><ApplicantDetailItem label="Notes" value={profileValue(detailsApp.notes)} /></div><div className="mt-5 flex justify-end"><button onClick={() => setDetailsApp(null)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">Close</button></div></motion.div></motion.div>}
+        {paidFeatureAlert && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPaidFeatureAlert(false)}><motion.div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-gray-900">Paid feature</h3><p className="mt-2 text-sm text-gray-600">Wallet must have balance to view the mobile number.</p></div><button onClick={() => setPaidFeatureAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button></div><div className="mt-5 flex justify-end"><button onClick={() => setPaidFeatureAlert(false)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">OK</button></div></motion.div></motion.div>}
+        {interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder={interviewMessageSample(company)} rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}
       </AnimatePresence>
     </div>
   );
@@ -2360,23 +2442,46 @@ function AttendanceGps({ lat, lng, fallback = '--' }: { lat: any; lng: any; fall
 
 function AttendancePage({ company, onChanged }: { company: any; onChanged: () => void }) {
   const [records, setRecords] = useState<any[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     listEmployerAttendance(company.id).then(setRecords).catch(console.error);
   }, [company.id]);
 
-  const update = async (id: string, status: string, remarks: string) => {
-    await updateAttendanceStatus(id, status, remarks);
-    listEmployerAttendance(company.id).then(setRecords).catch(console.error);
-    onChanged();
+  const update = async (record: any, status: 'approved' | 'rejected') => {
+    const remarks = status === 'rejected'
+      ? window.prompt('Enter rejection remarks for this attendance:')
+      : 'Approved by employer';
+    if (remarks === null) return;
+    setBusyId(record.id);
+    setError('');
+    try {
+      await updateAttendanceStatus(record.id, status, remarks);
+      const refreshed = await listEmployerAttendance(company.id);
+      setRecords(refreshed);
+      onChanged();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err.message || 'Unable to update attendance.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
     <div className="p-6">
       <Card className="p-5">
-        <h2 className="font-bold text-gray-900 mb-4">Attendance Verification</h2>
+        <div className="mb-4">
+          <h2 className="font-bold text-gray-900">Attendance Verification</h2>
+          <p className="mt-1 text-sm text-gray-500">Review completed associate attendance and approve valid shifts for payment.</p>
+          {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
+        </div>
         <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in GPS', 'Check-out GPS', 'Hours', 'Status', 'Actions']}>
-          {records.map((r: any) => (
+          {records.map((r: any) => {
+            const hasValidHours = r.in_time && r.out_time && Number(r.total_hours ?? 0) > 0;
+            const decided = ['approved', 'verified', 'rejected'].includes(String(r.status ?? '').toLowerCase());
+            const actionable = hasValidHours && !decided;
+            return (
             <tr key={r.id} className="border-b border-gray-50">
               <Td>{r.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{r.job_posts?.title}</Td>
@@ -2389,13 +2494,21 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
                 {statusBadge(r.status)}
                 {r.checkout_method === 'automatic' && <div className="text-[10px] text-purple-600 mt-1">Auto checkout</div>}
                 {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Historical correction</div>}
+                {r.employer_remarks && <div className="mt-1 max-w-48 text-[10px] text-gray-500">{r.employer_remarks}</div>}
               </Td>
               <Td>
-                <button onClick={() => update(r.id, 'approved', 'Approved by employer')} className="table-action tone-green">Approve</button>
-                <button onClick={() => update(r.id, 'rejected', 'Rejected by employer')} className="table-action tone-red">Reject</button>
+                {actionable ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button disabled={busyId === r.id} onClick={() => update(r, 'approved')} className="table-action tone-green">Approve</button>
+                    <button disabled={busyId === r.id} onClick={() => update(r, 'rejected')} className="table-action tone-red">Reject</button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-400">{decided ? 'Decision recorded' : 'Awaiting checkout'}</span>
+                )}
               </Td>
             </tr>
-          ))}
+            );
+          })}
         </DataTable>
         {records.length === 0 && <EmptyState text="No attendance to verify" />}
       </Card>

@@ -1,7 +1,6 @@
 // Provider-agnostic map types.
-// Swap VITE_MAP_PROVIDER=google when ready to move off Leaflet.
 
-export type MapProvider = 'leaflet' | 'google';
+export type MapProvider = 'google';
 
 export interface LatLng {
   lat: number;

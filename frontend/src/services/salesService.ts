@@ -108,6 +108,7 @@ export interface ProxyJobInput {
   company_id: string;
   site_id?: string | null;
   title: string;
+  guard_type: string;
   duty_hours?: string;
   guards_required?: number;
   experience_required?: string;

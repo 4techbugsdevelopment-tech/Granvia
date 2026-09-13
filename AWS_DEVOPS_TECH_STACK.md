@@ -162,13 +162,14 @@ VITE_API_URL=/api
 VITE_SITE_URL=https://granvia.llc
 VITE_EMAIL_CONFIRMATION_REDIRECT_URL=https://granvia.llc/employer
 VITE_EMPLOYER_LOGIN_REDIRECT_URL=https://granvia.llc/employer
-VITE_MAP_PROVIDER=leaflet
+VITE_MAP_PROVIDER=google
+VITE_GOOGLE_MAPS_API_KEY=your_browser_restricted_google_maps_key
 ```
 
 ## External API Access
 
 - SurePass DigiLocker API: outbound HTTPS `443`
-- OpenStreetMap/Leaflet map tiles: outbound HTTPS `443`
+- Google Maps JavaScript API: outbound HTTPS `443`
 - Nominatim geocoding API: outbound HTTPS `443`
 - `api.pincodeapi.in`: outbound HTTPS `443`
 - Microsoft Graph: outbound HTTPS `443`
@@ -216,4 +217,3 @@ VITE_MAP_PROVIDER=leaflet
 - Disable or protect SMTP test endpoint
 - Enable API rate limiting and security headers
 - Fix frontend TypeScript errors
-

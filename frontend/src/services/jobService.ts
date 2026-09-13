@@ -15,7 +15,7 @@ function remapJobs(jobs: any[]) {
 }
 
 export async function listActiveJobs() {
-  const { data } = await apiClient.get('/jobs');
+  const { data } = await apiClient.get('/guard/jobs');
   return remapJobs(data);
 }
 

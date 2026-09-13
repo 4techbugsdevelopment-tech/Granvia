@@ -15,7 +15,8 @@ const jobInclude = {
       id: true,
       title: true,
       dutyHours: true,
-      site: { select: { id: true, siteName: true } },
+      company: { select: { id: true, companyName: true, registeredAddress: true, billingAddress: true, city: true, state: true, pincode: true } },
+      site: { select: { id: true, siteName: true, address: true, city: true, state: true, pincode: true } },
     },
   },
 } as const;
@@ -55,7 +56,13 @@ const historicalSchema = z.object({
   guard_remarks: z.string().max(2000).nullish(),
 });
 
-const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined'];
+const editAttendanceSchema = z.object({
+  in_time: z.string().datetime(),
+  out_time: z.string().datetime(),
+  guard_remarks: z.string().max(2000).nullish(),
+});
+
+const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
 
 function todayDateOnly(): Date {
   const iso = indiaDateString(new Date());
@@ -246,11 +253,50 @@ export async function saveHistorical(req: Request, res: Response) {
   return res.status(existing ? 200 : 201).json(snakeKeys(record));
 }
 
+/** PATCH /guard/attendance/:record — edit an unapproved attendance record. */
+export async function updateOwnAttendance(req: Request, res: Response) {
+  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record }, include: jobInclude });
+  if (!record) throw new HttpError(404, 'Not found.');
+  if (record.guardUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
+  if (['approved', 'verified'].includes(record.status)) {
+    throw new HttpError(422, 'Approved attendance cannot be changed. Contact the employer or Super Admin.');
+  }
+
+  const data = editAttendanceSchema.parse(req.body);
+  const inTime = new Date(data.in_time);
+  const outTime = new Date(data.out_time);
+  if (indiaDateString(inTime) !== indiaDateString(record.attendanceDate)) {
+    throw new HttpError(422, 'Check-in time must stay on the attendance date.');
+  }
+  if (outTime <= inTime || outTime > new Date()) {
+    throw new HttpError(422, 'Check-out must be after check-in and cannot be in the future.');
+  }
+
+  const totalHours = Math.round(((outTime.getTime() - inTime.getTime()) / 3_600_000) * 100) / 100;
+  const updated = await prisma.attendanceRecord.update({
+    where: { id: record.id },
+    data: {
+      inTime,
+      outTime,
+      scheduledOutTime: record.job?.dutyHours ? scheduledCheckout(inTime, record.job.dutyHours) : record.scheduledOutTime,
+      totalHours,
+      entryMode: record.entryMode === 'live' ? 'associate_edited' : record.entryMode,
+      checkoutMethod: record.checkoutMethod ?? 'associate',
+      status: 'pending_verification',
+      guardRemarks: data.guard_remarks ?? record.guardRemarks,
+      employerRemarks: null,
+    },
+    include: jobInclude,
+  });
+
+  return res.json(snakeKeys(updated));
+}
+
 // --- employer-facing ------------------------------------------------------
 
 const updateAttendanceSchema = z.object({
-  status: z.string(),
-  employer_remarks: z.string().nullish(),
+  status: z.enum(['approved', 'rejected']),
+  employer_remarks: z.string().max(2000).nullish(),
 });
 
 /** GET /employer/attendance */
@@ -274,11 +320,24 @@ export async function updateStatus(req: Request, res: Response) {
   if (record.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = updateAttendanceSchema.parse(req.body);
+  if (!record.inTime || !record.outTime || record.totalHours == null || Number(record.totalHours) <= 0) {
+    throw new HttpError(422, 'Only completed attendance with valid hours can be approved or rejected.');
+  }
+  if (['approved', 'verified'].includes(record.status)) {
+    throw new HttpError(422, 'This attendance is already approved.');
+  }
+  if (record.status === 'rejected') {
+    throw new HttpError(422, 'This attendance is already rejected. Ask the associate to edit and resubmit it.');
+  }
+  if (data.status === 'rejected' && !data.employer_remarks?.trim()) {
+    throw new HttpError(422, 'Remarks are required when rejecting attendance.');
+  }
+
   const updated = await prisma.attendanceRecord.update({
     where: { id: record.id },
     data: {
       status: data.status,
-      ...(data.employer_remarks !== undefined ? { employerRemarks: data.employer_remarks } : {}),
+      employerRemarks: data.employer_remarks?.trim() || (data.status === 'approved' ? 'Approved by employer' : null),
     },
   });
   return res.json(snakeKeys(updated));

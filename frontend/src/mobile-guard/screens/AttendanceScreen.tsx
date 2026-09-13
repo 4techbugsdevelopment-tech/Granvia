@@ -7,8 +7,10 @@ import {
   checkInAttendance,
   checkOutAttendance,
   saveHistoricalAttendance,
+  updateMyAttendance,
   getAttendanceConfiguration,
 } from '../../services/attendanceService';
+import { listMyApplications } from '../../services/applicationService';
 import { getCurrentPosition } from '../../lib/geoUtils';
 
 function formatTime(value: string | null | undefined) {
@@ -36,6 +38,13 @@ function localDateValue(date: Date) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
+function timeInputValue(value: string | null | undefined) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toTimeString().slice(0, 5);
+}
+
 function yesterdayValue() {
   const date = new Date();
   date.setDate(date.getDate() - 1);
@@ -49,6 +58,20 @@ function coordinateLink(lat: number | string | null, lng: number | string | null
 
 function attendanceDateKey(value: string) {
   return value.slice(0, 10);
+}
+
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'accepted', 'offer_sent', 'selected'];
+
+function currentJobApplication(applications: any[]) {
+  return applications.find((app) => CURRENT_JOB_STATUSES.includes(String(app.status ?? '').toLowerCase())) ?? null;
+}
+
+function jobAddress(job: any) {
+  const site = job?.site;
+  const company = job?.company;
+  return site?.address || [site?.site_name, site?.city, site?.state, site?.pincode].filter(Boolean).join(', ')
+    || company?.registered_address || company?.billing_address || [company?.city, company?.state, company?.pincode].filter(Boolean).join(', ')
+    || 'Address not set';
 }
 
 function calendarCells(month: Date) {
@@ -66,6 +89,7 @@ export default function AttendanceScreen() {
   const now = new Date();
 
   const [records, setRecords] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
@@ -77,6 +101,11 @@ export default function AttendanceScreen() {
   const [historyIn, setHistoryIn] = useState('09:00');
   const [historyOut, setHistoryOut] = useState('17:00');
   const [historyRemarks, setHistoryRemarks] = useState('');
+  const [editingRecord, setEditingRecord] = useState<any | null>(null);
+  const [editIn, setEditIn] = useState('');
+  const [editOut, setEditOut] = useState('');
+  const [editRemarks, setEditRemarks] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(now));
   const [locationRequired, setLocationRequired] = useState<boolean | null>(null);
@@ -85,6 +114,7 @@ export default function AttendanceScreen() {
     void getAttendanceConfiguration()
       .then(config => setLocationRequired(config.attendanceLocationEnabled))
       .catch(() => setLocationRequired(true));
+    listMyApplications().then(data => setApplications(data ?? [])).catch(() => {});
     const load = () => listMyAttendance()
       .then(setRecords)
       .catch(e => setError(e?.response?.data?.message || e.message))
@@ -151,6 +181,40 @@ export default function AttendanceScreen() {
     }
   };
 
+  const openEditRecord = (record: any) => {
+    setError(null);
+    setEditingRecord(record);
+    setEditIn(timeInputValue(record.in_time));
+    setEditOut(timeInputValue(record.out_time));
+    setEditRemarks(record.guard_remarks ?? '');
+  };
+
+  const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingRecord) return;
+    setEditSaving(true);
+    setError(null);
+    try {
+      const dateKey = attendanceDateKey(editingRecord.attendance_date);
+      const inTime = new Date(`${dateKey}T${editIn}:00`);
+      const outTime = new Date(`${dateKey}T${editOut}:00`);
+      if (outTime <= inTime) outTime.setDate(outTime.getDate() + 1);
+      const updated = await updateMyAttendance(editingRecord.id, {
+        inTime: inTime.toISOString(),
+        outTime: outTime.toISOString(),
+        guardRemarks: editRemarks || undefined,
+      });
+      setRecords(prev => prev.map(record => record.id === updated.id ? updated : record));
+      setEditingRecord(null);
+      setSuccessType('history');
+      setTimeout(() => setSuccessType(null), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const recentDays = records.slice(0, 7);
   const recordsByDate = records.reduce<Record<string, any[]>>((grouped, record) => {
     const key = attendanceDateKey(record.attendance_date);
@@ -165,6 +229,8 @@ export default function AttendanceScreen() {
   const monthIncomplete = monthRecords.filter(record => !record.out_time).length;
   const selectedRecords = recordsByDate[selectedDate] ?? [];
   const isCurrentCalendarMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
+  const currentApp = currentJobApplication(applications);
+  const currentJob = currentApp?.job;
 
   const moveCalendarMonth = (amount: number) => {
     const target = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + amount, 1);
@@ -186,6 +252,12 @@ export default function AttendanceScreen() {
       >
         <h1 className="text-white font-bold text-xl mb-1">Attendance</h1>
         <p className="text-blue-200 text-xs">{formatDate(now)}</p>
+        <div className="mt-4 rounded-2xl bg-white/10 p-3" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">Current job</p>
+          <p className="mt-1 truncate text-sm font-bold text-white">{currentJob?.title ?? 'No active assignment'}</p>
+          <p className="mt-0.5 truncate text-xs text-blue-100">{currentJob?.company?.company_name ?? 'Company not set'}</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-blue-200">{currentJob ? jobAddress(currentJob) : 'Assigned job details will appear here.'}</p>
+        </div>
       </div>
 
       {/* Errors */}
@@ -368,10 +440,13 @@ export default function AttendanceScreen() {
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-xs font-bold text-gray-700 mb-2">{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
               <div className="space-y-2">
-                {selectedRecords.map(record => (
+                {selectedRecords.map(record => {
+                  const editable = !['approved', 'verified'].includes(record.status);
+                  return (
                   <div key={record.id} className="rounded-xl bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{record.job_posts?.title ?? 'Attendance'}</p>
+                      {editable && <button onClick={() => openEditRecord(record)} className="mt-1 text-[10px] font-semibold text-blue-700">Edit attendance</button>}
                       <p className="text-[11px] text-gray-500">{formatTime(record.in_time) ?? '--'} – {formatTime(record.out_time) ?? 'Not checked out'}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -379,7 +454,8 @@ export default function AttendanceScreen() {
                       <p className={`text-[10px] ${['verified', 'approved'].includes(record.status) ? 'text-green-700' : 'text-amber-700'}`}>{['verified', 'approved'].includes(record.status) ? 'Verified' : 'Pending'}</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -468,6 +544,7 @@ export default function AttendanceScreen() {
           <div className="space-y-2">
             {recentDays.map((rec, i) => {
               const verified = rec.status === 'verified' || rec.status === 'approved';
+              const editable = !verified;
               return (
                 <motion.div
                   key={rec.id}
@@ -493,6 +570,7 @@ export default function AttendanceScreen() {
                         {rec.job_posts?.title && <span className="ml-1">· {rec.job_posts.title}</span>}
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {editable && <button onClick={() => openEditRecord(rec)} className="text-[10px] font-semibold text-blue-700">Edit attendance</button>}
                         {coordinateLink(rec.check_in_latitude, rec.check_in_longitude) && (
                           <a href={coordinateLink(rec.check_in_latitude, rec.check_in_longitude)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600">Check-in GPS</a>
                         )}
@@ -522,6 +600,38 @@ export default function AttendanceScreen() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {editingRecord && (
+          <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !editSaving && setEditingRecord(null)}>
+            <motion.form onSubmit={saveEdit} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Edit attendance</h3>
+                  <p className="text-xs text-gray-400">{new Date(editingRecord.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+                <button type="button" onClick={() => setEditingRecord(null)} className="p-2 rounded-lg bg-gray-50 text-gray-500"><X size={15} /></button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="text-xs font-semibold text-gray-600">
+                  Check-in time
+                  <input type="time" value={editIn} onChange={event => setEditIn(event.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm" />
+                </label>
+                <label className="text-xs font-semibold text-gray-600">
+                  Check-out time
+                  <input type="time" value={editOut} onChange={event => setEditOut(event.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm" />
+                </label>
+              </div>
+              <label className="mt-3 block text-xs font-semibold text-gray-600">
+                Reason / remarks
+                <textarea value={editRemarks} onChange={event => setEditRemarks(event.target.value)} rows={2} placeholder="Why are you editing this attendance?" className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none" />
+              </label>
+              <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] text-amber-700">Edited attendance will be sent again for employer approval.</p>
+              <button type="submit" disabled={editSaving || !editIn || !editOut} className="mt-4 w-full rounded-xl bg-[#0f1e3c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{editSaving ? 'Saving...' : 'Save changes'}</button>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

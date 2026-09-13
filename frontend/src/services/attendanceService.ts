@@ -10,7 +10,7 @@ export async function listEmployerAttendance(companyId?: string) {
   return (data ?? []).map(remap);
 }
 
-export async function updateAttendanceStatus(recordId: string, status: string, employerRemarks?: string) {
+export async function updateAttendanceStatus(recordId: string, status: 'approved' | 'rejected', employerRemarks?: string) {
   const { data } = await apiClient.patch(`/employer/attendance/${recordId}/status`, {
     status,
     employer_remarks: employerRemarks,
@@ -78,6 +78,19 @@ export async function saveHistoricalAttendance(input: {
     check_out_latitude: input.checkOutLatitude,
     check_out_longitude: input.checkOutLongitude,
     job_id: input.jobId,
+    guard_remarks: input.guardRemarks,
+  });
+  return remap(data);
+}
+
+export async function updateMyAttendance(recordId: string, input: {
+  inTime: string;
+  outTime: string;
+  guardRemarks?: string;
+}) {
+  const { data } = await apiClient.patch(`/guard/attendance/${recordId}`, {
+    in_time: input.inTime,
+    out_time: input.outTime,
     guard_remarks: input.guardRemarks,
   });
   return remap(data);

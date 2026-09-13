@@ -6,7 +6,7 @@ Prepared from the repository as of 14 August 2026. This is the handoff document 
 
 | Layer | Current technology | Production runtime |
 |---|---|---|
-| Web frontend | React 18, TypeScript, Vite 5, Tailwind CSS 3, Axios, React Router 7, Leaflet/React-Leaflet, Three.js/React Three Fiber | Static files produced in `frontend/dist`; no Node process is needed after build |
+| Web frontend | React 18, TypeScript, Vite 5, Tailwind CSS 3, Axios, React Router 7, Google Maps JavaScript API, Three.js/React Three Fiber | Static files produced in `frontend/dist`; no Node process is needed after build |
 | API/backend | Node.js, Express 4, TypeScript, Prisma 7 with `@prisma/adapter-mssql`, Zod, bcryptjs, Multer, Nodemailer | Long-running Node process, entry point `nodebackend/dist/index.js`, default port 8000 |
 | Database | Microsoft SQL Server through Prisma's `sqlserver` provider | Amazon RDS for SQL Server is recommended |
 | File storage | Files currently written below `nodebackend/storage/public` and `nodebackend/storage/app` | Must be migrated to S3 before horizontal scaling; an EBS workaround is documented below |
@@ -138,10 +138,11 @@ VITE_API_URL=/api
 VITE_SITE_URL=https://granvia.llc
 VITE_EMAIL_CONFIRMATION_REDIRECT_URL=https://granvia.llc/employer
 VITE_EMPLOYER_LOGIN_REDIRECT_URL=https://granvia.llc/employer
-VITE_MAP_PROVIDER=leaflet
+VITE_MAP_PROVIDER=google
+VITE_GOOGLE_MAPS_API_KEY=your_browser_restricted_google_maps_key
 ```
 
-The repository currently uses `https://aip.granvia.llc/api`. Confirm whether `aip` is intentional; if it is a typo for `api`, correct DNS and `frontend/.env.production` before building. `VITE_GOOGLE_MAPS_API_KEY` is needed only after a real Google Maps implementation is selected and should be browser-restricted. A payment gateway **public** key can later be a `VITE_*` variable; the gateway secret must remain backend-only.
+The repository currently uses `https://aip.granvia.llc/api`. Confirm whether `aip` is intentional; if it is a typo for `api`, correct DNS and `frontend/.env.production` before building. `VITE_GOOGLE_MAPS_API_KEY` is required for runtime map loading and should be browser-restricted. A payment gateway **public** key can later be a `VITE_*` variable; the gateway secret must remain backend-only.
 
 Expo production builds must set `EXPO_PUBLIC_APP_URL=https://granvia.llc/universal-app` or retain the matching `expo/app.json` value. Disable Android cleartext traffic for the production build after HTTPS-only device testing.
 
@@ -244,4 +245,3 @@ Before adding Razorpay, Cashfree, Stripe, PayU or another gateway:
 - [ ] Rate limits, security headers, upload validation/scanning, log redaction and backup alarms are active.
 - [ ] Frontend, backend, API smoke tests, all five role flows, uploads, OTP email and Android WebView pass on staging.
 - [ ] Payment/SMS are marked future scope and no placeholder setting is treated as a working integration.
-

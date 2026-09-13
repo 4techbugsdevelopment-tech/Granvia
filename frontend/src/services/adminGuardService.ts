@@ -15,6 +15,8 @@ export function toGuardView(user: any): Guard {
     mobile: user.mobile ?? p.mobile ?? '',
     email: user.email ?? '',
     password: '',
+    profileType: user.profile_type ?? 'guard',
+    profileTypeLabel: user.associate_type?.name ?? user.profile_type ?? 'Guard',
     gender: p.gender ?? '',
     dob: p.dob ? String(p.dob).slice(0, 10) : '',
     address: p.address ?? '',
@@ -45,6 +47,7 @@ export type CreateGuardInput = {
   email: string;
   mobile: string;
   password?: string;
+  profile_type?: string;
   gender?: string;
   dob?: string;
   address?: string;

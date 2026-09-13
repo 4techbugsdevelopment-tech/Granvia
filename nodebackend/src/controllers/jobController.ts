@@ -24,7 +24,7 @@ const JSON_FIELDS = ['required_skills', 'language_requirements'];
 const jobFields = {
   site_id: z.string().uuid().nullish(),
   category: z.string().nullish(),
-  guard_type: z.string().nullish(),
+  guard_type: z.string().trim().min(1, 'Select an associate type.'),
   guards_required: z.coerce.number().int().min(1).nullish(),
   gender_preference: z.string().nullish(),
   experience_required: z.string().nullish(),
@@ -53,6 +53,11 @@ const updateSchema = z.object({ company_id: z.string().uuid(), title: z.string()
 const companySelect = { company: { select: { id: true, companyName: true } } };
 const siteSelect = { site: { select: { id: true, siteName: true, city: true, state: true } } };
 
+async function assertActiveAssociateType(code: string) {
+  const row = await prisma.associateType.findFirst({ where: { code, status: 'active' }, select: { id: true } });
+  if (!row) throw new HttpError(422, 'Select a valid associate type.');
+}
+
 /** GET /employer/jobs */
 export async function mine(req: Request, res: Response) {
   const companyId = req.query.company_id as string | undefined;
@@ -67,6 +72,7 @@ export async function mine(req: Request, res: Response) {
 /** POST /employer/jobs */
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
+  await assertActiveAssociateType(data.guard_type);
   const company = await prisma.employerCompany.findFirst({
     where: { id: data.company_id, employerUserId: req.user!.id },
   });
@@ -101,6 +107,7 @@ export async function update(req: Request, res: Response) {
   if (job.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = updateSchema.parse(req.body);
+  if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
   const updated = await prisma.jobPost.update({
     where: { id: job.id },
     data: toPrismaData(data, JSON_FIELDS) as never,
@@ -145,6 +152,21 @@ export async function active(_req: Request, res: Response) {
   return res.json(serializeJobsWithSite(jobs));
 }
 
+/** GET /guard/jobs — active jobs matching the associate's registered type. */
+export async function activeForGuard(req: Request, res: Response) {
+  const profileType = req.user!.profileType;
+  if (!profileType) {
+    throw new HttpError(422, 'Complete your associate type before searching jobs.');
+  }
+
+  const jobs = await prisma.jobPost.findMany({
+    where: { status: 'active', guardType: profileType },
+    include: { ...companyName, site: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  return res.json(serializeJobsWithSite(jobs));
+}
+
 /** GET /admin/jobs/pending */
 export async function pending(_req: Request, res: Response) {
   const jobs = await prisma.jobPost.findMany({
@@ -168,6 +190,8 @@ export async function all(_req: Request, res: Response) {
 export async function approve(req: Request, res: Response) {
   const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
   if (!job) throw new HttpError(404, 'Not found.');
+  if (!job.guardType) throw new HttpError(422, 'Select an associate type before approving this job.');
+  await assertActiveAssociateType(job.guardType);
   const updated = await prisma.jobPost.update({
     where: { id: job.id },
     data: { status: 'active', rejectionReason: null },
@@ -178,6 +202,7 @@ export async function approve(req: Request, res: Response) {
 /** POST /admin/jobs — create a job on behalf of an employer from the manage page. */
 export async function adminStore(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
+  await assertActiveAssociateType(data.guard_type);
   const company = await prisma.employerCompany.findUnique({ where: { id: data.company_id } });
   if (!company) throw new HttpError(422, 'Select a valid employer company.');
 
@@ -203,6 +228,7 @@ export async function adminUpdate(req: Request, res: Response) {
   const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
   if (!job) throw new HttpError(404, 'Not found.');
   const data = updateSchema.parse(req.body);
+  if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
   let employerUserId: string | undefined;
 
   if (data.company_id || data.site_id) {

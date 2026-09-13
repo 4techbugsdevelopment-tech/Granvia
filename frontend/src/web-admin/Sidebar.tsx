@@ -18,6 +18,7 @@ export type AdminPage =
   | 'reports'
   | 'email-logs'
   | 'roles'
+  | 'associate-types'
   | 'settings';
 
 interface SidebarProps {
@@ -47,6 +48,7 @@ export const adminNavItems: NavItem[] = [
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
   { id: 'roles', label: 'Manage Roles', icon: <Shield size={18} /> },
+  { id: 'associate-types', label: 'Associate Types', icon: <Briefcase size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 

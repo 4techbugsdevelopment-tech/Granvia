@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
 import { serializeUserRow } from '../serializers/userSerializer';
+import { snakeKeys } from '../utils/serialize';
 import { deliverHiringDocumentsForVerifiedAssociate } from '../services/hiringDocumentDelivery';
 
 // Port of App\Http\Controllers\Admin\GuardController.
@@ -14,6 +15,7 @@ const guardSchema = z.object({
   email: z.string().email(),
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'The mobile format is invalid.'),
   password: z.string().min(8).nullish(),
+  profile_type: z.string().min(1).nullish(),
   gender: z.string().nullish(),
   dob: z.coerce.date().nullish(),
   address: z.string().nullish(),
@@ -28,6 +30,14 @@ const guardSchema = z.object({
   verification_status: z.enum(['pending', 'verified', 'rejected']).nullish(),
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
+
+async function resolveAssociateType(code: string | null | undefined) {
+  const normalized = code?.trim();
+  if (!normalized) throw new HttpError(422, 'Select a valid associate type.', { errors: { profile_type: ['Select a valid associate type.'] } });
+  const row = await prisma.associateType.findFirst({ where: { code: normalized, status: 'active' } });
+  if (!row) throw new HttpError(422, 'Select a valid associate type.', { errors: { profile_type: ['Select a valid associate type.'] } });
+  return row;
+}
 
 async function assertUnique(email: string | undefined, mobile: string | undefined, ignoreId?: string) {
   if (email) {
@@ -85,13 +95,24 @@ export async function index(req: Request, res: Response) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return res.json(guards.map((g) => serializeUserRow(g as unknown as Record<string, unknown>)));
+  const typeCodes = [...new Set(guards.map((g) => g.profileType).filter(Boolean))] as string[];
+  const associateTypes = typeCodes.length
+    ? await prisma.associateType.findMany({ where: { code: { in: typeCodes } } })
+    : [];
+  const typeMap = new Map(associateTypes.map((row) => [row.code, row]));
+
+  return res.json(guards.map((g) => {
+    const out = serializeUserRow(g as unknown as Record<string, unknown>);
+    out.associate_type = g.profileType ? snakeKeys(typeMap.get(g.profileType)) : null;
+    return out;
+  }));
 }
 
 /** POST /admin/guards */
 export async function store(req: Request, res: Response) {
   const data = guardSchema.parse(req.body);
   await assertUnique(data.email, data.mobile ?? undefined);
+  const associateType = await resolveAssociateType(data.profile_type);
 
   const tempPassword = data.password ?? crypto.randomBytes(9).toString('base64').slice(0, 12);
 
@@ -103,7 +124,7 @@ export async function store(req: Request, res: Response) {
         mobile: data.mobile,
         password: await hashPassword(tempPassword),
         role: 'guard',
-        profileType: 'guard',
+        profileType: associateType.code,
         accountStatus: data.account_status ?? 'active',
         emailVerifiedAt: new Date(),
       },
@@ -115,8 +136,10 @@ export async function store(req: Request, res: Response) {
   });
 
   const withProfile = await prisma.user.findUnique({ where: { id: user.id }, include: { guardProfile: true } });
+  const serialized = serializeUserRow(withProfile as unknown as Record<string, unknown>);
+  serialized.associate_type = snakeKeys(associateType);
   return res.status(201).json({
-    user: serializeUserRow(withProfile as unknown as Record<string, unknown>),
+    user: serialized,
     temporary_password: data.password ? null : tempPassword,
   });
 }
@@ -128,6 +151,7 @@ export async function update(req: Request, res: Response) {
 
   const data = guardSchema.partial().parse(req.body);
   await assertUnique(data.email, data.mobile ?? undefined, guard.id);
+  const associateType = data.profile_type !== undefined ? await resolveAssociateType(data.profile_type) : null;
 
   if (data.account_status === 'active') {
     const onboardingAgreement = await prisma.associatePartnerAgreement.findFirst({ where: { associatePartnerId: guard.id, currentKey: guard.id } });
@@ -143,6 +167,7 @@ export async function update(req: Request, res: Response) {
     if (data.full_name !== undefined) userFields.fullName = data.full_name;
     if (data.email !== undefined) userFields.email = data.email;
     if (data.mobile !== undefined) userFields.mobile = data.mobile;
+    if (associateType) userFields.profileType = associateType.code;
     if (data.account_status !== undefined) userFields.accountStatus = data.account_status;
     if (Object.keys(userFields).length) {
       await tx.user.update({ where: { id: guard.id }, data: userFields });
@@ -162,7 +187,12 @@ export async function update(req: Request, res: Response) {
   if (data.verification_status === 'verified') {
     await deliverHiringDocumentsForVerifiedAssociate(guard.id);
   }
-  return res.json(serializeUserRow(fresh as unknown as Record<string, unknown>));
+  const serialized = serializeUserRow(fresh as unknown as Record<string, unknown>);
+  const freshType = fresh?.profileType
+    ? await prisma.associateType.findFirst({ where: { code: fresh.profileType } })
+    : null;
+  serialized.associate_type = freshType ? snakeKeys(freshType) : null;
+  return res.json(serialized);
 }
 
 /** DELETE /admin/guards/:guard */

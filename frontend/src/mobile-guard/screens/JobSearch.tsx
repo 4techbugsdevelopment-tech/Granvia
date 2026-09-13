@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Clock, CheckCircle, X, Briefcase, Map as MapIcon, List, AlertCircle } from 'lucide-react';
 import { listActiveJobs } from '../../services/jobService';
 import { applyForJob, listMyAppliedJobIds } from '../../services/applicationService';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import JobRadiusMap from '../../components/map/JobRadiusMap';
 
 export default function JobSearch() {
@@ -18,6 +19,7 @@ export default function JobSearch() {
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [applySuccess, setApplySuccess] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -44,13 +46,22 @@ export default function JobSearch() {
     };
   }, []);
 
+  useEffect(() => {
+    listActiveAssociateTypes().then(setAssociateTypes).catch(() => setAssociateTypes([]));
+  }, []);
+
+  const associateTypeLabel = (code: string | null | undefined) =>
+    associateTypes.find(type => type.code === code)?.name ?? code ?? 'Associate';
+
   const filtered = jobs.filter(job => {
     const city = job.company_sites?.city ?? '';
     const company = job.employer_companies?.company_name ?? '';
+    const associateType = associateTypeLabel(job.guard_type);
     const matchSearch = !search ||
       job.title.toLowerCase().includes(search.toLowerCase()) ||
       city.toLowerCase().includes(search.toLowerCase()) ||
-      company.toLowerCase().includes(search.toLowerCase());
+      company.toLowerCase().includes(search.toLowerCase()) ||
+      associateType.toLowerCase().includes(search.toLowerCase());
     const matchFilter =
       activeFilter === 'All' ||
       (activeFilter === 'Night' && job.shift_type === 'Night') ||
@@ -236,6 +247,7 @@ export default function JobSearch() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{job.title}</p>
                       <p className="text-xs text-gray-500 truncate">{company}</p>
+                      <p className="mt-1 text-[11px] font-semibold text-blue-700">{associateTypeLabel(job.guard_type)}</p>
                     </div>
                     <div className="text-xs font-bold px-2 py-1 rounded-xl ml-2 flex-shrink-0 bg-green-50 text-green-700">
                       ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo' : 'day'}
@@ -354,6 +366,7 @@ export default function JobSearch() {
                     { label: 'Shift Hours', value: selectedJob.duty_hours ?? '—', color: '#0f1e3c' },
                     { label: 'Duration', value: selectedJob.duration_type, color: '#0f1e3c' },
                     { label: 'Openings', value: `${selectedJob.guards_required} posts`, color: '#7c2d12' },
+                    { label: 'Associate Type', value: associateTypeLabel(selectedJob.guard_type), color: '#0f1e3c' },
                     { label: 'Experience', value: selectedJob.experience_required, color: '#0f1e3c' },
                     { label: 'Location', value: selectedJob.company_sites?.site_name ?? selectedJob.company_sites?.city ?? '—', color: '#0f1e3c' },
                   ].map(info => (

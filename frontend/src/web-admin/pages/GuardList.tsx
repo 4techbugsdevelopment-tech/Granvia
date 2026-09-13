@@ -8,6 +8,7 @@ import { Guard } from '../../lib/storage';
 import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, deleteGuard } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 import { getErrorMessage } from '../../services/apiErrors';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 
 interface GuardListProps {
   onAddGuard: () => void;
@@ -26,13 +27,15 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [editingGuard, setEditingGuard] = useState(false);
   const [guardSaving, setGuardSaving] = useState(false);
-  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', city: '', state: '', address: '' });
+  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', profileType: '', city: '', state: '', address: '' });
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
 
   useEffect(() => {
     listGuards()
       .then(setGuards)
       .catch(e => setError(e?.response?.data?.message || e.message))
       .finally(() => setLoading(false));
+    listActiveAssociateTypes().then(setAssociateTypes).catch(() => setAssociateTypes([]));
   }, []);
 
   useEffect(() => {
@@ -96,7 +99,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     setSelectedGuard(guard);
     setEditDraft({
       fullName: guard.fullName, email: guard.email, mobile: guard.mobile,
-      city: guard.city, state: guard.state, address: guard.address,
+      profileType: guard.profileType, city: guard.city, state: guard.state, address: guard.address,
     });
     setEditingGuard(true);
   };
@@ -108,7 +111,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     try {
       const updated = await updateGuard(selectedGuard.id, {
         full_name: editDraft.fullName.trim(), email: editDraft.email.trim().toLowerCase(), mobile: editDraft.mobile.trim(),
-        city: editDraft.city.trim(), state: editDraft.state.trim(), address: editDraft.address.trim(),
+        profile_type: editDraft.profileType, city: editDraft.city.trim(), state: editDraft.state.trim(), address: editDraft.address.trim(),
       });
       setGuards(current => current.map(guard => guard.id === updated.id ? updated : guard));
       setSelectedGuard(updated);
@@ -240,7 +243,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           <table className="w-full">
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                {['Associate ID', 'Name', 'Contact', 'Location', 'Skills', 'Verifications', 'Status', 'Actions'].map(h => (
+                {['Associate ID', 'Name', 'Type', 'Contact', 'Location', 'Skills', 'Verifications', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -276,6 +279,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                         </div>
                       </div>
                     </td>
+                    <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{guard.profileTypeLabel}</td>
                     <td className="px-4 py-3.5">
                       <div className="text-xs text-gray-700">{guard.mobile}</div>
                       <div className="text-xs text-gray-400 truncate max-w-32">{guard.email}</div>
@@ -421,7 +425,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
 
               {editingGuard && (
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-gray-100">
-                  {([
+                  {([ 
                     ['Full Name', 'fullName'], ['Email', 'email'], ['Mobile', 'mobile'],
                     ['City', 'city'], ['State', 'state'], ['Address', 'address'],
                   ] as const).map(([label, key]) => (
@@ -434,6 +438,17 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                       />
                     </label>
                   ))}
+                  <label className="block">
+                    <span className="form-label">Associate Type</span>
+                    <select
+                      value={editDraft.profileType}
+                      onChange={event => setEditDraft(current => ({ ...current, profileType: event.target.value }))}
+                      className="form-input"
+                    >
+                      <option value="">Select associate type</option>
+                      {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
+                    </select>
+                  </label>
                   <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
                     <button onClick={() => setEditingGuard(false)} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700">Cancel</button>
                     <button disabled={guardSaving} onClick={saveGuard} className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#0f1e3c' }}>{guardSaving ? 'Saving...' : 'Save Changes'}</button>
@@ -444,6 +459,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
               <div className={`p-6 grid-cols-2 gap-6 max-h-96 overflow-y-auto ${editingGuard ? 'hidden' : 'grid'}`}>
                 {[
                   { label: 'Gender', value: selectedGuard.gender },
+                  { label: 'Associate Type', value: selectedGuard.profileTypeLabel },
                   { label: 'Date of Birth', value: selectedGuard.dob },
                   { label: 'Experience', value: selectedGuard.experience },
                   { label: 'City', value: selectedGuard.city },

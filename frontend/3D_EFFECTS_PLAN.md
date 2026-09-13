@@ -4,7 +4,7 @@ A catalog of 3D/immersive effects, where each applies, and which are recommended
 Portal-aware by design: the landing page can be rich, the **guard app is mobile-first
 so it stays light (no WebGL)**, and everything respects `prefers-reduced-motion`.
 
-**Already available:** `framer-motion@12` (used in 44 files), `recharts`, `leaflet`,
+**Already available:** `framer-motion@12` (used in 44 files), `recharts`,
 a `FlipCard` component. Most effects below need **no new library**.
 
 ---
@@ -69,7 +69,7 @@ a `FlipCard` component. Most effects below need **no new library**.
 - **Tables** (GuardList, EmployerManagement): stagger reveal + row hover-lift (E7).
 - **Row → detail:** shared-element expand (E8).
 - **Reports (recharts):** entrance animations; optional 3D bars (E16).
-- **Overview map:** keep Leaflet; optional 3D-globe alternate view (E14).
+- **Overview map:** keep the shared Google Maps component; optional 3D-globe alternate view (E14).
 
 ### Employer (`employer/`)
 - **Dashboard KPIs:** tilt + count-up (E1+E10).

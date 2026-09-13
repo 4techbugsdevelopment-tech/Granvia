@@ -181,7 +181,7 @@ async function main() {
   created.push({ type: 'company_document', id: companyDoc.id, marker: companyDoc.file_path });
   await call('GET', '/employer/companies/:company/documents', `/employer/companies/${company.id}/documents`, { role: 'employer' });
 
-  const jobPayload = { company_id: company.id, site_id: site.id, title: `${marker} Job`, guards_required: 1, salary_amount: 25000, payment_type: 'Monthly', duty_hours: '8 hours', shift_type: 'Day', start_date: new Date().toISOString(), required_skills: ['API Testing'], language_requirements: ['English'] };
+  const jobPayload = { company_id: company.id, site_id: site.id, title: `${marker} Job`, guard_type: 'guard', guards_required: 1, salary_amount: 25000, payment_type: 'Monthly', duty_hours: '8 hours', shift_type: 'Day', start_date: new Date().toISOString(), required_skills: ['API Testing'], language_requirements: ['English'] };
   const job = requireData(await call('POST', '/employer/jobs', '/employer/jobs', { role: 'employer', body: jobPayload }), 'job create');
   created.push({ type: 'job', id: job.id, marker: job.title });
   await call('GET', '/employer/jobs', `/employer/jobs?company_id=${company.id}`, { role: 'employer' });
@@ -332,7 +332,7 @@ async function main() {
     await call('GET', '/sales/clients/:employer', `/sales/clients/${employerId}`, { role: 'sales_executive' });
     const salesOtp = await call('POST', '/sales/jobs/request-otp', '/sales/jobs/request-otp', { role: 'sales_executive', body: { employer_user_id: employerId } });
     if (salesOtp.status === 200) {
-      const salesJob = await call('POST', '/sales/jobs', '/sales/jobs', { role: 'sales_executive', body: { otp_id: salesOtp.data.otp_id, otp: salesOtp.data.dev_otp, employer_user_id: employerId, company_id: company.id, site_id: site.id, title: `${marker} Sales Job`, duty_hours: '8 hours', guards_required: 1, salary_amount: 26000, description: marker } });
+      const salesJob = await call('POST', '/sales/jobs', '/sales/jobs', { role: 'sales_executive', body: { otp_id: salesOtp.data.otp_id, otp: salesOtp.data.dev_otp, employer_user_id: employerId, company_id: company.id, site_id: site.id, title: `${marker} Sales Job`, guard_type: 'guard', duty_hours: '8 hours', guards_required: 1, salary_amount: 26000, description: marker } });
       if (salesJob.status === 201) created.push({ type: 'sales_job', id: salesJob.data.id, marker: salesJob.data.title });
     } else results.push({ method: 'POST', route: '/sales/jobs', status: 0, outcome: 'skip', detail: 'request OTP fixture failed' });
     await call('GET', '/sales/discounts', '/sales/discounts', { role: 'sales_executive' });

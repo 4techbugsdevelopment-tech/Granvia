@@ -11,6 +11,7 @@ import * as adminReport from '../controllers/adminReportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
 import * as emailLog from '../controllers/emailLogController';
 import * as roles from '../controllers/roleController';
+import * as associateTypes from '../controllers/associateTypeController';
 import * as associateAgreement from '../controllers/adminAssociateAgreementController';
 import * as internalStaff from '../controllers/internalStaffController';
 import * as application from '../controllers/applicationController';
@@ -41,6 +42,10 @@ router.get('/admin/roles', asyncHandler(roles.index));
 router.post('/admin/roles', asyncHandler(roles.store));
 router.patch('/admin/roles/:role', asyncHandler(roles.update));
 router.delete('/admin/roles/:role', asyncHandler(roles.destroy));
+router.get('/admin/associate-types', asyncHandler(associateTypes.index));
+router.post('/admin/associate-types', asyncHandler(associateTypes.store));
+router.patch('/admin/associate-types/:associateType', asyncHandler(associateTypes.update));
+router.delete('/admin/associate-types/:associateType', asyncHandler(associateTypes.destroy));
 router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
 router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 

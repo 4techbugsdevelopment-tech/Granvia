@@ -29,6 +29,7 @@ export type GuardRegistrationInput = {
   mobile: string;
   email: string;
   password: string;
+  profileType: string;
   city?: string;
   state?: string;
   pincode?: string;
@@ -140,6 +141,7 @@ export async function registerGuard(input: GuardRegistrationInput) {
     mobile: input.mobile.trim(),
     email: input.email.trim().toLowerCase(),
     password: input.password,
+    profile_type: input.profileType,
     city: input.city?.trim() || undefined,
     state: input.state?.trim() || undefined,
     pincode: input.pincode?.trim() || undefined,

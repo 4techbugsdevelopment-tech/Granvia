@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2, ArrowLeft } from 'lucide-react';
 import { createGuard } from '../../services/adminGuardService';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 
@@ -62,8 +63,10 @@ function FloatingInput({
   );
 }
 
-function SelectInput({ label, value, onChange, options, required }: {
-  label: string; value: string; onChange: (v: string) => void; options: string[]; required?: boolean;
+type SelectOption = string | { value: string; label: string };
+
+function SelectInput({ label, value, onChange, options, required, error }: {
+  label: string; value: string; onChange: (v: string) => void; options: SelectOption[]; required?: boolean; error?: string;
 }) {
   return (
     <div>
@@ -77,8 +80,12 @@ function SelectInput({ label, value, onChange, options, required }: {
         style={{ border: '1.5px solid #e2e8f0', background: '#f8fafc', color: '#0f1e3c' }}
       >
         <option value="">Select {label}</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {options.map(o => {
+          const opt = typeof o === 'string' ? { value: o, label: o } : o;
+          return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+        })}
       </select>
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }
@@ -117,7 +124,7 @@ function MultiSelect({ label, selected, options, onChange }: {
 export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [form, setForm] = useState({
     fullName: '', mobile: '', email: '', password: '',
-    gender: '', dob: '', address: '', city: '', state: '', pincode: '',
+    profileType: '', gender: '', dob: '', address: '', city: '', state: '', pincode: '',
     latitude: '', longitude: '', experience: '',
     skills: [] as string[], languages: [] as string[], status: 'Active',
   });
@@ -125,6 +132,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   // Geocoding status for the address → lat/lng auto-fill
   const [geo, setGeo] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; message: string }>({
     status: 'idle',
@@ -134,6 +142,15 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const geoReqId = useRef(0);
 
   const set = (key: string) => (v: string) => setForm(f => ({ ...f, [key]: v }));
+
+  useEffect(() => {
+    listActiveAssociateTypes()
+      .then(rows => {
+        setAssociateTypes(rows);
+        setForm(current => current.profileType ? current : { ...current, profileType: rows[0]?.code ?? '' });
+      })
+      .catch(() => setAssociateTypes([]));
+  }, []);
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -180,6 +197,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.fullName.trim()) e.fullName = 'Full name is required';
+    if (!form.profileType) e.profileType = 'Please select associate type';
     if (!form.mobile.match(/^[6-9]\d{9}$/)) e.mobile = 'Enter valid 10-digit mobile number';
     if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = 'Enter valid email';
     if (!form.password || form.password.length < 8) e.password = 'Password must be at least 8 characters';
@@ -212,6 +230,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         email: form.email.trim(),
         mobile: form.mobile.trim(),
         password: form.password,
+        profile_type: form.profileType,
         gender: form.gender || undefined,
         dob: form.dob || undefined,
         address: form.address.trim() || undefined,
@@ -250,6 +269,14 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
       content: (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FloatingInput label="Full Name" value={form.fullName} onChange={set('fullName')} required error={errors.fullName} placeholder="Enter full name" />
+          <SelectInput
+            label="Associate Type"
+            value={form.profileType}
+            onChange={set('profileType')}
+            options={associateTypes.map(type => ({ value: type.code, label: type.name }))}
+            required
+            error={errors.profileType}
+          />
           <SelectInput label="Gender" value={form.gender} onChange={set('gender')} options={['Male', 'Female', 'Other']} required />
           <FloatingInput label="Date of Birth" value={form.dob} onChange={set('dob')} type="date" required error={errors.dob} />
           <FloatingInput label="Experience" value={form.experience} onChange={set('experience')} placeholder="e.g. 3 years" />

@@ -15,6 +15,7 @@ import {
   requestJobOtp, postProxyJob, getDiscounts, createDiscount, deleteDiscount, getManpower,
   SalesCounts, SalesActivityItem, SalesClient, SalesClientDetail, SalesJob, Discount, ManpowerResult,
 } from '../services/salesService';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 
 type SalesPage = 'dashboard' | 'clients' | 'jobs' | 'discounts' | 'manpower';
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
@@ -185,7 +186,8 @@ const JOB_CATEGORIES = [
 function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const [clients, setClients] = useState<SalesClient[]>([]);
   const [detail, setDetail] = useState<SalesClientDetail | null>(null);
-  const [form, setForm] = useState({ employer: '', company: '', site: '', title: '', dutyHours: '8-hour', english: true, experience: '', education: '', guards: '2' });
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
+  const [form, setForm] = useState({ employer: '', company: '', site: '', title: '', guardType: '', dutyHours: '8-hour', english: true, experience: '', education: '', guards: '2' });
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form');
   const [otp, setOtp] = useState('');
   const [otpMeta, setOtpMeta] = useState<{ otp_id: string } | null>(null);
@@ -193,6 +195,14 @@ function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { getSalesClients().then(setClients); }, []);
+  useEffect(() => {
+    listActiveAssociateTypes()
+      .then(rows => {
+        setAssociateTypes(rows);
+        setForm(current => current.guardType ? current : { ...current, guardType: rows[0]?.code ?? '' });
+      })
+      .catch(() => setAssociateTypes([]));
+  }, []);
 
   const selectClient = async (id: string) => {
     setForm(f => ({ ...f, employer: id, company: '', site: '' }));
@@ -201,6 +211,10 @@ function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
   };
 
   const sendOtp = async () => {
+    if (!form.employer || !form.company || !form.title || !form.guardType) {
+      setError('Select client, company, associate type and job title.');
+      return;
+    }
     setError(''); setBusy(true);
     try {
       const meta = await requestJobOtp(form.employer);
@@ -215,7 +229,7 @@ function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
     try {
       await postProxyJob({
         otp_id: otpMeta.otp_id, otp, employer_user_id: form.employer, company_id: form.company,
-        site_id: form.site || null, title: form.title, duty_hours: form.dutyHours,
+        site_id: form.site || null, title: form.title, guard_type: form.guardType, duty_hours: form.dutyHours,
         guards_required: Number(form.guards) || 1, experience_required: form.experience || undefined,
         qualification_required: form.education || undefined,
         language_requirements: form.english ? ['English'] : undefined,
@@ -256,6 +270,13 @@ function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
               </div>
               <Field label="Job Title" value={form.title} onChange={v => setForm(f => ({ ...f, title: v }))} placeholder="e.g. Night CCTV Operator" />
               <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: BROWN }}>Associate Type</label>
+                <select value={form.guardType} onChange={e => setForm(f => ({ ...f, guardType: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none" style={{ border: '1.5px solid #e6ddd8', background: '#faf8f6', color: BROWN }}>
+                  <option value="">Select associate type...</option>
+                  {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold mb-1.5" style={{ color: BROWN }}>Job Category</label>
                 <select value={form.dutyHours} onChange={e => setForm(f => ({ ...f, dutyHours: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none" style={{ border: '1.5px solid #e6ddd8', background: '#faf8f6', color: BROWN }}>
                   {JOB_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -270,7 +291,7 @@ function PostJobPage({ onDone, onCancel }: { onDone: () => void; onCancel: () =>
               Requires English proficiency
             </label>
             {error && <p className="text-xs mb-3" style={{ color: BURGUNDY }}>{error}</p>}
-            <TapButton onClick={sendOtp} disabled={!form.employer || !form.company || !form.title || busy} className="w-full">
+            <TapButton onClick={sendOtp} disabled={!form.employer || !form.company || !form.title || !form.guardType || busy} className="w-full">
               {busy ? 'Sending…' : 'Send OTP to Client'}
             </TapButton>
           </>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, CheckCircle, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, User, UserCheck } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
@@ -9,6 +9,7 @@ import {
   signIn,
 } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
+import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 
@@ -26,6 +27,7 @@ const emptyRegister = {
   password: '',
   confirmPassword: '',
   companyName: '',
+  profileType: '',
   city: '',
   state: '',
   pincode: '',
@@ -175,10 +177,20 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [showForgot, setShowForgot] = useState(false);
   const [registerOtp, setRegisterOtp] = useState<{ email: string; devOtp?: string } | null>(null);
   const [register, setRegister] = useState(emptyRegister);
+  const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
 
   usePincodeAutofill(register.pincode, result => {
     setRegister(current => ({ ...current, city: result.city, state: result.state }));
   });
+
+  useEffect(() => {
+    listActiveAssociateTypes()
+      .then(rows => {
+        setAssociateTypes(rows);
+        setRegister(current => current.profileType ? current : { ...current, profileType: rows[0]?.code ?? '' });
+      })
+      .catch(() => setAssociateTypes([]));
+  }, []);
 
   const triggerShake = () => {
     setShake(true);
@@ -257,29 +269,36 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       setRegisterError('Company name is required for employer registration.');
       return;
     }
+    if (registerRole === 'guard' && !register.profileType) {
+      setRegisterError('Associate type is required.');
+      return;
+    }
 
     setRegisterLoading(true);
     try {
-      const res = registerRole === 'employer'
-        ? await registerEmployer({
-            contactPersonName: register.fullName.trim(),
-            mobile: register.mobile.trim(),
-            email: emailValue,
-            password: register.password,
-            city: register.city.trim(),
-            state: register.state.trim(),
-            pincode: register.pincode.trim(),
-            companyName: register.companyName.trim(),
-          })
-        : await registerGuard({
-            fullName: register.fullName.trim(),
-            mobile: register.mobile.trim(),
-            email: emailValue,
-            password: register.password,
-            city: register.city.trim(),
-            state: register.state.trim(),
-            pincode: register.pincode.trim(),
-          });
+      if (registerRole === 'employer') {
+        await registerEmployer({
+          contactPersonName: register.fullName.trim(),
+          mobile: register.mobile.trim(),
+          email: emailValue,
+          password: register.password,
+          city: register.city.trim(),
+          state: register.state.trim(),
+          pincode: register.pincode.trim(),
+          companyName: register.companyName.trim(),
+        });
+      } else {
+        await registerGuard({
+          fullName: register.fullName.trim(),
+          mobile: register.mobile.trim(),
+          email: emailValue,
+          password: register.password,
+          profileType: register.profileType,
+          city: register.city.trim(),
+          state: register.state.trim(),
+          pincode: register.pincode.trim(),
+        });
+      }
 
       setRegisterOtp({ email: emailValue });
       setRegisterSuccess('Registration submitted. Verify the code sent to your email to activate the account.');
@@ -493,6 +512,25 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     <div className="sm:col-span-2">
                       <Input label="Company Name *" value={register.companyName} onChange={value => updateRegister('companyName', value)} icon={<Building2 size={14} />} />
                     </div>
+                  )}
+                  {registerRole === 'guard' && (
+                    <label className="block sm:col-span-2">
+                      <span className="text-xs font-semibold text-gray-500 mb-1 block">Associate Type *</span>
+                      <div className="relative">
+                        <Shield size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <select
+                          value={register.profileType}
+                          onChange={event => updateRegister('profileType', event.target.value)}
+                          className="register-input w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm outline-none"
+                          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+                        >
+                          <option value="">Select profile</option>
+                          {associateTypes.map(type => (
+                            <option key={type.id} value={type.code}>{type.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </label>
                   )}
                 </div>
 
