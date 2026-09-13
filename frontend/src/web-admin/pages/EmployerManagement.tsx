@@ -23,6 +23,7 @@ const EMPTY_DATA: EmployerManagementData = {
   sites: [],
   jobs: [],
   walletBalances: {},
+  walletBreakdown: {},
 };
 
 export default function EmployerManagement() {
@@ -36,7 +37,7 @@ export default function EmployerManagement() {
   const [loading, setLoading] = useState(true);
   const [documentBusy, setDocumentBusy] = useState<string | null>(null);
 
-  const { employers, companies, documents, sites, jobs, walletBalances } = data;
+  const { employers, companies, documents, sites, jobs, walletBalances, walletBreakdown } = data;
   const filtered = employers.filter(employer => {
     const query = search.toLowerCase();
     const employerCompanies = companies.filter(company => company.employerId === employer.id);
@@ -332,6 +333,9 @@ export default function EmployerManagement() {
                 ['Jobs', String(jobs.filter(job => job.employerId === selected.id).length)],
                 ['Sites', String(sites.filter(site => site.employerId === selected.id).length)],
                 ['Wallet', `Rs ${walletBalances[selected.id] || 0}`],
+                ['Deposited Balance', `Rs ${walletBreakdown[selected.id]?.deposit || 0}`],
+                ['Admin Credit', `Rs ${walletBreakdown[selected.id]?.credit || 0}`],
+                ['Total Debited', `Rs ${walletBreakdown[selected.id]?.debited || 0}`],
               ]} />
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

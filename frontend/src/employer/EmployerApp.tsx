@@ -19,7 +19,7 @@ import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '.
 import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview } from '../services/applicationService';
 import { listEmployerAttendance, updateAttendanceStatus } from '../services/attendanceService';
 import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
-import { getEmployerWallet, listWalletTransactions } from '../services/walletService';
+import { getEmployerWallet, listWalletTransactions, rechargeEmployerWallet } from '../services/walletService';
 import {
   listInterviewRequests, createInterviewRequest, updateInterviewRequest,
   listJobOffers, createJobOffer, updateJobOffer,
@@ -75,6 +75,7 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
   { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} /> },
+  { id: 'wallet',      label: 'Wallet',                   icon: <Wallet size={18} /> },
   { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} />,      master: true },
   { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} />,     master: true },
   { id: 'feedback',    label: 'Feedback',                 icon: <MessageSquare size={18} />, master: true },
@@ -2545,8 +2546,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
         job_id: app.job_id,
         application_id: app.id,
         amount: app.job_posts?.salary_amount ?? 0,
-        payment_method: 'cash',
-        payment_status: 'pending',
+        payment_method: 'wallet_otp',
       });
       const res = await requestCashPaymentOtp(payment.id);
       setOtpInput('');
@@ -2589,7 +2589,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
                 <Td>
                   {alreadyPaid
                     ? <span className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">Payment Done</span>
-                    : <button onClick={() => handlePay(app, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay Cash (OTP)</button>}
+                    : <button onClick={() => handlePay(app, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay from Wallet (OTP)</button>}
                 </Td>
               </tr>
             );
@@ -2619,8 +2619,8 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
       {otpFlow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(15,30,60,0.55)' }} onClick={() => setOtpFlow(null)}>
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900">Confirm cash payment</h3>
-            <p className="text-xs text-gray-500 mt-1">A confirmation code was emailed to <b>{otpFlow.guardName}</b> ({otpFlow.sentTo}). Enter it to mark the payment received.</p>
+            <h3 className="text-lg font-bold text-gray-900">Confirm wallet payment</h3>
+            <p className="text-xs text-gray-500 mt-1">A confirmation code was emailed to <b>{otpFlow.guardName}</b> ({otpFlow.sentTo}). Enter it to debit wallet balance and mark the payment received.</p>
             <input autoFocus inputMode="numeric" value={otpInput} onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
               className="w-full mt-3 px-3 py-3 rounded-lg text-center text-lg font-bold tracking-[0.4em] outline-none" style={{ background: '#f7f8fa', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }} placeholder="••••••" />
             {otpErr && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100 mt-2">{otpErr}</p>}
@@ -2641,40 +2641,69 @@ function WalletPage() {
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [amount, setAmount] = useState('1000');
+  const [remarks, setRemarks] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  const reloadWallet = () => {
     getEmployerWallet().then(setWallet).catch(() => setWallet({ balance: 0 }));
     listWalletTransactions().then(setTransactions).catch(() => setTransactions([]));
+  };
+
+  useEffect(() => {
+    reloadWallet();
   }, []);
 
-  const addBalance = () => {
+  const addBalance = async () => {
     const value = Number(amount);
     if (!value || value <= 0) return;
-    setSuccessMsg(`Rs ${value} balance top-up recorded. Update will reflect after admin confirmation.`);
+    setBusy(true);
+    setError('');
+    setSuccessMsg('');
+    try {
+      const result = await rechargeEmployerWallet(value, remarks.trim() || undefined);
+      setWallet(result.wallet);
+      await listWalletTransactions().then(setTransactions);
+      setSuccessMsg(`Rs ${value.toLocaleString('en-IN')} wallet recharge completed through mock payment gateway.`);
+      setRemarks('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to recharge wallet.'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="p-6 space-y-5">
       {successMsg && <SuccessBanner message={successMsg} onClose={() => setSuccessMsg('')} />}
+      {error && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
       <Card className="p-6">
-        <p className="text-xs text-gray-400 font-semibold uppercase">Wallet Balance</p>
-        <div className="text-4xl font-bold mt-2" style={{ color: '#0f1e3c' }}>Rs {wallet?.balance ?? 0}</div>
-        <div className="mt-5 flex max-w-md flex-col gap-3 sm:flex-row">
-          <input value={amount} onChange={e => setAmount(e.target.value)} className="form-input" placeholder="Amount" />
-          <button onClick={addBalance} className="rounded-xl px-4 py-3 text-sm font-semibold text-white whitespace-nowrap" style={{ background: '#0f1e3c' }}>Add Balance</button>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <WalletStat label="Wallet Balance" value={wallet?.balance ?? 0} color="#0f1e3c" />
+          <WalletStat label="Deposited" value={wallet?.deposit_balance ?? 0} color="#065f46" />
+          <WalletStat label="Admin Credit" value={wallet?.credit_balance ?? 0} color="#1d4ed8" />
+          <WalletStat label="Debited" value={wallet?.total_debited ?? 0} color="#7c2d12" />
+        </div>
+        <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-[180px_1fr_auto]">
+          <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} className="form-input" placeholder="Amount" />
+          <input value={remarks} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Recharge note" />
+          <button onClick={addBalance} disabled={busy} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
+            {busy ? 'Processing...' : 'Recharge'}
+          </button>
         </div>
       </Card>
       <Card className="p-5">
-        <h3 className="font-bold text-gray-900 mb-4">Wallet Transactions</h3>
-        <DataTable headers={['Type', 'Amount', 'Purpose', 'Status', 'Date']}>
+        <h3 className="font-bold text-gray-900 mb-4">Balance Statement</h3>
+        <DataTable headers={['Type', 'Amount', 'Purpose', 'Source', 'Balance', 'Date']}>
           {transactions.map((tx: any) => (
             <tr key={tx.id} className="border-b border-gray-50">
               <Td>{tx.transaction_type}</Td>
-              <Td>Rs {tx.amount}</Td>
+              <Td>{tx.transaction_type === 'debit' ? '-' : '+'}Rs {tx.amount}</Td>
               <Td>{tx.purpose}</Td>
-              <Td>{statusBadge(tx.status)}</Td>
-              <Td>{new Date(tx.created_at).toLocaleString('en-IN')}</Td>
+              <Td>{walletSourceLabel(tx.source)}</Td>
+              <Td>Rs {tx.balance_after ?? '--'}</Td>
+              <Td>{new Date(tx.posted_at || tx.created_at).toLocaleString('en-IN')}</Td>
             </tr>
           ))}
         </DataTable>
@@ -2682,6 +2711,22 @@ function WalletPage() {
       </Card>
     </div>
   );
+}
+
+function WalletStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase text-gray-400">{label}</p>
+      <div className="mt-2 text-2xl font-bold" style={{ color }}>Rs {Number(value || 0).toLocaleString('en-IN')}</div>
+    </div>
+  );
+}
+
+function walletSourceLabel(source?: string) {
+  if (source === 'mock_gateway_recharge') return 'Mock gateway';
+  if (source === 'admin_credit') return 'Super Admin credit';
+  if (source === 'job_payment') return 'Job payment';
+  return source || '--';
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────

@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { snakeKeys, toPrismaData } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { HttpError } from '../utils/http';
 import { issueOtp, verifyOtp } from '../services/otpService';
+import { debitEmployerWalletForPayment } from './walletController';
 
 function auditFromRequest(req: Request, kind: string, details?: Record<string, unknown>) {
   return {
@@ -24,10 +26,8 @@ const createSchema = z.object({
   guard_user_id: z.string().uuid().nullish(),
   job_id: z.string().uuid().nullish(),
   application_id: z.string().uuid().nullish(),
-  amount: z.coerce.number(),
+  amount: z.coerce.number().positive(),
   payment_method: z.string().nullish(),
-  payment_status: z.string().nullish(),
-  payment_date: z.coerce.date().nullish(),
 });
 
 /** GET /employer/payments */
@@ -48,11 +48,28 @@ export async function index(req: Request, res: Response) {
 /** POST /employer/payments */
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
+  if (data.application_id) {
+    const existing = await prisma.payment.findFirst({
+      where: {
+        employerUserId: req.user!.id,
+        applicationId: data.application_id,
+        paymentStatus: { in: ['pending', 'otp_sent', 'completed'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing?.paymentStatus === 'completed') {
+      throw new HttpError(409, 'This application has already been paid.');
+    }
+    if (existing) {
+      return res.json(snakeKeys(existing));
+    }
+  }
+
   const created = await prisma.payment.create({
     data: {
       ...toPrismaData(data),
       employerUserId: req.user!.id,
-      paymentStatus: data.payment_status ?? 'pending',
+      paymentStatus: 'pending',
     } as never,
   });
   return res.status(201).json(snakeKeys(created));
@@ -103,16 +120,66 @@ export async function requestCashOtp(req: Request, res: Response) {
 export async function confirmCashOtp(req: Request, res: Response) {
   const { otp } = z.object({ otp: z.string().min(4) }).parse(req.body);
   const payment = await loadOwnedPayment(req.params.payment, req.user!.id);
+  if (payment.paymentStatus === 'completed') {
+    throw new HttpError(422, 'This payment is already completed.');
+  }
 
   const guard = payment.guardUserId ? await prisma.user.findUnique({ where: { id: payment.guardUserId } }) : null;
   if (!guard) throw new HttpError(422, 'Guard account not found.');
 
   await verifyOtp({ email: guard.email, purpose: 'cash_payment', otp, referenceId: payment.id });
 
-  const updated = await prisma.payment.update({
-    where: { id: payment.id },
-    data: { paymentStatus: 'completed', paymentDate: new Date() },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.payment.findUnique({
+      where: { id: payment.id },
+      include: { job: { select: { title: true } } },
+    });
+    if (!current) throw new HttpError(404, 'Not found.');
+    if (current.paymentStatus === 'completed') throw new HttpError(422, 'This payment is already completed.');
+
+    await debitEmployerWalletForPayment(tx, {
+      employerUserId: req.user!.id,
+      amount: Number(current.amount),
+      paymentId: current.id,
+      jobId: current.jobId,
+      guardUserId: current.guardUserId,
+      purpose: current.job ? `Payment debited for ${current.job.title}` : 'Associate payment debit',
+      metadata: {
+        application_id: current.applicationId,
+        payment_method: current.paymentMethod ?? 'wallet_otp',
+      },
+    });
+
+    const associateWallet = await tx.associateWallet.upsert({
+      where: { guardUserId: guard.id },
+      create: { guardUserId: guard.id },
+      update: {},
+    });
+    const alreadyCredited = await tx.associateWalletTransaction.findFirst({
+      where: { referenceType: 'payment', referenceId: current.id },
+    });
+    if (!alreadyCredited) {
+      await tx.associateWalletTransaction.create({
+        data: {
+          walletId: associateWallet.id,
+          transactionType: 'credit',
+          amount: current.amount,
+          purpose: current.job ? `Completed shift payment - ${current.job.title}` : 'Completed shift payment',
+          referenceType: 'payment',
+          referenceId: current.id,
+        },
+      });
+      await tx.associateWallet.update({
+        where: { id: associateWallet.id },
+        data: { availableBalance: { increment: Number(current.amount) } },
+      });
+    }
+
+    return tx.payment.update({
+      where: { id: current.id },
+      data: { paymentStatus: 'completed', paymentDate: new Date(), paymentMethod: current.paymentMethod ?? 'wallet_otp' },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   return res.json(snakeKeys(updated));
 }

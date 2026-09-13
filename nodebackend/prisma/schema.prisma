@@ -448,13 +448,18 @@ model AttendanceRecord {
 }
 
 model EmployerWallet {
-  id             String   @id @default(uuid()) @db.NVarChar(36)
-  employerUserId String   @unique @map("employer_user_id") @db.NVarChar(36)
-  balance        Decimal  @default(0) @db.Decimal(12, 2)
-  currency       String   @default("INR")
-  status         String   @default("active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  employerUserId  String   @unique @map("employer_user_id") @db.NVarChar(36)
+  balance         Decimal  @default(0) @db.Decimal(12, 2)
+  depositBalance  Decimal  @default(0) @map("deposit_balance") @db.Decimal(12, 2)
+  creditBalance   Decimal  @default(0) @map("credit_balance") @db.Decimal(12, 2)
+  totalRecharged  Decimal  @default(0) @map("total_recharged") @db.Decimal(12, 2)
+  totalCredited   Decimal  @default(0) @map("total_credited") @db.Decimal(12, 2)
+  totalDebited    Decimal  @default(0) @map("total_debited") @db.Decimal(12, 2)
+  currency        String   @default("INR")
+  status          String   @default("active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [employerUserId], references: [id], onDelete: Cascade)
 
@@ -508,6 +513,13 @@ model WalletTransaction {
   transactionType String    @default("credit") @map("transaction_type")
   amount          Decimal   @default(0) @db.Decimal(12, 2)
   purpose         String?
+  source          String?   @db.NVarChar(50)
+  referenceType   String?   @map("reference_type") @db.NVarChar(50)
+  referenceId     String?   @map("reference_id") @db.NVarChar(36)
+  jobId           String?   @map("job_id") @db.NVarChar(36)
+  guardUserId     String?   @map("guard_user_id") @db.NVarChar(36)
+  balanceAfter    Decimal?  @map("balance_after") @db.Decimal(12, 2)
+  metadata        String?   @db.NVarChar(Max)
   status          String    @default("completed")
   postedAt        DateTime? @map("posted_at")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -515,6 +527,7 @@ model WalletTransaction {
 
   @@index([walletId])
   @@index([employerUserId])
+  @@index([referenceType, referenceId])
   @@map("wallet_transactions")
 }
 

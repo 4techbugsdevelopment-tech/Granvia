@@ -15,6 +15,7 @@ import * as associateTypes from '../controllers/associateTypeController';
 import * as associateAgreement from '../controllers/adminAssociateAgreementController';
 import * as internalStaff from '../controllers/internalStaffController';
 import * as application from '../controllers/applicationController';
+import * as wallet from '../controllers/walletController';
 
 const router = Router();
 
@@ -37,6 +38,7 @@ router.get('/admin/reports/analytics', asyncHandler(adminReport.analytics));
 router.get('/admin/attendance', asyncHandler(adminReport.attendance));
 router.get('/admin/hiring', asyncHandler(adminReport.hiring));
 router.get('/admin/email-logs', asyncHandler(emailLog.index));
+router.get('/admin/wallets', asyncHandler(wallet.adminIndex));
 
 router.get('/admin/roles', asyncHandler(roles.index));
 router.post('/admin/roles', asyncHandler(roles.store));
@@ -65,6 +67,7 @@ router.get('/admin/employers', asyncHandler(adminEmployer.index));
 router.patch('/admin/company-documents/:document', asyncHandler(adminEmployer.updateCompanyDocumentStatus));
 router.post('/admin/employers', asyncHandler(adminEmployer.store));
 router.patch('/admin/employers/:employer', asyncHandler(adminEmployer.update));
+router.post('/admin/employers/:employer/wallet-credit', asyncHandler(wallet.adminGrantCredit));
 router.patch('/admin/employers/:employer/aadhaar', asyncHandler(aadhaarManual.adminDeclareEmployer));
 router.delete('/admin/employers/:employer', asyncHandler(adminEmployer.destroy));
 

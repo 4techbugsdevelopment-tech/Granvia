@@ -32,6 +32,7 @@ export type EmployerManagementData = {
   sites: CompanySite[];
   jobs: EmployerManagementJobSummary[];
   walletBalances: Record<string, number>;
+  walletBreakdown: Record<string, { deposit: number; credit: number; debited: number }>;
 };
 
 export type EmployerCreationResult = {
@@ -181,9 +182,15 @@ export async function listEmployerManagementData(): Promise<EmployerManagementDa
   );
 
   const walletBalances: Record<string, number> = {};
+  const walletBreakdown: Record<string, { deposit: number; credit: number; debited: number }> = {};
   (data.employers as Row[]).forEach((user) => {
     if (user.employer_wallet) {
       walletBalances[user.id] = Number(user.employer_wallet.balance || 0);
+      walletBreakdown[user.id] = {
+        deposit: Number(user.employer_wallet.deposit_balance || 0),
+        credit: Number(user.employer_wallet.credit_balance || 0),
+        debited: Number(user.employer_wallet.total_debited || 0),
+      };
     }
   });
 
@@ -198,6 +205,7 @@ export async function listEmployerManagementData(): Promise<EmployerManagementDa
       companyId: row.company_id,
     })),
     walletBalances,
+    walletBreakdown,
   };
 }
 

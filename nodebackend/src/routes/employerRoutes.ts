@@ -92,6 +92,7 @@ router.get('/employer/invoices', asyncHandler(invoice.index));
 
 router.get('/employer/wallet', asyncHandler(wallet.show));
 router.get('/employer/wallet/transactions', asyncHandler(wallet.transactions));
+router.post('/employer/wallet/recharge', asyncHandler(wallet.recharge));
 
 router.get('/employer/aadhaar', asyncHandler(aadhaar.status));
 // Automated/self-service verification — gated off until the real Aadhaar API is live.
