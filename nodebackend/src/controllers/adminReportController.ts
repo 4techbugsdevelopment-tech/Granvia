@@ -23,7 +23,7 @@ const jobInclude = {
     select: {
       id: true,
       title: true,
-      site: { select: { id: true, siteName: true, city: true } },
+      site: { select: { id: true, siteName: true, city: true, latitude: true, longitude: true } },
       company: { select: { id: true, companyName: true } },
     },
   },

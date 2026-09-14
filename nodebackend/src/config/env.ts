@@ -28,6 +28,7 @@ export const env = {
   // Global attendance switch. Keep enforcement on by default so a missing or
   // misspelled production variable never silently disables location capture.
   locationCaptureEnabled: enabled(process.env.LOCATION_CAPTURE_ENABLED, true),
+  attendanceGeofenceRadiusMeters: Math.max(25, Number(process.env.ATTENDANCE_GEOFENCE_RADIUS_METERS ?? 250)),
   googleMapsApiKey: process.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || process.env.GOOGLE_MAPS_API_KEY?.trim() || '',
   // Opt-in (default OFF): login requires a second-factor email OTP before a
   // token is issued. Enable only once the two-step UI is wired in every portal.

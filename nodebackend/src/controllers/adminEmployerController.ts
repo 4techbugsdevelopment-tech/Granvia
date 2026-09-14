@@ -212,6 +212,20 @@ export async function update(req: Request, res: Response) {
   return res.json(serializeUserRow(fresh as unknown as Record<string, unknown>));
 }
 
+/** POST /admin/employers/:employer/password-reset */
+export async function resetPassword(req: Request, res: Response) {
+  const employer = await prisma.user.findUnique({ where: { id: req.params.employer } });
+  if (!employer || employer.role !== 'employer') throw new HttpError(404, 'Not an employer account.');
+
+  const tempPassword = crypto.randomBytes(9).toString('base64url');
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: employer.id }, data: { password: await hashPassword(tempPassword) } }),
+    prisma.personalAccessToken.deleteMany({ where: { tokenableId: employer.id } }),
+  ]);
+
+  return res.json({ message: 'Employer password reset successfully.', temporary_password: tempPassword });
+}
+
 /** DELETE /admin/employers/:employer */
 export async function destroy(req: Request, res: Response) {
   const employer = await prisma.user.findUnique({ where: { id: req.params.employer } });
@@ -240,6 +254,7 @@ export async function destroy(req: Request, res: Response) {
     prisma.employerCompany.deleteMany({ where: { employerUserId: employer.id } }),
     prisma.invoice.deleteMany({ where: { employerUserId: employer.id } }),
     prisma.walletTransaction.deleteMany({ where: { employerUserId: employer.id } }),
+    prisma.operationsAssignment.deleteMany({ where: { employerUserId: employer.id } }),
     prisma.employerAadhaarVerification.deleteMany({ where: { employerUserId: employer.id } }),
     prisma.discount.updateMany({ where: { employerUserId: employer.id }, data: { employerUserId: null } }),
     ...(ticketIds.length ? [prisma.supportTicketMessage.deleteMany({ where: { ticketId: { in: ticketIds } } })] : []),

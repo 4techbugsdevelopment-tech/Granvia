@@ -449,6 +449,30 @@ model AttendanceRecord {
   @@map("attendance_records")
 }
 
+model AttendanceLocationAttempt {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  guardUserId     String   @map("guard_user_id") @db.NVarChar(36)
+  employerUserId  String?  @map("employer_user_id") @db.NVarChar(36)
+  companyId       String?  @map("company_id") @db.NVarChar(36)
+  jobId           String?  @map("job_id") @db.NVarChar(36)
+  siteId          String?  @map("site_id") @db.NVarChar(36)
+  attemptType     String   @map("attempt_type") @db.NVarChar(30)
+  status          String   @default("blocked") @db.NVarChar(30)
+  deviceLatitude  Decimal? @map("device_latitude") @db.Decimal(10, 6)
+  deviceLongitude Decimal? @map("device_longitude") @db.Decimal(10, 6)
+  siteLatitude    Decimal? @map("site_latitude") @db.Decimal(10, 6)
+  siteLongitude   Decimal? @map("site_longitude") @db.Decimal(10, 6)
+  distanceMeters  Decimal? @map("distance_meters") @db.Decimal(10, 2)
+  radiusMeters    Int      @map("radius_meters")
+  reason          String?  @db.NVarChar(Max)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([employerUserId, createdAt])
+  @@index([guardUserId, createdAt])
+  @@index([jobId, createdAt])
+  @@map("attendance_location_attempts")
+}
+
 model EmployerWallet {
   id              String   @id @default(uuid()) @db.NVarChar(36)
   employerUserId  String   @unique @map("employer_user_id") @db.NVarChar(36)

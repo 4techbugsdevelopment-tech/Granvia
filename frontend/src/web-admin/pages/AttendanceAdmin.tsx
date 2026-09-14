@@ -5,6 +5,7 @@ import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { PageHeader, StatTile, Table, Pill } from './_adminUi';
 import { getAdminAttendance, AdminAttendance, updateAdminAttendanceStatus } from '../../services/reportService';
 import { getErrorMessage } from '../../services/apiErrors';
+import { distanceKm } from '../../lib/geoUtils';
 
 const tone = (s: string) =>
   s === 'verified' || s === 'approved' ? 'green' : s === 'pending_verification' ? 'amber' : s === 'rejected' ? 'red' : 'blue';
@@ -39,6 +40,23 @@ function gpsLink(lat: number | string | null, lng: number | string | null, fallb
     >
       {latitude.toFixed(5)}, {longitude.toFixed(5)}
     </a>
+  );
+}
+
+function LocationCell({ lat, lng, site, fallback = '--' }: { lat: number | string | null; lng: number | string | null; site: { latitude: number | string | null; longitude: number | string | null } | null | undefined; fallback?: string }) {
+  const currentLat = lat == null ? null : Number(lat);
+  const currentLng = lng == null ? null : Number(lng);
+  const siteLat = site?.latitude == null ? null : Number(site.latitude);
+  const siteLng = site?.longitude == null ? null : Number(site.longitude);
+  const distance = currentLat != null && currentLng != null && siteLat != null && siteLng != null
+    ? Math.round(distanceKm({ lat: currentLat, lng: currentLng }, { lat: siteLat, lng: siteLng }) * 1000)
+    : null;
+  return (
+    <div className="space-y-1">
+      {gpsLink(lat, lng, fallback)}
+      {distance != null && <div className="text-[10px] text-gray-600">{distance} m from site</div>}
+      {siteLat != null && siteLng != null && <div className="text-[10px] text-gray-400">Site: {gpsLink(siteLat, siteLng)}</div>}
+    </div>
   );
 }
 
@@ -110,7 +128,7 @@ export default function AttendanceAdmin() {
             <StatTile label="Pending Verification" value={String(stats?.pending ?? 0)} color="#854d0e" />
           </div>
 
-          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in GPS', 'Out', 'Check-out GPS', 'Hours', 'Status', 'Settlement', 'Actions']}>
+          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in Location', 'Out', 'Check-out Location', 'Hours', 'Status', 'Settlement', 'Actions']}>
             {records.map((r) => (
               <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                 <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard_profile?.full_name ?? '—'}</td>
@@ -119,9 +137,9 @@ export default function AttendanceAdmin() {
                   {r.attendance_date ? new Date(r.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.in_time)}</td>
-                <td className="px-4 py-3.5">{gpsLink(r.check_in_latitude, r.check_in_longitude)}</td>
+                <td className="px-4 py-3.5"><LocationCell lat={r.check_in_latitude} lng={r.check_in_longitude} site={r.job?.site} /></td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.out_time)}</td>
-                <td className="px-4 py-3.5">{gpsLink(r.check_out_latitude, r.check_out_longitude, r.checkout_method === 'automatic' ? 'Auto — unavailable' : '—')}</td>
+                <td className="px-4 py-3.5"><LocationCell lat={r.check_out_latitude} lng={r.check_out_longitude} site={r.job?.site} fallback={r.checkout_method === 'automatic' ? 'Auto - unavailable' : '--'} /></td>
                 <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#0f1e3c' }}>{fmtHours(r.total_hours)}</td>
                 <td className="px-4 py-3.5">
                   <Pill label={statusLabel(r.status)} tone={tone(r.status) as any} />
@@ -159,3 +177,4 @@ export default function AttendanceAdmin() {
     </motion.div>
   );
 }
+

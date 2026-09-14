@@ -18,7 +18,7 @@ const jobInclude = {
       title: true,
       dutyHours: true,
       company: { select: { id: true, companyName: true, registeredAddress: true, billingAddress: true, city: true, state: true, pincode: true } },
-      site: { select: { id: true, siteName: true, address: true, city: true, state: true, pincode: true } },
+      site: { select: { id: true, siteName: true, address: true, city: true, state: true, pincode: true, latitude: true, longitude: true } },
     },
   },
 } as const;
@@ -43,6 +43,126 @@ function requireLiveLocation(data: { latitude?: number | null; longitude?: numbe
   if (!env.locationCaptureEnabled) return;
   if (data.latitude == null || data.longitude == null) {
     throw new HttpError(422, 'A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
+  }
+}
+
+function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthKm = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return earthKm * 2 * Math.asin(Math.sqrt(h)) * 1000;
+}
+
+function siteAddress(job: {
+  site?: { siteName?: string | null; address?: string | null; city?: string | null; state?: string | null; pincode?: string | null; latitude?: Prisma.Decimal | number | string | null; longitude?: Prisma.Decimal | number | string | null } | null;
+  company?: { registeredAddress?: string | null; billingAddress?: string | null; city?: string | null; state?: string | null; pincode?: string | null } | null;
+}) {
+  const site = job.site;
+  const company = job.company;
+  return site?.address || [site?.siteName, site?.city, site?.state, site?.pincode].filter(Boolean).join(', ')
+    || company?.registeredAddress || company?.billingAddress || [company?.city, company?.state, company?.pincode].filter(Boolean).join(', ')
+    || 'job location';
+}
+
+async function notifyEmployerLocationMismatch(params: {
+  guardId: string;
+  employerUserId?: string | null;
+  jobTitle?: string | null;
+  targetAddress: string;
+  attemptType: 'check_in' | 'check_out';
+  latitude: number;
+  longitude: number;
+  distance?: number | null;
+  radius: number;
+  reason: string;
+}) {
+  if (!params.employerUserId) return;
+  const guard = await prisma.user.findUnique({ where: { id: params.guardId }, select: { fullName: true, email: true } });
+  const distanceText = params.distance == null ? 'unknown distance' : `${Math.round(params.distance)} m away`;
+  await prisma.notification.create({
+    data: {
+      userId: params.employerUserId,
+      title: 'Attendance location blocked',
+      message: `${guard?.fullName ?? guard?.email ?? 'An associate'} tried to ${params.attemptType === 'check_in' ? 'check in' : 'check out'} for ${params.jobTitle ?? 'a job'} at ${params.latitude.toFixed(6)}, ${params.longitude.toFixed(6)} (${distanceText}). Assigned location: ${params.targetAddress}. Allowed radius: ${params.radius} m.`,
+      type: 'attendance_geofence',
+    },
+  });
+}
+
+async function enforceGeofence(params: {
+  guardId: string;
+  job: {
+    id: string;
+    title?: string | null;
+    employerUserId?: string | null;
+    companyId?: string | null;
+    siteId?: string | null;
+    site?: { latitude?: Prisma.Decimal | number | string | null; longitude?: Prisma.Decimal | number | string | null } | null;
+    company?: { registeredAddress?: string | null; billingAddress?: string | null; city?: string | null; state?: string | null; pincode?: string | null } | null;
+  };
+  attemptType: 'check_in' | 'check_out';
+  latitude?: number | null;
+  longitude?: number | null;
+}) {
+  if (!env.locationCaptureEnabled) return;
+  requireLiveLocation(params);
+
+  const radius = env.attendanceGeofenceRadiusMeters;
+  const targetAddress = siteAddress(params.job);
+  const siteLat = params.job.site?.latitude == null ? null : Number(params.job.site.latitude);
+  const siteLng = params.job.site?.longitude == null ? null : Number(params.job.site.longitude);
+
+  const createBlockedAttempt = async (reason: string, distance: number | null) => {
+    await prisma.attendanceLocationAttempt.create({
+      data: {
+        guardUserId: params.guardId,
+        employerUserId: params.job.employerUserId ?? null,
+        companyId: params.job.companyId ?? null,
+        jobId: params.job.id,
+        siteId: params.job.siteId ?? null,
+        attemptType: params.attemptType,
+        status: 'blocked',
+        deviceLatitude: params.latitude ?? null,
+        deviceLongitude: params.longitude ?? null,
+        siteLatitude: siteLat,
+        siteLongitude: siteLng,
+        distanceMeters: distance == null ? null : new Prisma.Decimal(distance.toFixed(2)),
+        radiusMeters: radius,
+        reason,
+      },
+    });
+    await notifyEmployerLocationMismatch({
+      guardId: params.guardId,
+      employerUserId: params.job.employerUserId,
+      jobTitle: params.job.title,
+      targetAddress,
+      attemptType: params.attemptType,
+      latitude: params.latitude!,
+      longitude: params.longitude!,
+      distance,
+      radius,
+      reason,
+    });
+  };
+
+  if (siteLat == null || siteLng == null || Number.isNaN(siteLat) || Number.isNaN(siteLng)) {
+    const reason = 'Assigned job site is not configured with map coordinates.';
+    await createBlockedAttempt(reason, null);
+    throw new HttpError(422, 'Attendance cannot be marked because this job site does not have map coordinates configured. Ask the employer to update the site location.');
+  }
+
+  const distance = distanceMeters(
+    { lat: params.latitude!, lng: params.longitude! },
+    { lat: siteLat, lng: siteLng },
+  );
+  if (distance > radius) {
+    const reason = `Device location is ${Math.round(distance)} m from the assigned job location; allowed radius is ${radius} m.`;
+    await createBlockedAttempt(reason, distance);
+    throw new HttpError(422, `You are not on the job location. You are ${Math.round(distance)} m away from ${targetAddress}; attendance is allowed within ${radius} m.`);
   }
 }
 
@@ -117,7 +237,6 @@ export async function guardIndex(req: Request, res: Response) {
 /** POST /guard/attendance/check-in */
 export async function checkIn(req: Request, res: Response) {
   const data = checkInSchema.parse(req.body);
-  requireLiveLocation(data);
   const guardId = req.user!.id;
   const today = todayDateOnly();
   const job = await assignedJob(guardId, data.job_id, today);
@@ -133,6 +252,10 @@ export async function checkIn(req: Request, res: Response) {
   if (existing) {
     throw new HttpError(422, 'Attendance already marked for today.');
   }
+
+  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: job.id }, include: { site: true, company: true } });
+  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+  await enforceGeofence({ guardId, job: jobWithLocation, attemptType: 'check_in', latitude: data.latitude, longitude: data.longitude });
 
   const inTime = new Date();
   const record = await prisma.attendanceRecord.create({
@@ -160,7 +283,7 @@ export async function checkIn(req: Request, res: Response) {
 /** PATCH /guard/attendance/:record/check-out */
 export async function checkOut(req: Request, res: Response) {
   await autoCheckoutExpiredAttendance();
-  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record } });
+  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record }, include: jobInclude });
   if (!record) {
     throw new HttpError(404, 'Not found.');
   }
@@ -174,7 +297,10 @@ export async function checkOut(req: Request, res: Response) {
   }
 
   const data = checkOutSchema.parse(req.body);
-  requireLiveLocation(data);
+  if (!record.jobId || !record.job) throw new HttpError(422, 'Attendance is not linked to a job location.');
+  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: record.jobId }, include: { site: true, company: true } });
+  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+  await enforceGeofence({ guardId: record.guardUserId, job: jobWithLocation, attemptType: 'check_out', latitude: data.latitude, longitude: data.longitude });
 
   const outTime = new Date();
   const totalHours = record.inTime

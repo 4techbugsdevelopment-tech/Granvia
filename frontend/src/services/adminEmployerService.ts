@@ -267,6 +267,11 @@ export async function deleteEmployerFromAdmin(id: string) {
   await apiClient.delete(`/admin/employers/${id}`);
 }
 
+export async function resetEmployerPasswordFromAdmin(id: string): Promise<{ message: string; temporary_password: string }> {
+  const { data } = await apiClient.post(`/admin/employers/${id}/password-reset`);
+  return data;
+}
+
 /** Admin manually declares an employer's Aadhaar verification (API disabled). */
 export async function declareEmployerAadhaar(id: string, status: 'verified' | 'rejected' | 'pending', remarks?: string) {
   const { data } = await apiClient.patch(`/admin/employers/${id}/aadhaar`, { status, remarks });

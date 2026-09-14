@@ -10,6 +10,7 @@ import {
   EmployerManagementData,
   listEmployerManagementData,
   updateEmployerFromAdmin,
+  resetEmployerPasswordFromAdmin,
   declareEmployerAadhaar,
   reviewEmployerDocument,
 } from '../../services/adminEmployerService';
@@ -106,6 +107,20 @@ export default function EmployerManagement() {
     }
   };
 
+  const resetEmployerPassword = async (employer: Employer) => {
+    const confirmed = window.confirm(`Reset password for ${employer.contactPersonName}? Existing sessions will be revoked.`);
+    if (!confirmed) return;
+    setNotice('');
+    setError('');
+    try {
+      const result = await resetEmployerPasswordFromAdmin(employer.id);
+      window.alert(`Temporary password for ${employer.contactPersonName}: ${result.temporary_password}`);
+      setNotice('Employer password reset.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to reset employer password.'));
+    }
+  };
+
   const reviewDocument = async (documentId: string, status: 'verified' | 'rejected') => {
     const remarks = status === 'rejected' ? window.prompt('Rejection reason (required):') : undefined;
     if (status === 'rejected' && !remarks?.trim()) return;
@@ -166,6 +181,7 @@ export default function EmployerManagement() {
                 <button onClick={() => setSelected(employer)} className="table-action"><Eye size={13} className="inline mr-1" />View</button>
                 <button onClick={() => setEditing(employer)} className="table-action"><Edit size={13} className="inline mr-1" />Edit</button>
                 <button onClick={() => updateEmployer(employer.id, { accountStatus: employer.accountStatus === 'Blocked' ? 'Active' : 'Blocked' })} className="table-action">{employer.accountStatus === 'Blocked' ? 'Unblock' : 'Block'}</button>
+                <button onClick={() => resetEmployerPassword(employer)} className="table-action tone-blue">Reset Password</button>
                 <button onClick={() => deleteEmployer(employer)} className="table-action tone-red"><Trash2 size={13} className="inline mr-1" />Delete</button>
               </div>
             </div>
@@ -224,6 +240,7 @@ export default function EmployerManagement() {
                         {employer.accountStatus === 'Blocked' ? <Shield size={13} className="inline mr-1" /> : <ShieldOff size={13} className="inline mr-1" />}
                         {employer.accountStatus === 'Blocked' ? 'Unblock' : 'Block'}
                       </button>
+                      <button onClick={() => resetEmployerPassword(employer)} className="table-action tone-blue">Reset Password</button>
                       <button onClick={() => deleteEmployer(employer)} className="table-action tone-red"><Trash2 size={13} className="inline mr-1" />Delete</button>
                     </td>
                   </tr>
@@ -340,6 +357,7 @@ export default function EmployerManagement() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={() => { setEditing(selected); setSelected(null); }} className="px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Edit Employer</button>
+              <button onClick={() => resetEmployerPassword(selected)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700">Reset Password</button>
               <button onClick={() => deleteEmployer(selected)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-700">Delete Employer</button>
             </div>
           </motion.div>

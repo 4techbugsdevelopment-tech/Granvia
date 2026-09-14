@@ -25,9 +25,12 @@ export async function listMyAttendance() {
   return (data ?? []).map(remap);
 }
 
-export async function getAttendanceConfiguration(): Promise<{ attendanceLocationEnabled: boolean }> {
+export async function getAttendanceConfiguration(): Promise<{ attendanceLocationEnabled: boolean; attendanceGeofenceRadiusMeters: number }> {
   const { data } = await apiClient.get('/config/public');
-  return { attendanceLocationEnabled: data?.location_capture_enabled !== false };
+  return {
+    attendanceLocationEnabled: data?.location_capture_enabled !== false,
+    attendanceGeofenceRadiusMeters: Number(data?.attendance_geofence_radius_meters ?? 250),
+  };
 }
 
 export async function checkInAttendance(input: {

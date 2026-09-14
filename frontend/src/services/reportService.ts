@@ -26,7 +26,7 @@ export async function getAdminReportCounts(): Promise<AdminReportCounts> {
 export type AdminAttendanceRecord = {
   id: string;
   guard_profile: { full_name: string | null } | null;
-  job: { title: string | null; site: { site_name: string | null } | null; company: { company_name: string | null } | null } | null;
+  job: { title: string | null; site: { site_name: string | null; latitude: number | string | null; longitude: number | string | null } | null; company: { company_name: string | null } | null } | null;
   attendance_date: string;
   in_time: string | null;
   out_time: string | null;

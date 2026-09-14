@@ -5,7 +5,7 @@ import {
   Phone, Mail, MapPin, XCircle, User, AlertCircle, Pencil, Trash2
 } from 'lucide-react';
 import { Guard } from '../../lib/storage';
-import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, deleteGuard } from '../../services/adminGuardService';
+import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, deleteGuard, resetGuardPassword } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
@@ -139,6 +139,19 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     } finally { setGuardSaving(false); }
   };
 
+  const resetPassword = async (target?: Guard) => {
+    const guard = target ?? selectedGuard;
+    if (!guard || !window.confirm(`Reset password for ${guard.fullName}? Existing sessions will be revoked.`)) return;
+    setGuardSaving(true);
+    setError(null);
+    try {
+      const result = await resetGuardPassword(guard.id);
+      window.alert(`Temporary password for ${guard.fullName}: ${result.temporary_password}`);
+    } catch (cause) {
+      setError(getErrorMessage(cause, 'Failed to reset associate password.'));
+    } finally { setGuardSaving(false); }
+  };
+
   const declareAadhaar = async (id: string, status: 'verified' | 'rejected') => {
     const titled = (status.charAt(0).toUpperCase() + status.slice(1)) as Guard['aadhaarStatus'];
     try {
@@ -234,6 +247,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
               <button onClick={() => setSelectedGuard(guard)} className="table-action"><Eye size={13} className="inline mr-1" />View</button>
               <button onClick={() => startEditGuard(guard)} className="table-action tone-blue"><Pencil size={13} className="inline mr-1" />Edit</button>
               <button onClick={() => toggleBlock(guard.id)} className="table-action">{guard.status === 'Active' ? 'Block' : 'Unblock'}</button>
+              <button onClick={() => resetPassword(guard)} className="table-action tone-blue">Reset Password</button>
               <button onClick={() => removeGuard(guard)} className="table-action tone-red"><Trash2 size={13} className="inline mr-1" />Delete</button>
             </div>
           </div>
@@ -347,6 +361,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                         <motion.button onClick={() => removeGuard(guard)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors" whileHover={{ scale: 1.1 }} title="Delete Associate">
                           <Trash2 size={14} />
                         </motion.button>
+                        <button onClick={() => resetPassword(guard)} className="table-action tone-blue">Reset Password</button>
                         <motion.button
                           onClick={() => toggleBlock(guard.id)}
                           className="p-1.5 rounded-lg transition-colors"
@@ -588,6 +603,13 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                   className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 disabled:opacity-50 inline-flex items-center gap-1.5"
                 >
                   <Pencil size={14} /> Edit
+                </button>
+                <button
+                  onClick={() => resetPassword()}
+                  disabled={guardSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 disabled:opacity-50"
+                >
+                  Reset Password
                 </button>
                 <button
                   onClick={() => toggleBlock(selectedGuard.id)}

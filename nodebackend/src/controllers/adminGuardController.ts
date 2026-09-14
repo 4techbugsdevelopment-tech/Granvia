@@ -157,7 +157,7 @@ export async function update(req: Request, res: Response) {
   await assertUnique(data.email, data.mobile ?? undefined, guard.id);
   const associateType = data.profile_type !== undefined ? await resolveAssociateType(data.profile_type) : null;
 
-  if (data.account_status === 'active') {
+  if (data.account_status === 'active' && guard.accountStatus !== 'blocked') {
     const onboardingAgreement = await prisma.associatePartnerAgreement.findFirst({ where: { associatePartnerId: guard.id, currentKey: guard.id } });
     if (onboardingAgreement && (onboardingAgreement.status !== 'SIGNED' || !onboardingAgreement.productionVerified)) {
       throw new HttpError(409, 'Associate activation requires a production-verified digital agreement.', {
@@ -199,6 +199,20 @@ export async function update(req: Request, res: Response) {
   return res.json(serialized);
 }
 
+/** POST /admin/guards/:guard/password-reset */
+export async function resetPassword(req: Request, res: Response) {
+  const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
+  if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
+
+  const tempPassword = crypto.randomBytes(9).toString('base64url');
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: guard.id }, data: { password: await hashPassword(tempPassword) } }),
+    prisma.personalAccessToken.deleteMany({ where: { tokenableId: guard.id } }),
+  ]);
+
+  return res.json({ message: 'Associate password reset successfully.', temporary_password: tempPassword });
+}
+
 /** DELETE /admin/guards/:guard */
 export async function destroy(req: Request, res: Response) {
   const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
@@ -208,6 +222,8 @@ export async function destroy(req: Request, res: Response) {
   const applicationIds = applications.map((application) => application.id);
   const tickets = await prisma.supportTicket.findMany({ where: { userId: guard.id }, select: { id: true } });
   const ticketIds = tickets.map((ticket) => ticket.id);
+  const wallets = await prisma.associateWallet.findMany({ where: { guardUserId: guard.id }, select: { id: true } });
+  const walletIds = wallets.map((wallet) => wallet.id);
 
   await prisma.$transaction([
     ...(applicationIds.length ? [prisma.applicationStatusLog.deleteMany({ where: { applicationId: { in: applicationIds } } })] : []),
@@ -222,6 +238,10 @@ export async function destroy(req: Request, res: Response) {
     prisma.guardAadhaarVerification.deleteMany({ where: { guardUserId: guard.id } }),
     prisma.associatePartnerAgreementAudit.deleteMany({ where: { associatePartnerId: guard.id } }),
     prisma.associatePartnerAgreement.deleteMany({ where: { associatePartnerId: guard.id } }),
+    prisma.withdrawalRequest.deleteMany({ where: { guardUserId: guard.id } }),
+    prisma.walletTransaction.deleteMany({ where: { guardUserId: guard.id } }),
+    ...(walletIds.length ? [prisma.associateWalletTransaction.deleteMany({ where: { walletId: { in: walletIds } } })] : []),
+    prisma.associateWallet.deleteMany({ where: { guardUserId: guard.id } }),
     ...(ticketIds.length ? [prisma.supportTicketMessage.deleteMany({ where: { ticketId: { in: ticketIds } } })] : []),
     prisma.supportTicket.deleteMany({ where: { userId: guard.id } }),
     prisma.notification.deleteMany({ where: { userId: guard.id } }),

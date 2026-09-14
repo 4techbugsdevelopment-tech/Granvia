@@ -26,7 +26,7 @@ import {
   listAgreements, createAgreement, updateAgreement,
 } from '../services/hiringService';
 import { listCompanyDocuments, createDocumentRecord, updateDocumentRecord, deleteDocumentRecord } from '../services/documentService';
-import { geocodeAddress, buildSiteAddress, reverseGeocode } from '../lib/geoUtils';
+import { geocodeAddress, buildSiteAddress, reverseGeocode, distanceKm } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
@@ -2482,6 +2482,23 @@ function AttendanceGps({ lat, lng, fallback = '--' }: { lat: any; lng: any; fall
   );
 }
 
+function AttendanceLocation({ lat, lng, site, fallback = '--' }: { lat: any; lng: any; site: any; fallback?: string }) {
+  const siteLat = site?.latitude == null ? null : Number(site.latitude);
+  const siteLng = site?.longitude == null ? null : Number(site.longitude);
+  const currentLat = lat == null ? null : Number(lat);
+  const currentLng = lng == null ? null : Number(lng);
+  const distance = currentLat != null && currentLng != null && siteLat != null && siteLng != null
+    ? Math.round(distanceKm({ lat: currentLat, lng: currentLng }, { lat: siteLat, lng: siteLng }) * 1000)
+    : null;
+  return (
+    <div className="space-y-1">
+      <AttendanceGps lat={lat} lng={lng} fallback={fallback} />
+      {distance != null && <div className="text-[10px] text-gray-600">{distance} m from site</div>}
+      {siteLat != null && siteLng != null && <div className="text-[10px] text-gray-400">Site: <AttendanceGps lat={siteLat} lng={siteLng} /></div>}
+    </div>
+  );
+}
+
 function AttendancePage({ company, onChanged }: { company: any; onChanged: () => void }) {
   const [records, setRecords] = useState<any[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -2518,7 +2535,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
           <p className="mt-1 text-sm text-gray-500">Review completed associate attendance and approve valid shifts for payment.</p>
           {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
         </div>
-        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in GPS', 'Check-out GPS', 'Hours', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in Location', 'Check-out Location', 'Hours', 'Status', 'Actions']}>
           {records.map((r: any) => {
             const hasValidHours = r.in_time && r.out_time && Number(r.total_hours ?? 0) > 0;
             const decided = ['approved', 'verified', 'rejected'].includes(String(r.status ?? '').toLowerCase());
@@ -2529,8 +2546,8 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
               <Td>{r.job_posts?.title}</Td>
               <Td>{r.attendance_date}</Td>
               <Td>{r.in_time ? new Date(r.in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'} / {r.out_time ? new Date(r.out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</Td>
-              <Td><AttendanceGps lat={r.check_in_latitude} lng={r.check_in_longitude} /></Td>
-              <Td><AttendanceGps lat={r.check_out_latitude} lng={r.check_out_longitude} fallback={r.checkout_method === 'automatic' ? 'Auto checkout — unavailable' : '--'} /></Td>
+              <Td><AttendanceLocation lat={r.check_in_latitude} lng={r.check_in_longitude} site={r.job_posts?.site} /></Td>
+              <Td><AttendanceLocation lat={r.check_out_latitude} lng={r.check_out_longitude} site={r.job_posts?.site} fallback={r.checkout_method === 'automatic' ? 'Auto checkout - unavailable' : '--'} /></Td>
               <Td>{r.total_hours ?? '--'}</Td>
               <Td>
                 {statusBadge(r.status)}
@@ -2852,4 +2869,5 @@ function ReportsPage({ employer: _employer, company, companies }: { employer: Em
     </div>
   );
 }
+
 

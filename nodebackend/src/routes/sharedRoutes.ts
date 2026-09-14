@@ -24,6 +24,7 @@ router.get('/config/public', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   return res.json({
     location_capture_enabled: env.locationCaptureEnabled,
+    attendance_geofence_radius_meters: env.attendanceGeofenceRadiusMeters,
     google_maps_api_key: env.googleMapsApiKey,
   });
 });

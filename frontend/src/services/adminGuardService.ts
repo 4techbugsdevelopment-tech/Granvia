@@ -94,6 +94,11 @@ export async function deleteGuard(userId: string) {
   return data;
 }
 
+export async function resetGuardPassword(userId: string): Promise<{ message: string; temporary_password: string }> {
+  const { data } = await apiClient.post(`/admin/guards/${userId}/password-reset`);
+  return data;
+}
+
 export async function getAdminGuardAgreement(userId: string) {
   const { data } = await apiClient.get(`/admin/guards/${userId}/agreement`);
   return data;

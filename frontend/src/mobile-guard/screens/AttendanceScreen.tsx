@@ -137,7 +137,7 @@ export default function AttendanceScreen() {
       const position = locationRequired ? await getCurrentPosition() : null;
       if (locationRequired && !position) throw new Error('A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
       if (type === 'in') {
-        const record = await checkInAttendance({ latitude: position?.lat, longitude: position?.lng });
+        const record = await checkInAttendance({ latitude: position?.lat, longitude: position?.lng, jobId: currentJob?.id });
         setRecords(prev => [record, ...prev]);
       } else if (todayRecord) {
         const record = await checkOutAttendance(todayRecord.id, { latitude: position?.lat, longitude: position?.lng });
