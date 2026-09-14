@@ -292,6 +292,8 @@ npm run typecheck    # TypeScript compile check (no emit)
 
 ## 9. Low-Token Claude Working Rules
 
+- Use MemPalace first for this project when task context may depend on prior decisions: search `wing_granvia` with narrow task keywords before broad repo exploration.
+- Credit-saving flow: MemPalace search -> project markdown search -> targeted code search -> verify drift-prone facts in the current repo before editing.
 - Always read `CLAUDE.md` first in every session.
 - Identify the minimum relevant files before opening anything. Target 3–8 files per task.
 - Use Grep/Glob to locate symbols before opening files.
