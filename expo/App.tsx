@@ -28,6 +28,17 @@ const APP_URL: string =
   (Constants.expoConfig?.extra as { appUrl?: string } | undefined)?.appUrl ??
   'https://granvia.netlify.app/universal-app';
 
+const APP_ORIGIN = (() => {
+  try {
+    return new URL(APP_URL).origin;
+  } catch {
+    return 'https://granvia.llc';
+  }
+})();
+
+const LOCATION_PERMISSION_COPY =
+  'Granvia needs your location to show nearby jobs, routes and attendance location.';
+
 // Marks the WebView as the packaged APK so the web app switches to full-screen
 // mode and routes to the universal app.
 const INJECT_BEFORE_LOAD = `
@@ -40,7 +51,11 @@ export default function App() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const waitingForLocationSettings = useRef(false);
+  const waitingForAppSettings = useRef(false);
   const locationSettingsWasBackgrounded = useRef(false);
+  const appSettingsWasBackgrounded = useRef(false);
+  const locationRequestInFlight = useRef(false);
+  const currentWebOrigin = useRef(APP_ORIGIN);
 
   // Android hardware back button navigates WebView history instead of exiting.
   useEffect(() => {
@@ -56,11 +71,18 @@ export default function App() {
     return () => sub.remove();
   }, [canGoBack]);
 
-  const onNav = (nav: WebViewNavigation) => setCanGoBack(nav.canGoBack);
+  const onNav = (nav: WebViewNavigation) => {
+    setCanGoBack(nav.canGoBack);
+    try {
+      currentWebOrigin.current = new URL(nav.url).origin;
+    } catch {
+      currentWebOrigin.current = APP_ORIGIN;
+    }
+  };
 
   const sendCurrentPositionResult = (result: {
     position: { lat: number; lng: number } | null;
-    error: 'permission_denied' | 'services_disabled' | 'timeout' | 'unavailable' | null;
+    error: 'permission_denied' | 'permission_permanently_denied' | 'services_disabled' | 'timeout' | 'unavailable' | null;
   }) => {
     webRef.current?.injectJavaScript(`
       window.dispatchEvent(new CustomEvent('granvia-current-position', {
@@ -79,50 +101,104 @@ export default function App() {
     `);
   };
 
+  const isTrustedWebOrigin = () => currentWebOrigin.current === APP_ORIGIN;
+
+  const checkLocationPermission = async () => {
+    const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+    const coarse = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
+    return (await PermissionsAndroid.check(fine)) || (await PermissionsAndroid.check(coarse));
+  };
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
-      if (!waitingForLocationSettings.current) return;
-      if (state !== 'active') locationSettingsWasBackgrounded.current = true;
+      if (state !== 'active') {
+        if (waitingForLocationSettings.current) locationSettingsWasBackgrounded.current = true;
+        if (waitingForAppSettings.current) appSettingsWasBackgrounded.current = true;
+        return;
+      }
+
       if (state === 'active' && locationSettingsWasBackgrounded.current) {
         waitingForLocationSettings.current = false;
         locationSettingsWasBackgrounded.current = false;
         sendLocationSettingsResult(true);
+        void requestCurrentPosition();
+      }
+
+      if (state === 'active' && appSettingsWasBackgrounded.current) {
+        waitingForAppSettings.current = false;
+        appSettingsWasBackgrounded.current = false;
+        void requestCurrentPosition();
       }
     });
     return () => subscription.remove();
   }, []);
 
+  const openAppSettings = () => {
+    Alert.alert(
+      'Location permission is disabled for Granvia',
+      'Enable Location permission from App Settings to use nearby jobs, maps and attendance.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            waitingForAppSettings.current = true;
+            appSettingsWasBackgrounded.current = false;
+            void Linking.openSettings();
+          },
+        },
+      ],
+    );
+  };
+
+  const requestForegroundLocationPermission = async () => {
+    const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+    const coarse = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
+
+    if (await checkLocationPermission()) return 'granted';
+
+    const results = await PermissionsAndroid.requestMultiple([fine, coarse]);
+    if (
+      results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
+      results[coarse] === PermissionsAndroid.RESULTS.GRANTED
+    ) {
+      return 'granted';
+    }
+
+    if (
+      results[fine] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ||
+      results[coarse] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
+    ) {
+      return 'permanently_denied';
+    }
+
+    return 'denied';
+  };
+
   // Fetch the coordinate in the native layer. Runtime permission alone is not
   // enough because Android WebView can report POSITION_UNAVAILABLE even when
   // GPS is enabled.
   const requestCurrentPosition = async () => {
+    if (locationRequestInFlight.current) return;
+    locationRequestInFlight.current = true;
+
     if (Platform.OS !== 'android') {
       sendCurrentPositionResult({ position: null, error: 'unavailable' });
+      locationRequestInFlight.current = false;
       return;
     }
 
     try {
-      const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-      const coarse = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
-      const alreadyGranted =
-        (await PermissionsAndroid.check(fine)) ||
-        (await PermissionsAndroid.check(coarse));
+      const permission = await requestForegroundLocationPermission();
+      if (permission === 'permanently_denied') {
+        sendCurrentPositionResult({ position: null, error: 'permission_permanently_denied' });
+        openAppSettings();
+        return;
+      }
 
-      if (!alreadyGranted) {
-        const results = await PermissionsAndroid.requestMultiple([fine, coarse]);
-        const granted =
-          results[fine] === PermissionsAndroid.RESULTS.GRANTED ||
-          results[coarse] === PermissionsAndroid.RESULTS.GRANTED;
-        if (!granted) {
-          sendCurrentPositionResult({ position: null, error: 'permission_denied' });
-          if (results[fine] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || results[coarse] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-            Alert.alert('Location permission required', 'Enable location permission for Granvia in App Settings.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => void Linking.openSettings() },
-            ]);
-          }
-          return;
-        }
+      if (permission === 'denied') {
+        sendCurrentPositionResult({ position: null, error: 'permission_denied' });
+        return;
       }
 
       if (!(await Location.hasServicesEnabledAsync())) {
@@ -137,15 +213,17 @@ export default function App() {
       });
     } catch {
       sendCurrentPositionResult({ position: null, error: 'unavailable' });
+    } finally {
+      locationRequestInFlight.current = false;
     }
   };
 
   const openLocationSettings = () => {
     Alert.alert(
-      'Enable location services',
-      'Granvia needs your live location. Turn on Location/GPS, then return to the app.',
+      'Location is turned off',
+      LOCATION_PERMISSION_COPY,
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => sendLocationSettingsResult(false) },
+        { text: 'Not Now', style: 'cancel', onPress: () => sendLocationSettingsResult(false) },
         {
           text: 'Enable Location',
           onPress: async () => {
@@ -165,16 +243,32 @@ export default function App() {
   };
 
   const onMessage = (event: { nativeEvent: { data: string } }) => {
+    if (!isTrustedWebOrigin()) return;
+
     try {
       const message = JSON.parse(event.nativeEvent.data) as { type?: string };
       if (message.type === 'GRANVIA_REQUEST_CURRENT_POSITION') {
         void requestCurrentPosition();
       } else if (message.type === 'GRANVIA_OPEN_LOCATION_SETTINGS') {
         openLocationSettings();
+      } else if (message.type === 'GRANVIA_OPEN_APP_SETTINGS') {
+        openAppSettings();
       }
     } catch {
       // Ignore messages that are not part of the native bridge.
     }
+  };
+
+  const shouldStartLoad = (request: { url: string }) => {
+    try {
+      const url = new URL(request.url);
+      if (url.origin === APP_ORIGIN || request.url === 'about:blank') return true;
+    } catch {
+      if (request.url === 'about:blank') return true;
+    }
+
+    void Linking.openURL(request.url);
+    return false;
   };
 
   return (
@@ -190,9 +284,10 @@ export default function App() {
         source={{ uri: APP_URL }}
         injectedJavaScriptBeforeContentLoaded={INJECT_BEFORE_LOAD}
         onNavigationStateChange={onNav}
+        onShouldStartLoadWithRequest={shouldStartLoad}
         onMessage={onMessage}
         onLoadEnd={() => setLoading(false)}
-        originWhitelist={['*']}
+        originWhitelist={[APP_ORIGIN]}
         domStorageEnabled
         javaScriptEnabled
         geolocationEnabled

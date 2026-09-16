@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MapPin, AlertCircle, Navigation, Briefcase, Loader } from 'lucide-react';
 import MapView from './MapView';
-import { distanceKm, getCurrentPositionResult, geocodeAddress, buildSiteAddress, type LocationFailureReason } from '../../lib/geoUtils';
+import { distanceKm, getCurrentPositionResult, geocodeAddress, buildSiteAddress, getLocationFailureMessage, type LocationFailureReason } from '../../lib/geoUtils';
 import type { LatLng, MapMarker } from './types';
 
 export interface MappableJob {
@@ -171,6 +171,7 @@ export default function JobRadiusMap({
     (visibleMarkers[0]?.position ?? INDIA_DEFAULT);
 
   const routeTo = selectedMarker && guardPos ? selectedMarker.position : undefined;
+  const locationMessage = getLocationFailureMessage(locationError);
 
   if (locating) {
     return (
@@ -211,9 +212,9 @@ export default function JobRadiusMap({
 
       {denied && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs">
-          <AlertCircle size={13} />
-          Location access denied — routing unavailable. Enable location to see routes.
-          <button title={locationError ?? undefined} onClick={() => void locate()} className="ml-auto rounded-lg bg-amber-100 px-2.5 py-1 font-bold text-amber-900">Retry</button>
+          <AlertCircle size={13} className="flex-shrink-0" />
+          <span className="min-w-0 flex-1">{locationMessage}</span>
+          <button title={locationError ?? undefined} onClick={() => void locate()} className="rounded-lg bg-amber-100 px-2.5 py-1 font-bold text-amber-900">Retry</button>
         </div>
       )}
 
