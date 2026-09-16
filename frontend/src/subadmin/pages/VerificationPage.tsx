@@ -34,6 +34,8 @@ export default function VerificationPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<{ docId: string; reason: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
   const load = () => getVerificationQueue().then(setQueue).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -57,16 +59,24 @@ export default function VerificationPage() {
   const approve = async (docId: string) => {
     if (!active) return;
     setBusy(true);
-    try { await reviewDocument(docId, 'verified'); patchDoc(active.id, docId, { status: 'verified', admin_remarks: null }); }
+    setNotice('');
+    setError('');
+    try { await reviewDocument(docId, 'verified'); patchDoc(active.id, docId, { status: 'verified', admin_remarks: null }); setNotice('Document approved successfully.'); }
+    catch (cause: any) { setError(cause?.response?.data?.message || cause.message || 'Unable to approve document.'); }
     finally { setBusy(false); }
   };
   const confirmReject = async () => {
     if (!active || !rejecting) return;
     setBusy(true);
+    setNotice('');
+    setError('');
     try {
       await reviewDocument(rejecting.docId, 'rejected', rejecting.reason || 'Not specified');
       patchDoc(active.id, rejecting.docId, { status: 'rejected', admin_remarks: rejecting.reason || 'Not specified' });
       setRejecting(null);
+      setNotice('Document rejected successfully.');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Unable to reject document.');
     } finally { setBusy(false); }
   };
 
@@ -88,6 +98,8 @@ export default function VerificationPage() {
   return (
     <Page>
       <PageHeader title="Manual Verification Desk" subtitle="Review uploaded documents and approve or reject each associate" />
+      {notice && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{notice}</div>}
+      {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <GlassStat label="Pending Review" value={String(counts.pending)} icon={<Clock size={18} />} accent="#854d0e" />

@@ -90,3 +90,15 @@ export function Pill({ label, tone }: { label: string; tone: 'green' | 'red' | '
   }[tone];
   return <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: map.color, background: map.bg }}>{label}</span>;
 }
+
+export function FeedbackBanner({ type, message, onClose }: { type: 'success' | 'error'; message: string; onClose?: () => void }) {
+  const style = type === 'success'
+    ? 'border-green-200 bg-green-50 text-green-800'
+    : 'border-red-200 bg-red-50 text-red-700';
+  return (
+    <div role={type === 'error' ? 'alert' : 'status'} className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${style}`}>
+      <span>{message}</span>
+      {onClose && <button type="button" onClick={onClose} className="text-xs font-bold opacity-70 hover:opacity-100">Dismiss</button>}
+    </div>
+  );
+}

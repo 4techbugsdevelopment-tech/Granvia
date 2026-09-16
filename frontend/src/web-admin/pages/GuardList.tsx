@@ -9,6 +9,7 @@ import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAg
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
+import { FeedbackBanner } from './_adminUi';
 
 interface GuardListProps {
   onAddGuard: () => void;
@@ -29,6 +30,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   const [guardSaving, setGuardSaving] = useState(false);
   const [editDraft, setEditDraft] = useState({ fullName: '', email: '', mobile: '', profileType: '', city: '', state: '', address: '', dailyRate: '', hourlyRate: '' });
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     listGuards()
@@ -64,9 +66,12 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
   };
 
   const reviewDoc = async (docId: string, status: 'verified' | 'rejected') => {
+    setError(null);
+    setNotice('');
     try {
       const updated = await reviewGuardDocument(docId, status);
       setDocs(prev => prev.map(d => (d.id === docId ? updated : d)));
+      setNotice(status === 'verified' ? 'Associate document approved successfully.' : 'Associate document rejected successfully.');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     }
@@ -84,10 +89,13 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     const guard = guards.find(g => g.id === id);
     if (!guard) return;
     const newStatus = guard.status === 'Active' ? 'blocked' : 'active';
+    setError(null);
+    setNotice('');
     try {
       const updated = await setGuardAccountStatus(id, newStatus);
       setGuards(prev => prev.map(g => (g.id === id ? updated : g)));
       if (selectedGuard?.id === id) setSelectedGuard(updated);
+      setNotice(newStatus === 'active' ? 'Associate unblocked successfully.' : 'Associate blocked successfully.');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     }
@@ -109,6 +117,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     if (!selectedGuard) return;
     setGuardSaving(true);
     setError(null);
+    setNotice('');
     try {
       const updated = await updateGuard(selectedGuard.id, {
         full_name: editDraft.fullName.trim(), email: editDraft.email.trim().toLowerCase(), mobile: editDraft.mobile.trim(),
@@ -119,6 +128,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       setGuards(current => current.map(guard => guard.id === updated.id ? updated : guard));
       setSelectedGuard(updated);
       setEditingGuard(false);
+      setNotice('Associate updated successfully.');
     } catch (cause) {
       setError(getErrorMessage(cause, 'Failed to update associate.'));
     } finally { setGuardSaving(false); }
@@ -129,11 +139,13 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     if (!guard || !window.confirm(`Delete ${guard.fullName}? This permanently removes the associate and their related application, attendance, verification and agreement records.`)) return;
     setGuardSaving(true);
     setError(null);
+    setNotice('');
     try {
       await deleteGuard(guard.id);
       setGuards(current => current.filter(item => item.id !== guard.id));
       setSelectedGuard(null);
       setEditingGuard(false);
+      setNotice('Associate deleted successfully.');
     } catch (cause) {
       setError(getErrorMessage(cause, 'Failed to delete associate.'));
     } finally { setGuardSaving(false); }
@@ -144,9 +156,11 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
     if (!guard || !window.confirm(`Reset password for ${guard.fullName}? Existing sessions will be revoked.`)) return;
     setGuardSaving(true);
     setError(null);
+    setNotice('');
     try {
       const result = await resetGuardPassword(guard.id);
       window.alert(`Temporary password for ${guard.fullName}: ${result.temporary_password}`);
+      setNotice('Associate password reset successfully.');
     } catch (cause) {
       setError(getErrorMessage(cause, 'Failed to reset associate password.'));
     } finally { setGuardSaving(false); }
@@ -154,10 +168,13 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
 
   const declareAadhaar = async (id: string, status: 'verified' | 'rejected') => {
     const titled = (status.charAt(0).toUpperCase() + status.slice(1)) as Guard['aadhaarStatus'];
+    setError(null);
+    setNotice('');
     try {
       await declareGuardAadhaar(id, status);
       setGuards(prev => prev.map(g => (g.id === id ? { ...g, aadhaarStatus: titled } : g)));
       if (selectedGuard?.id === id) setSelectedGuard({ ...selectedGuard, aadhaarStatus: titled });
+      setNotice(`Associate Aadhaar marked ${status}.`);
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     }
@@ -197,6 +214,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
           <AlertCircle size={15} className="flex-shrink-0" />{error}
         </div>
       )}
+      {notice && <FeedbackBanner type="success" message={notice} onClose={() => setNotice('')} />}
 
       {/* Search & Filter */}
       <div className="flex gap-3 flex-wrap">

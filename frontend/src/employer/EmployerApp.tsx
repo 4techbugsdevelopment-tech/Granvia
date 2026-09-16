@@ -528,6 +528,23 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
 
   return (
     <div className="p-6 space-y-5">
+      {showDepositAlert && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" onClick={() => setShowDepositAlert(false)}>
+          <motion.div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Deposit required</h3>
+                <p className="mt-2 text-sm text-gray-600">Your deposited wallet balance is below Rs 10,000. Please deposit at least Rs 10,000 to post jobs. Super Admin credit is separate and does not count for this requirement.</p>
+              </div>
+              <button onClick={() => setShowDepositAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setShowDepositAlert(false)} className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Later</button>
+              <button onClick={() => { setShowDepositAlert(false); onNavigate('wallet'); }} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Deposit</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Employer Dashboard</h2>
@@ -639,6 +656,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
   const [form, setForm] = useState({ contactPersonName: employer.contactPersonName, mobile: employer.mobile, city: employer.city, state: employer.state, pincode: employer.pincode });
   const [docs, setDocs] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -654,6 +672,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
       await updateMyEmployerProfile({ contact_person_name: form.contactPersonName, city: form.city, state: form.state, pincode: form.pincode });
       await updateMyProfile({ mobile: form.mobile });
       onChanged();
+      setNotice('Profile saved successfully.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save profile.');
     } finally { setSaving(false); }
@@ -668,6 +687,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
     try {
       await createDocumentRecord(activeCompany.id, type, file);
       listCompanyDocuments(activeCompany.id).then(setDocs).catch(() => null);
+      setNotice(`${type} uploaded successfully. It is now pending verification.`);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Upload failed.');
     }
@@ -675,6 +695,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
 
   return (
     <div className="p-6 space-y-5">
+      {notice && <SuccessBanner message={notice} onClose={() => setNotice('')} />}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold text-gray-900">My Profile</h2>
@@ -762,6 +783,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
   const [showAddForm, setShowAddForm] = useState(false);
   const [companyErrors, setCompanyErrors] = useState<ValidationErrors>({});
   const [companyError, setCompanyError] = useState('');
+  const [companyNotice, setCompanyNotice] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -782,6 +804,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
     const validationErrors = validateCompanyForm(form);
     setCompanyErrors(validationErrors);
     setCompanyError('');
+    setCompanyNotice('');
     if (Object.keys(validationErrors).length > 0) {
       setCompanyError('Please correct the highlighted fields.');
       return;
@@ -816,6 +839,9 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
       setCompanies(updatedCompanies);
       if (!editingCompanyId) onSwitch(company.id);
       onChanged();
+      const message = editingCompanyId ? 'Company updated successfully.' : 'Company added successfully.';
+      setCompanyNotice(message);
+      window.alert(message);
     } catch (err) {
       const apiErrors = getValidationErrors(err);
       setCompanyErrors(apiErrors);
@@ -827,6 +853,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
     setEditingCompanyId(null);
     setCompanyErrors({});
     setCompanyError('');
+    setCompanyNotice('');
     setForm({
       company_name: '', business_type: '', registration_type: 'Private Limited', gst_number: '', pan_number: '',
       company_email: employer.email, company_phone: employer.mobile, website: '', registered_address: '', billing_address: '',
@@ -839,6 +866,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
     setEditingCompanyId(company.id);
     setCompanyErrors({});
     setCompanyError('');
+    setCompanyNotice('');
     setForm({
       company_name: company.company_name ?? '', business_type: company.business_type ?? '',
       registration_type: company.registration_type ?? 'Private Limited', gst_number: company.gst_number ?? '', pan_number: company.pan_number ?? '',
@@ -853,12 +881,15 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
     if (!window.confirm(`Delete ${company.company_name}? Its sites and document records will be deleted. Operational history will be kept without the company/site link.`)) return;
     setDeletingCompanyId(company.id);
     setCompanyError('');
+    setCompanyNotice('');
     try {
       await deleteCompany(company.id);
       setCompanies(current => current.filter(item => item.id !== company.id));
       setShowAddForm(false);
       setEditingCompanyId(null);
       onChanged();
+      setCompanyNotice('Company deleted successfully.');
+      window.alert('Company deleted successfully.');
     } catch (err) {
       setCompanyError(getErrorMessage(err, 'Failed to delete company.'));
     } finally {
@@ -889,6 +920,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
       </div>}
 
       {companyError && !showAddForm && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{companyError}</div>}
+      {companyNotice && !showAddForm && <SuccessBanner message={companyNotice} onClose={() => setCompanyNotice('')} />}
       {showAddForm && <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">{editingCompanyId ? 'Edit Company' : 'Add Company'}</h2>
@@ -951,6 +983,8 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
 function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [docs, setDocs] = useState<any[]>([]);
   const [actingDocumentId, setActingDocumentId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     listCompanyDocuments(company.id).then(setDocs).catch(console.error);
@@ -962,17 +996,52 @@ function CompanyDocumentsPage({ employer: _employer, company, onChanged }: { emp
     event.target.value = '';
     if (file.size > 10 * 1024 * 1024) { alert('File must be 10 MB or smaller.'); return; }
     if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) { alert('Only PDF, PNG and JPG files are allowed.'); return; }
+    setNotice('');
+    setError('');
     try {
       await createDocumentRecord(company.id, type, file);
       listCompanyDocuments(company.id).then(setDocs).catch(console.error);
       onChanged();
+      setNotice(`${type} uploaded successfully.`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed.');
+      setError(getErrorMessage(err, 'Upload failed.'));
     }
+  };
+
+  const editDocument = async (doc: any) => {
+    const documentType = window.prompt('Document type', doc.document_type)?.trim();
+    if (!documentType || documentType === doc.document_type) return;
+    setActingDocumentId(doc.id);
+    setNotice('');
+    setError('');
+    try {
+      const updated = await updateDocumentRecord(company.id, doc.id, documentType);
+      setDocs(current => current.map(item => item.id === doc.id ? updated : item));
+      setNotice('Document updated successfully.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to update the document.'));
+    } finally { setActingDocumentId(null); }
+  };
+
+  const removeDocument = async (doc: any) => {
+    if (!window.confirm(`Delete ${doc.document_type}? The uploaded file will be permanently removed.`)) return;
+    setActingDocumentId(doc.id);
+    setNotice('');
+    setError('');
+    try {
+      await deleteDocumentRecord(company.id, doc.id);
+      setDocs(current => current.filter(item => item.id !== doc.id));
+      onChanged();
+      setNotice('Document deleted successfully.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to delete the document.'));
+    } finally { setActingDocumentId(null); }
   };
 
   return (
     <div className="p-6">
+      {notice && <SuccessBanner message={notice} onClose={() => setNotice('')} />}
+      {error && <ValidationBanner message={error} />}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -1065,7 +1134,7 @@ function ValidationBanner({ message }: { message: string }) {
   return <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
 }
 
-function SuccessModal({ message, onClose }: { message: string; onClose: () => void }) {
+function SuccessModal({ message, onClose, title = 'Action completed successfully' }: { message: string; onClose: () => void; title?: string }) {
   return (
     <div
       className="fixed inset-0 z-[2000] grid place-items-center px-4"
@@ -1091,26 +1160,9 @@ function SuccessModal({ message, onClose }: { message: string; onClose: () => vo
         <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-green-100 text-green-700">
           <CheckCircle size={30} />
         </div>
-        <h3 id="site-success-title" className="text-lg font-bold text-gray-900">Site added successfully</h3>
+        <h3 id="site-success-title" className="text-lg font-bold text-gray-900">{title}</h3>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
       </div>
-      {showDepositAlert && (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" onClick={() => setShowDepositAlert(false)}>
-          <motion.div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Deposit required</h3>
-                <p className="mt-2 text-sm text-gray-600">Your deposited wallet balance is below Rs 10,000. Please deposit at least Rs 10,000 to post jobs. Super Admin credit is separate and does not count for this requirement.</p>
-              </div>
-              <button onClick={() => setShowDepositAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button>
-            </div>
-            <div className="mt-5 flex justify-end gap-3">
-              <button onClick={() => setShowDepositAlert(false)} className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Later</button>
-              <button onClick={() => { setShowDepositAlert(false); onNavigate('wallet'); }} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Deposit</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1298,6 +1350,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
   const [editErrors, setEditErrors] = useState<ValidationErrors>({});
   const [editError, setEditError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [successTitle, setSuccessTitle] = useState('Site added successfully');
   const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
   const blankForm = (): SiteFormState => ({
@@ -1351,6 +1404,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       setForm(blankForm());
       await reloadSites();
       setShowAddForm(false);
+      setSuccessTitle('Site added successfully');
       setSuccessMessage(`${savedSiteName} is now available in your site list.`);
     } catch (err) {
       const validationErrors = getValidationErrors(err);
@@ -1407,7 +1461,8 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       });
       setEditingSite(null);
       await reloadSites();
-      onChanged();
+      setSuccessTitle('Site updated successfully');
+      setSuccessMessage(`${editForm.site_name.trim()} has been updated.`);
     } catch (err) {
       const validationErrors = getValidationErrors(err);
       setEditErrors(validationErrors);
@@ -1424,7 +1479,8 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       await deleteCompanySite(site.id);
       setSites(current => current.filter(item => item.id !== site.id));
       if (editingSite?.id === site.id) setEditingSite(null);
-      onChanged();
+      setSuccessTitle('Site deleted successfully');
+      setSuccessMessage(`${site.site_name} has been deleted.`);
     } catch (err) {
       setFormError(getErrorMessage(err, 'Failed to delete site.'));
     } finally {
@@ -1461,6 +1517,7 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
       {successMessage && (
         <SuccessModal
           message={successMessage}
+          title={successTitle}
           onClose={() => {
             setSuccessMessage('');
             onChanged();
@@ -1781,6 +1838,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
         special_instructions: job.special_instructions,
         status: job.status,
       });
+      window.alert('Job created successfully.');
       onSaved();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create job.');
@@ -1913,6 +1971,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState('');
+  const [jobNotice, setJobNotice] = useState('');
 
   const reload = () => {
     setJobsError('');
@@ -1975,6 +2034,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
       setEditingJob(null);
       reload();
       onChanged();
+      setJobNotice('Job updated successfully.');
+      window.alert('Job updated successfully.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save.');
     } finally {
@@ -1989,6 +2050,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
       setConfirmDeleteId(null);
       reload();
       onChanged();
+      setJobNotice('Job deleted successfully.');
+      window.alert('Job deleted successfully.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete.');
     } finally {
@@ -2029,6 +2092,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
           <button type="button" onClick={() => { setLoadingJobs(true); void reload(); }} className="font-semibold text-red-800">Try again</button>
         </div>
       )}
+      {jobNotice && <SuccessBanner message={jobNotice} onClose={() => setJobNotice('')} />}
       <Card className="p-5">
         {loadingJobs && <LoadingState />}
         {!loadingJobs && !jobsError && (
@@ -2503,6 +2567,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
   const [records, setRecords] = useState<any[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     listEmployerAttendance(company.id).then(setRecords).catch(console.error);
@@ -2515,10 +2580,14 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     if (remarks === null) return;
     setBusyId(record.id);
     setError('');
+    setNotice('');
     try {
       await updateAttendanceStatus(record.id, status, remarks);
       const refreshed = await listEmployerAttendance(company.id);
       setRecords(refreshed);
+      const message = status === 'approved' ? 'Attendance approved successfully.' : 'Attendance rejected successfully.';
+      setNotice(message);
+      window.alert(message);
       onChanged();
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || 'Unable to update attendance.');
@@ -2534,6 +2603,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
           <h2 className="font-bold text-gray-900">Attendance Verification</h2>
           <p className="mt-1 text-sm text-gray-500">Review completed associate attendance and approve valid shifts for payment.</p>
           {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
+          {notice && <div className="mt-2"><SuccessBanner message={notice} onClose={() => setNotice('')} /></div>}
         </div>
         <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in Location', 'Check-out Location', 'Hours', 'Status', 'Actions']}>
           {records.map((r: any) => {

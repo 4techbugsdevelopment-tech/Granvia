@@ -9,6 +9,7 @@ import { listEmployerManagementData } from '../../services/adminEmployerService'
 import { getErrorMessage } from '../../services/apiErrors';
 import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
+import { FeedbackBanner } from './_adminUi';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
 
@@ -72,6 +73,7 @@ export default function JobApprovals() {
   const [interviewApp, setInterviewApp] = useState<any | null>(null);
   const [interviewRemarks, setInterviewRemarks] = useState('');
   const [savingInterview, setSavingInterview] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -121,13 +123,16 @@ export default function JobApprovals() {
     }
     setActing(editingJob?.id ?? 'create');
     setFormError('');
+    setNotice('');
     try {
+      const wasEditing = Boolean(editingJob);
       const payload = { ...jobForm, site_id: jobForm.site_id || null, guards_required: Number(jobForm.guards_required) || 1, salary_amount: Number(jobForm.salary_amount), end_date: jobForm.end_date || null };
       if (editingJob) await updateAdminJob(editingJob.id, payload);
       else await createAdminJob(payload);
       setFormOpen(false);
       setEditingJob(null);
       load();
+      setNotice(wasEditing ? 'Job updated successfully.' : 'Job created successfully.');
     } catch (e) {
       setFormError(getErrorMessage(e, `Failed to ${editingJob ? 'update' : 'create'} the job.`));
     } finally { setActing(null); }
@@ -137,9 +142,11 @@ export default function JobApprovals() {
     if (!window.confirm(`Delete ${job.title}? Related applications and operational records will also be removed.`)) return;
     setActing(job.id);
     setError(null);
+    setNotice('');
     try {
       await deleteAdminJob(job.id);
       setJobs(current => current.filter(item => item.id !== job.id));
+      setNotice('Job deleted successfully.');
     } catch (e) {
       setError(getErrorMessage(e, 'Failed to delete the job.'));
     } finally { setActing(null); }
@@ -148,6 +155,7 @@ export default function JobApprovals() {
   const setStatus = async (jobId: string, status: string, reason?: string) => {
     setActing(jobId);
     setError(null);
+    setNotice('');
     try {
       if (status === 'active') {
         await approveJob(jobId);
@@ -161,6 +169,7 @@ export default function JobApprovals() {
       setJobs(prev => prev.map(j => j.id === jobId
         ? { ...j, status, rejection_reason: status === 'rejected' ? (reason ?? '') : null }
         : j));
+      setNotice(status === 'active' ? 'Job published successfully.' : status === 'rejected' ? 'Job rejected successfully.' : status === 'closed' ? 'Job deactivated successfully.' : 'Job status updated successfully.');
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to update the job status.'));
     } finally {
@@ -177,18 +186,30 @@ export default function JobApprovals() {
   };
 
   const changeApplicantStatus = async (applicationId: string, status: string, remarks?: string) => {
-    await updateAdminApplicationStatus(applicationId, status, remarks);
-    if (applicantsJob) setApplicants(await listAdminJobApplications(applicantsJob.id));
+    setError(null);
+    setNotice('');
+    try {
+      await updateAdminApplicationStatus(applicationId, status, remarks);
+      if (applicantsJob) setApplicants(await listAdminJobApplications(applicantsJob.id));
+      setNotice('Applicant status updated successfully.');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to update applicant status.'));
+    }
   };
 
   const scheduleInterview = async () => {
     if (!interviewApp || !interviewRemarks.trim()) return;
     setSavingInterview(true);
+    setError(null);
+    setNotice('');
     try {
       await scheduleAdminApplicationInterview(interviewApp.id, interviewRemarks.trim());
       setInterviewApp(null);
       setInterviewRemarks('');
       if (applicantsJob) setApplicants(await listAdminJobApplications(applicantsJob.id));
+      setNotice('Interview scheduled successfully.');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to schedule interview.'));
     } finally { setSavingInterview(false); }
   };
 
@@ -234,6 +255,7 @@ export default function JobApprovals() {
           <AlertCircle size={14} />{error}
         </div>
       )}
+      {notice && <FeedbackBanner type="success" message={notice} onClose={() => setNotice('')} />}
 
       {/* Status filter tabs */}
       <div className="flex flex-wrap gap-2 pb-1">

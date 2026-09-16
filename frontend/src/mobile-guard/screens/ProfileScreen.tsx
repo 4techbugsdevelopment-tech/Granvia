@@ -88,6 +88,7 @@ export default function ProfileScreen() {
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Documents sheet
   const [docsOpen, setDocsOpen] = useState(false);
@@ -235,9 +236,11 @@ export default function ProfileScreen() {
     if (!file) return;
     setAvatarUploading(true);
     setAvatarError(null);
+    setNotice(null);
     try {
       await uploadMyAvatar(file);
       await refreshProfile();
+      setNotice('Profile photo updated successfully.');
     } catch (e: any) {
       setAvatarError(apiError(e, 'Could not upload profile photo.'));
     } finally {
@@ -248,6 +251,7 @@ export default function ProfileScreen() {
   const save = async () => {
     setSaving(true);
     setError(null);
+    setNotice(null);
     const validation: Record<string, string> = {};
     if (form.full_name && form.full_name.trim().length < 2) validation.full_name = 'Enter at least 2 characters.';
     if (form.pincode && !/^\d{6}$/.test(form.pincode)) validation.pincode = 'Pincode must contain exactly 6 digits.';
@@ -276,6 +280,7 @@ export default function ProfileScreen() {
       await updateMyGuardProfile(payload);
       await refreshProfile();
       setEditing(false);
+      setNotice('Profile saved successfully.');
     } catch (e: any) {
       const data = e?.response?.data;
       const firstFieldError = data?.errors ? (Object.values(data.errors)[0] as string[])[0] : null;
@@ -377,6 +382,12 @@ export default function ProfileScreen() {
       {avatarError && (
         <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs">
           <AlertCircle size={13} className="flex-shrink-0" />{avatarError}
+        </div>
+      )}
+      {notice && (
+        <div className="mx-4 mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-semibold">
+          <span>{notice}</span>
+          <button onClick={() => setNotice(null)} className="font-bold">Dismiss</button>
         </div>
       )}
 

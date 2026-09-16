@@ -142,16 +142,26 @@ export default function TeamPage() {
 
   const removeStaff = async (id: string) => {
     if (!window.confirm('Remove this staff member?')) return;
-    await deleteEmployerStaff(id);
-    await load();
-    setNotice('Staff removed.');
+    setError('');
+    try {
+      await deleteEmployerStaff(id);
+      await load();
+      setNotice('Staff removed.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message || 'Unable to remove staff member.');
+    }
   };
 
   const removeSubAdmin = async (id: string) => {
     if (!window.confirm('Remove this sub admin account?')) return;
-    await deleteEmployerSubAdmin(id);
-    await load();
-    setNotice('Sub admin removed.');
+    setError('');
+    try {
+      await deleteEmployerSubAdmin(id);
+      await load();
+      setNotice('Sub admin removed.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message || 'Unable to remove sub admin.');
+    }
   };
 
   return (

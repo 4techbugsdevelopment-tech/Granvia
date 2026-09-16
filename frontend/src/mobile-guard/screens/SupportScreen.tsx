@@ -63,6 +63,7 @@ export default function SupportScreen() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,12 +78,14 @@ export default function SupportScreen() {
     if (!subject || !message || submitting) return;
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const created = await createSupportTicket({ subject, message });
       setTickets((prev) => [mapTicket(created), ...prev]);
       setComposing(false);
       setSubject('');
       setMessage('');
+      setNotice('Support ticket submitted successfully.');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     } finally {
@@ -108,6 +111,7 @@ export default function SupportScreen() {
         >
           <Plus size={16} /> New Support Ticket
         </button>
+        {notice && <div className="mb-4 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">{notice}</div>}
 
         <h3 className="text-sm font-bold text-gray-700 mb-2">My Tickets</h3>
         <div className="space-y-2 mb-6">

@@ -25,6 +25,8 @@ export default function StaffPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -64,21 +66,33 @@ export default function StaffPage() {
   const save = async () => {
     if (!draft.role_id) return;
     setSaving(true);
+    setNotice('');
+    setError('');
     try {
       const payload = { ...draft, role: selectedRole?.name ?? '' };
       if (editing) await updateStaff(editing.id, payload);
       else await createStaff(payload as any);
       setOpen(false);
       await load();
+      setNotice(editing ? 'Staff updated successfully.' : 'Staff added successfully.');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Unable to save staff.');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (id: string) => {
-    await deleteStaff(id);
-    setStaff((prev) => prev.filter((row) => row.id !== id));
-    setConfirmId(null);
+    setNotice('');
+    setError('');
+    try {
+      await deleteStaff(id);
+      setStaff((prev) => prev.filter((row) => row.id !== id));
+      setConfirmId(null);
+      setNotice('Staff removed successfully.');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Unable to remove staff.');
+    }
   };
 
   const columns: DataColumn<StaffMember>[] = [
@@ -117,6 +131,8 @@ export default function StaffPage() {
         subtitle="Add, edit or remove internal staff and assign only super-admin-defined roles."
         action={<TapButton onClick={startAdd}><Plus size={16} /> Add Staff</TapButton>}
       />
+      {notice && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{notice}</div>}
+      {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
       {loading ? (
         <div className="py-20 text-center text-sm" style={{ color: 'rgba(75,46,42,0.5)' }}>Loading...</div>

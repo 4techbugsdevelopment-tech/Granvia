@@ -13,6 +13,7 @@ export default function WalletScreen() {
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -26,6 +27,7 @@ export default function WalletScreen() {
   const submitWithdraw = async () => {
     setWithdrawing(true);
     setError(null);
+    setNotice(null);
     try {
       const request = await requestWithdrawal(Number(amount));
       const balance = await getMyGuardWallet();
@@ -33,6 +35,7 @@ export default function WalletScreen() {
       setWithdrawals(previous => [request, ...previous]);
       setWithdrawOpen(false);
       setAmount('');
+      setNotice('Withdrawal request submitted successfully.');
     } catch (cause: any) {
       setError(cause?.response?.data?.message || cause.message || 'Could not submit withdrawal request.');
     } finally {
@@ -69,6 +72,7 @@ export default function WalletScreen() {
           Withdraw to Bank
         </button>
       </motion.div>
+      {notice && <div className="mx-4 mt-3 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">{notice}</div>}
 
       {withdrawals.length > 0 && <div className="px-4 mt-5"><h3 className="text-sm font-bold text-gray-700 mb-3">Withdrawal History</h3><div className="space-y-2">{withdrawals.slice(0, 8).map(request => <div key={request.id} className="rounded-2xl bg-white p-3.5 flex justify-between"><div><div className="font-semibold text-sm">₹{Number(request.amount).toLocaleString('en-IN')}</div><div className="text-xs text-gray-400">{new Date(request.created_at).toLocaleDateString('en-IN')}</div>{request.rejection_reason && <div className="text-xs text-red-600 mt-1">{request.rejection_reason}</div>}</div><span className="text-xs font-semibold capitalize">{request.status}</span></div>)}</div></div>}
 

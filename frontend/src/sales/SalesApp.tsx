@@ -369,6 +369,8 @@ function DiscountsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employer: '', type: 'percentage' as 'percentage' | 'flat', value: 10, appliesTo: '', label: 'Festival Offer' });
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
   const load = () => Promise.all([getDiscounts(), getSalesClients()]).then(([d, c]) => { setDiscounts(d); setClients(c); }).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -384,14 +386,29 @@ function DiscountsPage() {
 
   const save = async () => {
     setSaving(true);
+    setNotice('');
+    setError('');
     try {
       await createDiscount({ employer_user_id: form.employer || undefined, label: form.label, discount_type: form.type, value: form.value, applies_to: form.appliesTo || undefined });
       setOpen(false); setForm(f => ({ ...f, value: 10, appliesTo: '' }));
       await load();
+      setNotice('Discount created successfully.');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Unable to create discount.');
     } finally { setSaving(false); }
   };
 
-  const remove = async (id: string) => { await deleteDiscount(id); setDiscounts(d => d.filter(x => x.id !== id)); };
+  const remove = async (id: string) => {
+    setNotice('');
+    setError('');
+    try {
+      await deleteDiscount(id);
+      setDiscounts(d => d.filter(x => x.id !== id));
+      setNotice('Discount removed successfully.');
+    } catch (cause: any) {
+      setError(cause?.response?.data?.message || cause.message || 'Unable to remove discount.');
+    }
+  };
 
   const columns: DataColumn<Discount>[] = [
     { header: 'Client', primary: true, cell: d => d.employer?.full_name ?? 'All clients' },
@@ -407,6 +424,9 @@ function DiscountsPage() {
     <Page>
       <PageHeader title="Discounts & Billing" subtitle="Apply festival or volume discounts to client billing"
         action={<TapButton onClick={() => setOpen(true)}><Plus size={16} /> New Discount</TapButton>} />
+
+      {notice && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{notice}</div>}
+      {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
       {loading ? <Loading /> : (
         <DataTable columns={columns} rows={discounts} rowKey={d => d.id} empty="No discounts yet." />

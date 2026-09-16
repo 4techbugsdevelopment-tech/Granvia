@@ -30,6 +30,7 @@ export default function AvailabilityScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [duration, setDuration] = useState<AvailabilitySlot['duration_hours']>(8);
@@ -52,12 +53,14 @@ export default function AvailabilityScreen() {
   const addSlot = async () => {
     setSaving(true);
     setFormError(null);
+    setNotice(null);
     try {
       const slot = await createAvailability({ duration_hours: duration, frequency, days, start_time: startTime, active: true });
       setSlots(current => [slot, ...current]);
       setAdding(false);
       setDays(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
       setStartTime('09:00');
+      setNotice('Availability added successfully.');
     } catch (cause: any) {
       setFormError(errorMessage(cause, 'Could not save availability.'));
     } finally {
@@ -67,9 +70,11 @@ export default function AvailabilityScreen() {
 
   const removeSlot = async (id: string) => {
     setError(null);
+    setNotice(null);
     try {
       await deleteAvailability(id);
       setSlots(current => current.filter(slot => slot.id !== id));
+      setNotice('Availability deleted successfully.');
     } catch (cause: any) {
       setError(errorMessage(cause, 'Could not delete availability.'));
     }
@@ -77,9 +82,11 @@ export default function AvailabilityScreen() {
 
   const toggleActive = async (slot: AvailabilitySlot) => {
     setError(null);
+    setNotice(null);
     try {
       const updated = await updateAvailability(slot.id, { active: !slot.active });
       setSlots(current => current.map(item => item.id === updated.id ? updated : item));
+      setNotice(updated.active ? 'Availability activated successfully.' : 'Availability paused successfully.');
     } catch (cause: any) {
       setError(errorMessage(cause, 'Could not update availability.'));
     }
@@ -96,6 +103,12 @@ export default function AvailabilityScreen() {
         <div className="mx-4 mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs">
           <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /><span>{error}</span>
           <button onClick={() => setError(null)} className="ml-auto"><X size={13} /></button>
+        </div>
+      )}
+      {notice && (
+        <div className="mx-4 mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-semibold">
+          <span>{notice}</span>
+          <button onClick={() => setNotice(null)} className="ml-auto"><X size={13} /></button>
         </div>
       )}
 

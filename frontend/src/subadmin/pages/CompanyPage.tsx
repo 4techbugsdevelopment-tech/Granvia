@@ -12,6 +12,8 @@ export default function CompanyPage() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<SubAdminProfile>>({});
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
 
   const load = () => getSubAdminCompany().then(({ profile, sites }) => { setProfile(profile); setSites(sites); }).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -19,7 +21,10 @@ export default function CompanyPage() {
   const startEdit = () => { if (profile) setDraft(profile); setOpen(true); };
   const save = async () => {
     setSaving(true);
-    try { const updated = await updateSubAdminCompany(draft); setProfile(updated); setOpen(false); }
+    setNotice('');
+    setError('');
+    try { const updated = await updateSubAdminCompany(draft); setProfile(updated); setOpen(false); setNotice('Company details updated successfully.'); }
+    catch (cause: any) { setError(cause?.response?.data?.message || cause.message || 'Unable to update company details.'); }
     finally { setSaving(false); }
   };
 
@@ -41,6 +46,8 @@ export default function CompanyPage() {
         subtitle="Manage your branch business information, sites and contact points"
         action={<TapButton variant="navy" onClick={startEdit}><Pencil size={15} /> Edit Details</TapButton>}
       />
+      {notice && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{notice}</div>}
+      {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
       <Card className="mb-6">
         <div className="flex items-center gap-3 mb-5">
