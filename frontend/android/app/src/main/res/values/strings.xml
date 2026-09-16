@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">granvia_app</string>
-    <string name="title_activity_main">granvia_app</string>
-    <string name="package_name">granvia.llc</string>
-    <string name="custom_url_scheme">granvia.llc</string>
-</resources>

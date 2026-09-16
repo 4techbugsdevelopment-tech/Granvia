@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LatLng, LocationPickerProps } from '../types';
 import { loadGoogleMaps } from './googleMapsLoader';
-import { getCurrentPositionResult, getLocationFailureMessage, type LocationFailureReason } from '../../../lib/geoUtils';
+import { getCurrentPositionResult, type LocationFailureReason } from '../../../lib/geoUtils';
 
 const INDIA_CENTER: LatLng = { lat: 20.5937, lng: 78.9629 };
 
@@ -37,6 +37,7 @@ export default function GoogleLocationPicker({ value, onChange, zoom = 5, classN
     } else if (markerRef.current) { markerRef.current.setMap(null); markerRef.current = null; }
   }, [value?.lat, value?.lng, onChange, zoom]);
 
-  const errorMessage = locationError ? getLocationFailureMessage(locationError) : '';
+  const errorMessage = locationError === 'permission_denied' ? 'Allow location permission to use your current position.' : locationError === 'services_disabled' ? 'Turn on Location/GPS, then tap Current location.' : locationError === 'timeout' ? 'Location timed out. Move to an open area and retry.' : locationError ? 'Current location is unavailable. Please retry.' : '';
   return <div className="granvia-map relative h-full w-full isolate" style={{ zIndex: 0 }}><div ref={containerRef} className={className} style={{ height: '100%', width: '100%', borderRadius: 'inherit', cursor: 'crosshair', position: 'relative', zIndex: 0, ...style }} />{mapError && <div className="absolute inset-0 flex items-center justify-center bg-gray-50 p-4 text-center text-xs text-red-700">{mapError}</div>}<button type="button" disabled={locating} onClick={() => void locate()} className="absolute right-3 top-3 z-10 rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow-md disabled:opacity-60">{locating ? 'Locating...' : 'Current location'}</button>{errorMessage && <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg bg-amber-50/95 px-3 py-2 text-xs font-medium text-amber-800 shadow">{errorMessage}</div>}</div>;
 }
+

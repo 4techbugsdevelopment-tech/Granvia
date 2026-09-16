@@ -99,33 +99,8 @@ type NativeBridgeWindow = Window & {
   ReactNativeWebView?: { postMessage: (message: string) => void };
 };
 
-export type LocationFailureReason =
-  | 'permission_denied'
-  | 'permission_permanently_denied'
-  | 'services_disabled'
-  | 'timeout'
-  | 'unavailable'
-  | 'unsupported';
+export type LocationFailureReason = 'permission_denied' | 'services_disabled' | 'timeout' | 'unavailable' | 'unsupported';
 export type CurrentPositionResult = { position: LatLng | null; error: LocationFailureReason | null };
-
-export function getLocationFailureMessage(error: LocationFailureReason | null): string {
-  switch (error) {
-    case 'permission_permanently_denied':
-      return 'Location permission is disabled for Granvia. Enable Location permission from App Settings to use nearby jobs, maps and attendance.';
-    case 'permission_denied':
-      return 'Allow location permission to use nearby jobs, routes and attendance location.';
-    case 'services_disabled':
-      return 'Location is turned off. Enable Location/GPS, then retry.';
-    case 'timeout':
-      return 'Location timed out. Move to an open area and retry.';
-    case 'unsupported':
-      return 'Location is not supported on this device or browser.';
-    case 'unavailable':
-      return 'Current location is unavailable. Please retry.';
-    default:
-      return 'Enable location to see routes.';
-  }
-}
 
 /** Obtain a fresh fix in the native Android shell; WebView geolocation is unreliable on some builds. */
 function requestNativePosition(): Promise<CurrentPositionResult | null> {
@@ -145,7 +120,7 @@ function requestNativePosition(): Promise<CurrentPositionResult | null> {
     const timeoutId = window.setTimeout(() => {
       window.removeEventListener('granvia-current-position', onResult);
       resolve(null);
-    }, 120000);
+    }, 25000);
 
     window.addEventListener('granvia-current-position', onResult);
     nativeWindow.ReactNativeWebView!.postMessage(JSON.stringify({
@@ -198,7 +173,6 @@ export async function getCurrentPositionResult(): Promise<CurrentPositionResult>
   const native = await requestNativePosition();
   if (native?.position) return native;
   if (native?.error === 'permission_denied') return native;
-  if (native?.error === 'permission_permanently_denied') return native;
   if (native?.error === 'services_disabled') {
     const retry = await requestNativeLocationSettings();
     if (retry) return (await requestNativePosition()) ?? { position: null, error: 'unavailable' };
