@@ -1,11 +1,31 @@
 import axios from 'axios';
 import { notifyAuthChange } from './authBus';
 
-// Relative by default so the same build works on localhost and production:
-// - dev: Vite proxies /api -> backend (see vite.config.ts server.proxy)
-// - prod: the host proxies /api -> backend (netlify.toml redirect / nginx)
-// Set VITE_API_URL to a full URL only for a cross-origin backend (requires CORS).
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+function normalizeApiBaseUrl(value: string | undefined): string {
+  const rawValue = value?.trim() || '/api';
+  const withoutTrailingSlash = rawValue.replace(/\/+$/, '') || '/';
+
+  if (!/^https?:\/\//i.test(withoutTrailingSlash)) {
+    return withoutTrailingSlash;
+  }
+
+  try {
+    const url = new URL(withoutTrailingSlash);
+    if (!url.pathname.replace(/\/+$/, '').endsWith('/api')) {
+      url.pathname = `${url.pathname.replace(/\/+$/, '')}/api`;
+    }
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return withoutTrailingSlash;
+  }
+}
+
+// VITE_API_BASE_URL is the backend origin/root. Backend routes are mounted
+// under /api, so full origins such as https://aip.granvia.llc normalize there.
+// VITE_API_URL is kept as a fallback for existing local private env files.
+export const API_BASE_URL = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+);
 
 export const TOKEN_STORAGE_KEY = 'granvia_api_token';
 
