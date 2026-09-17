@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { deliverHiringDocumentsForApplication, notifyUnverifiedHiredApplication } from '../services/hiringDocumentDelivery';
+import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
 // Guard-facing application controller.
 // (employerIndex/updateStatus are wired when the employer/admin routes are ported.)
@@ -203,6 +205,8 @@ async function applicationWithScope(applicationId: string, user: NonNullable<Req
         select: {
           id: true,
           title: true,
+          status: true,
+          guardsRequired: true,
           employerUserId: true,
           company: { select: { companyName: true, registeredAddress: true, billingAddress: true } },
         },
@@ -256,8 +260,9 @@ export async function updateStatus(req: Request, res: Response) {
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
 
-  const [updated] = await prisma.$transaction([
-    prisma.jobApplication.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    await enforceJobCapacityForApplication(tx, application, data.status);
+    const next = await tx.jobApplication.update({
       where: { id: application.id },
       data: {
         status: data.status,
@@ -265,8 +270,8 @@ export async function updateStatus(req: Request, res: Response) {
         reviewedAt: new Date(),
         reviewedBy: req.user!.id,
       },
-    }),
-    prisma.applicationStatusLog.create({
+    });
+    await tx.applicationStatusLog.create({
       data: {
         applicationId: application.id,
         changedBy: req.user!.id,
@@ -274,8 +279,9 @@ export async function updateStatus(req: Request, res: Response) {
         newStatus: data.status,
         remarks: data.remarks ?? null,
       },
-    }),
-  ]);
+    });
+    return next;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (data.status === 'hired' || data.status === 'not_hired') {
     const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
@@ -315,10 +321,12 @@ export async function adminUpdateStatus(req: Request, res: Response) {
   const application = await applicationWithScope(req.params.application, req.user!, true);
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
-  const [updated] = await prisma.$transaction([
-    prisma.jobApplication.update({ where: { id: application.id }, data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } }),
-    prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus, newStatus: data.status, remarks: data.remarks ?? null } }),
-  ]);
+  const updated = await prisma.$transaction(async (tx) => {
+    await enforceJobCapacityForApplication(tx, application, data.status);
+    const next = await tx.jobApplication.update({ where: { id: application.id }, data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } });
+    await tx.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus, newStatus: data.status, remarks: data.remarks ?? null } });
+    return next;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (data.status === 'hired' || data.status === 'not_hired') {
     const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
     const name = profile?.fullName || 'Associate Partner';

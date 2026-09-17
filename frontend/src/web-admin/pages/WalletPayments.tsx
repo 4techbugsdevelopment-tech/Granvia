@@ -10,6 +10,7 @@ const tone = (s: string) => s === 'completed' ? 'green' : s === 'pending' ? 'amb
 
 export default function WalletPayments() {
   const [data, setData] = useState<Awaited<ReturnType<typeof listAdminWallets>> | null>(null);
+  const [filters, setFilters] = useState({ employer_id: '', guard_id: '', transaction_type: '', source: '', status: '', reference_id: '', date_from: '', date_to: '', min_amount: '', max_amount: '' });
   const [selectedEmployerId, setSelectedEmployerId] = useState('');
   const [amount, setAmount] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -22,7 +23,8 @@ export default function WalletPayments() {
     setLoading(true);
     setError('');
     try {
-      const next = await listAdminWallets();
+      const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value.trim()));
+      const next = await listAdminWallets(params);
       setData(next);
       setSelectedEmployerId(current => current || next.wallets[0]?.employer_user_id || '');
     } catch (err) {
@@ -88,6 +90,34 @@ export default function WalletPayments() {
         <StatTile label="Admin Credit" value={inr(totals.credit_balance)} color="#1d4ed8" />
         <StatTile label="Recharged" value={inr(totals.total_recharged)} color="#0f766e" />
         <StatTile label="Debited" value={inr(totals.total_debited)} color="#7c2d12" />
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+          <input value={filters.employer_id} onChange={event => setFilters(current => ({ ...current, employer_id: event.target.value }))} className="form-input" placeholder="Employer ID" />
+          <input value={filters.guard_id} onChange={event => setFilters(current => ({ ...current, guard_id: event.target.value }))} className="form-input" placeholder="Associate ID" />
+          <select value={filters.transaction_type} onChange={event => setFilters(current => ({ ...current, transaction_type: event.target.value }))} className="form-input">
+            <option value="">All types</option>
+            <option value="credit">Credit / Deposit</option>
+            <option value="debit">Withdrawal / Debit</option>
+          </select>
+          <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} className="form-input">
+            <option value="">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+          </select>
+          <input value={filters.reference_id} onChange={event => setFilters(current => ({ ...current, reference_id: event.target.value }))} className="form-input" placeholder="Reference ID" />
+          <input type="date" value={filters.date_from} onChange={event => setFilters(current => ({ ...current, date_from: event.target.value }))} className="form-input" />
+          <input type="date" value={filters.date_to} onChange={event => setFilters(current => ({ ...current, date_to: event.target.value }))} className="form-input" />
+          <input inputMode="decimal" value={filters.min_amount} onChange={event => setFilters(current => ({ ...current, min_amount: event.target.value.replace(/[^\d.]/g, '') }))} className="form-input" placeholder="Min amount" />
+          <input inputMode="decimal" value={filters.max_amount} onChange={event => setFilters(current => ({ ...current, max_amount: event.target.value.replace(/[^\d.]/g, '') }))} className="form-input" placeholder="Max amount" />
+          <input value={filters.source} onChange={event => setFilters(current => ({ ...current, source: event.target.value }))} className="form-input" placeholder="Source" />
+        </div>
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button onClick={() => { setFilters({ employer_id: '', guard_id: '', transaction_type: '', source: '', status: '', reference_id: '', date_from: '', date_to: '', min_amount: '', max_amount: '' }); setTimeout(() => void load(), 0); }} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Reset</button>
+          <button onClick={() => void load()} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Apply Filters</button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">

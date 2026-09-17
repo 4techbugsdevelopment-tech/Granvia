@@ -46,8 +46,19 @@ export type AdminAttendance = {
   records: AdminAttendanceRecord[];
 };
 
-export async function getAdminAttendance(): Promise<AdminAttendance> {
-  const { data } = await apiClient.get('/admin/attendance');
+export type AdminAttendanceFilters = Partial<{
+  employer_id: string;
+  company_id: string;
+  site_id: string;
+  guard_id: string;
+  job_id: string;
+  status: string;
+  date_from: string;
+  date_to: string;
+}>;
+
+export async function getAdminAttendance(params?: AdminAttendanceFilters): Promise<AdminAttendance> {
+  const { data } = await apiClient.get('/admin/attendance', { params });
   return data;
 }
 

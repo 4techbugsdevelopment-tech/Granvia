@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../prisma';
@@ -6,6 +7,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys, toPrismaData } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { buildOfferDecisionPlan, canRespondToOffer } from '../services/jobOfferWorkflow';
+import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
 // Port of App\Http\Controllers\JobOfferController.
 
@@ -141,48 +143,54 @@ export async function guardUpdate(req: Request, res: Response) {
     data.status
   );
 
-  const [updated] = await prisma.$transaction([
-    prisma.jobOffer.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    if (plan.applicationStatus && application) {
+      await enforceJobCapacityForApplication(tx, application, plan.applicationStatus);
+    }
+
+    const next = await tx.jobOffer.update({
       where: { id: row.id },
       data: {
         status: plan.offerStatus,
       },
-    }),
-    ...(plan.applicationStatus && application
-      ? [
-          prisma.jobApplication.update({
-            where: { id: application.id },
-            data: {
-              status: plan.applicationStatus,
-              reviewedAt: new Date(),
-              reviewedBy: req.user!.id,
-            },
-          }),
-          prisma.agreement.create({
-            data: {
-              offerId: row.id,
-              jobId: row.jobId,
-              guardUserId: row.guardUserId,
-              employerUserId: row.employerUserId,
-              siteId: row.siteId,
-              agreementNumber: agreementNumber(),
-              title: plan.agreement!.title,
-              terms: JSON.stringify(plan.agreement!.terms),
-              status: plan.agreement!.status,
-              employerConfirmationStatus: plan.agreement!.employerConfirmationStatus,
-              guardConfirmationStatus: plan.agreement!.guardConfirmationStatus,
-              platformConfirmationStatus: plan.agreement!.platformConfirmationStatus,
-            } as never,
-          }),
-        ]
-      : []),
-    prisma.notification.create({
+    });
+
+    if (plan.applicationStatus && application) {
+      await tx.jobApplication.update({
+        where: { id: application.id },
+        data: {
+          status: plan.applicationStatus,
+          reviewedAt: new Date(),
+          reviewedBy: req.user!.id,
+        },
+      });
+      await tx.agreement.create({
+        data: {
+          offerId: row.id,
+          jobId: row.jobId,
+          guardUserId: row.guardUserId,
+          employerUserId: row.employerUserId,
+          siteId: row.siteId,
+          agreementNumber: agreementNumber(),
+          title: plan.agreement!.title,
+          terms: JSON.stringify(plan.agreement!.terms),
+          status: plan.agreement!.status,
+          employerConfirmationStatus: plan.agreement!.employerConfirmationStatus,
+          guardConfirmationStatus: plan.agreement!.guardConfirmationStatus,
+          platformConfirmationStatus: plan.agreement!.platformConfirmationStatus,
+        } as never,
+      });
+    }
+
+    await tx.notification.create({
       data: {
         userId: row.employerUserId ?? req.user!.id,
         ...plan.notification,
       },
-    }),
-  ]);
+    });
+
+    return next;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (plan.applicationStatus && application) {
     await prisma.applicationStatusLog.create({

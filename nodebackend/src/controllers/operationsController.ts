@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
+import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
 async function assignments(userId: string) {
   return prisma.operationsAssignment.findMany({ where: { operationsUserId: userId, status: 'active' } });
@@ -65,15 +67,17 @@ export async function updateApplication(req: Request, res: Response) {
   if (data.expected_updated_at && application.updatedAt.getTime() !== data.expected_updated_at.getTime()) {
     throw new HttpError(409, 'This application was updated by another user. Refresh before changing its status.');
   }
-  const [updated] = await prisma.$transaction([
-    prisma.jobApplication.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    await enforceJobCapacityForApplication(tx, application, data.status);
+    const next = await tx.jobApplication.update({
       where: { id: application.id },
       data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id },
-    }),
-    prisma.applicationStatusLog.create({
+    });
+    await tx.applicationStatusLog.create({
       data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: data.status, remarks: data.remarks ?? null },
-    }),
-  ]);
+    });
+    return next;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   await prisma.notification.create({
     data: { userId: application.guardUserId, title: 'Application updated', message: `Your application status is now ${data.status.replaceAll('_', ' ')}.`, type: 'application' },
   });

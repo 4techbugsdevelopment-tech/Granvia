@@ -28,8 +28,21 @@ export async function rechargeEmployerWallet(amount: number, remarks?: string) {
   return data as { wallet: EmployerWallet; transaction: Record<string, unknown> };
 }
 
-export async function listAdminWallets() {
-  const { data } = await apiClient.get('/admin/wallets');
+export type AdminWalletFilters = Partial<{
+  employer_id: string;
+  guard_id: string;
+  transaction_type: string;
+  source: string;
+  status: string;
+  reference_id: string;
+  date_from: string;
+  date_to: string;
+  min_amount: string;
+  max_amount: string;
+}>;
+
+export async function listAdminWallets(params?: AdminWalletFilters) {
+  const { data } = await apiClient.get('/admin/wallets', { params });
   return data as {
     totals: {
       balance: number;

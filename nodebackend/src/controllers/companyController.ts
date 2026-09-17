@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { storeFile, IncomingFile } from '../utils/fileStorage';
 import { assertActiveCityState } from './locationMasterController';
+import { indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\CompanyController.
 
@@ -18,9 +19,9 @@ const baseFields = {
   registration_type: z.string().nullish(),
   gst_number: optionalString(z.string().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i, 'Enter a valid 15-character GST number.')),
   pan_number: optionalString(z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'Enter a valid PAN number (for example, ABCDE1234F).')),
-  company_email: optionalString(z.string().email('Enter a valid company email address.')),
-  company_phone: optionalString(z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number.')),
-  website: z.string().nullish(),
+  company_email: z.preprocess(emptyToUndefined, normalizedEmailSchema.optional().nullable()),
+  company_phone: z.preprocess(emptyToUndefined, indianMobileSchema.optional().nullable()),
+  website: optionalHttpUrlSchema,
   description: z.string().nullish(),
   registered_address: z.string().nullish(),
   billing_address: z.string().nullish(),

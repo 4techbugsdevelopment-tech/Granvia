@@ -6,22 +6,23 @@ import { snakeKeys, toPrismaData } from '../utils/serialize';
 import { serializeUserRow, serializeGuardProfile } from '../serializers/userSerializer';
 import { storeFile, IncomingFile } from '../utils/fileStorage';
 import { assertActiveCityState } from './locationMasterController';
+import { guardDobSchema, humanNameSchema, indianMobileSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\ProfileController (shared /me routes).
 
 const GUARD_JSON = ['skills', 'languages'];
 
 const updateUserSchema = z.object({
-  full_name: z.string().min(2),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'The mobile format is invalid.'),
+  full_name: humanNameSchema('Full name'),
+  mobile: indianMobileSchema,
 }).partial();
 
 const guardProfileSchema = z
   .object({
-    full_name: z.string().min(2),
-    mobile: z.string().regex(/^[6-9]\d{9}$/, 'The mobile format is invalid.'),
+    full_name: humanNameSchema('Full name'),
+    mobile: indianMobileSchema,
     gender: z.string().nullish(),
-    dob: z.coerce.date().nullish(),
+    dob: guardDobSchema().nullish(),
     address: z.string().nullish(),
     city: z.string().nullish(),
     state: z.string().nullish(),
@@ -36,19 +37,29 @@ const guardProfileSchema = z
     bank_account_number: z.string().regex(/^\d{9,18}$/).nullish(),
     bank_ifsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/).nullish(),
     bank_name: z.string().nullish(),
-    account_holder_name: z.string().nullish(),
+    account_holder_name: humanNameSchema('Account holder name').nullish(),
   })
   .partial();
 
 const employerProfileSchema = z
   .object({
-    contact_person_name: z.string(),
-    designation: z.string().nullish(),
+    contact_person_name: humanNameSchema('Contact name'),
+    designation: humanNameSchema('Designation').nullish(),
     city: z.string(),
     state: z.string(),
     pincode: z.string().regex(/^\d{6}$/),
   })
   .partial();
+
+async function assertMobileAvailableForUser(mobile: string | undefined, userId: string) {
+  if (!mobile) return;
+  const existing = await prisma.user.findFirst({ where: { mobile, NOT: { id: userId } } });
+  if (existing) {
+    throw new HttpError(422, 'The mobile has already been taken.', {
+      errors: { mobile: ['The mobile has already been taken.'] },
+    });
+  }
+}
 
 /** GET /me/profile */
 export async function show(req: Request, res: Response) {
@@ -58,6 +69,7 @@ export async function show(req: Request, res: Response) {
 /** PATCH /me/profile */
 export async function update(req: Request, res: Response) {
   const data = updateUserSchema.parse(req.body);
+  await assertMobileAvailableForUser(data.mobile, req.user!.id);
   const updated = await prisma.user.update({
     where: { id: req.user!.id },
     data: toPrismaData(data),
@@ -96,6 +108,7 @@ export async function showGuardProfile(req: Request, res: Response) {
 export async function updateGuardProfile(req: Request, res: Response) {
   const data = guardProfileSchema.parse(req.body);
   await assertActiveCityState(data.city, data.state);
+  await assertMobileAvailableForUser(data.mobile, req.user!.id);
   const profile = await prisma.guardProfile.findUnique({ where: { userId: req.user!.id } });
   if (!profile) throw new HttpError(404, 'Associate profile not found.');
 

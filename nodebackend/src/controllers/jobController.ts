@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, serializeOut, toPrismaData, parseJsonField } from '../utils/serialize';
+import { moneySchema } from '../utils/validation';
 
 const OUT_JSON = ['required_skills', 'language_requirements'];
 
@@ -29,7 +30,7 @@ const jobFields = {
   gender_preference: z.string().nullish(),
   experience_required: z.string().nullish(),
   qualification_required: z.string().nullish(),
-  salary_amount: z.coerce.number().nullish(),
+  salary_amount: moneySchema('Salary amount').nullish(),
   payment_type: z.string().nullish(),
   duty_hours: z.string().nullish(),
   shift_type: z.string().nullish(),

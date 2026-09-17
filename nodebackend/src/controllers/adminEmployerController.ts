@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
@@ -10,6 +9,7 @@ import { env } from '../config/env';
 import { sendEmployerWelcome } from '../services/mailService';
 import { urlFor } from '../utils/fileStorage';
 import { assertActiveCityState } from './locationMasterController';
+import { generateStrongPassword, humanNameSchema, indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema, strongPasswordSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\Admin\EmployerController.
 
@@ -19,10 +19,10 @@ const emptyOptional = (schema: z.ZodString) => z.preprocess(
 );
 
 const employerSchema = z.object({
-  contact_person_name: z.string().min(2),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'The mobile format is invalid.'),
-  email: z.string().email(),
-  password: z.string().min(6).nullish(),
+  contact_person_name: humanNameSchema('Contact name'),
+  mobile: indianMobileSchema,
+  email: normalizedEmailSchema,
+  password: strongPasswordSchema.nullish(),
   city: z.string(),
   state: z.string(),
   pincode: z.string().regex(/^\d{6}$/, 'The pincode format is invalid.'),
@@ -32,7 +32,7 @@ const employerSchema = z.object({
   business_type: z.string().nullish(),
   gst_number: emptyOptional(z.string().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i, 'Enter a valid 15-character GST number.')),
   pan_number: emptyOptional(z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, 'Enter a valid PAN number (for example, ABCDE1234F).')),
-  website: z.string().nullish(),
+  website: optionalHttpUrlSchema,
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
 
@@ -104,7 +104,7 @@ export async function store(req: Request, res: Response) {
   await assertActiveCityState(data.city, data.state);
   await assertUnique(data.email, data.mobile);
 
-  const tempPassword = data.password ?? crypto.randomBytes(9).toString('base64').slice(0, 12);
+  const tempPassword = data.password ?? generateStrongPassword();
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
@@ -220,7 +220,7 @@ export async function resetPassword(req: Request, res: Response) {
   const employer = await prisma.user.findUnique({ where: { id: req.params.employer } });
   if (!employer || employer.role !== 'employer') throw new HttpError(404, 'Not an employer account.');
 
-  const tempPassword = crypto.randomBytes(9).toString('base64url');
+  const tempPassword = generateStrongPassword();
   await prisma.$transaction([
     prisma.user.update({ where: { id: employer.id }, data: { password: await hashPassword(tempPassword) } }),
     prisma.personalAccessToken.deleteMany({ where: { tokenableId: employer.id } }),

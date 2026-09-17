@@ -10,6 +10,7 @@ import { sendVerificationEmail, sendEmployerWelcome, sendSmtpTestEmail, sendNewU
 import { issueOtp, verifyOtp } from '../services/otpService';
 import { meResponse } from '../serializers/userSerializer';
 import { assertActiveCityState } from './locationMasterController';
+import { humanNameSchema, indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema, strongPasswordSchema } from '../utils/validation';
 
 const frontend = () => env.frontendUrl.replace(/\/$/, '');
 
@@ -30,10 +31,10 @@ const ROLES = ['super_admin', 'employer', 'guard', 'sub_admin', 'sales_executive
 // --- validation (mirrors App\Http\Requests\Auth\*) -------------------------
 
 const registerEmployerSchema = z.object({
-  contact_person_name: z.string().min(1),
-  mobile: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8),
+  contact_person_name: humanNameSchema('Contact name'),
+  mobile: indianMobileSchema,
+  email: normalizedEmailSchema,
+  password: strongPasswordSchema,
   city: z.string().min(1),
   state: z.string().min(1),
   pincode: z.string().min(1),
@@ -42,14 +43,14 @@ const registerEmployerSchema = z.object({
   company_address: z.string().optional(),
   gst_number: z.string().optional(),
   pan_number: z.string().optional(),
-  website: z.string().optional(),
+  website: optionalHttpUrlSchema,
 });
 
 const registerGuardSchema = z.object({
-  full_name: z.string().min(1),
-  mobile: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8),
+  full_name: humanNameSchema('Full name'),
+  mobile: indianMobileSchema,
+  email: normalizedEmailSchema,
+  password: strongPasswordSchema,
   profile_type: z.string().min(1),
   gender: z.string().optional(),
   city: z.string().optional(),
@@ -58,7 +59,7 @@ const registerGuardSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: normalizedEmailSchema,
   password: z.string().min(1),
   // Optional: when omitted (e.g. the universal mobile app) the account's own
   // role is used. When provided (portal logins) it is enforced as a guard.
@@ -272,7 +273,7 @@ export async function registerGuard(req: Request, res: Response) {
 
 /** POST /auth/email/verify-otp — activate account with the signup code. */
 export async function verifyEmailOtp(req: Request, res: Response) {
-  const schema = z.object({ email: z.string().email(), otp: z.string().min(4) });
+  const schema = z.object({ email: normalizedEmailSchema, otp: z.string().min(4) });
   const { email, otp } = schema.parse(req.body);
 
   await verifyOtp({ email, purpose: 'signup_verification', otp });
@@ -358,7 +359,7 @@ export async function login(req: Request, res: Response) {
 /** POST /auth/login/verify-otp — completes a 2FA login and issues the token. */
 export async function loginVerifyOtp(req: Request, res: Response) {
   const schema = z.object({
-    email: z.string().email(),
+    email: normalizedEmailSchema,
     otp: z.string().min(4),
     role: z.enum(ROLES).optional(),
   });
@@ -407,9 +408,9 @@ export async function requestPasswordOtp(req: Request, res: Response) {
 /** POST /auth/password/reset — verifies the code and sets a new password. */
 export async function resetPassword(req: Request, res: Response) {
   const schema = z.object({
-    email: z.string().email(),
+    email: normalizedEmailSchema,
     otp: z.string().min(4),
-    password: z.string().min(8),
+    password: strongPasswordSchema,
   });
   const data = schema.parse(req.body);
 
@@ -427,7 +428,7 @@ export async function resetPassword(req: Request, res: Response) {
 
 /** POST /auth/test-email â€” sends a direct SMTP test mail and returns the provider response. */
 export async function testEmail(req: Request, res: Response) {
-  const schema = z.object({ email: z.string().email() });
+  const schema = z.object({ email: normalizedEmailSchema });
   const { email } = schema.parse(req.body);
   const report = await sendSmtpTestEmail(email.trim().toLowerCase(), auditFromRequest(req, 'smtp_test', { target_email: email.trim().toLowerCase() }));
 

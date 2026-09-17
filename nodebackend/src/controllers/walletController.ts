@@ -148,7 +148,26 @@ export async function recharge(req: Request, res: Response) {
   });
 }
 
-export async function adminIndex(_req: Request, res: Response) {
+export async function adminIndex(req: Request, res: Response) {
+  const dateFrom = typeof req.query.date_from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_from)
+    ? new Date(`${req.query.date_from}T00:00:00.000Z`)
+    : null;
+  const dateTo = typeof req.query.date_to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_to)
+    ? new Date(`${req.query.date_to}T00:00:00.000Z`)
+    : null;
+  if (dateTo) dateTo.setUTCDate(dateTo.getUTCDate() + 1);
+  const minAmount = typeof req.query.min_amount === 'string' && req.query.min_amount !== '' ? Number(req.query.min_amount) : null;
+  const maxAmount = typeof req.query.max_amount === 'string' && req.query.max_amount !== '' ? Number(req.query.max_amount) : null;
+  const transactionWhere = {
+    ...(typeof req.query.employer_id === 'string' && req.query.employer_id ? { employerUserId: req.query.employer_id } : {}),
+    ...(typeof req.query.guard_id === 'string' && req.query.guard_id ? { guardUserId: req.query.guard_id } : {}),
+    ...(typeof req.query.transaction_type === 'string' && req.query.transaction_type ? { transactionType: req.query.transaction_type } : {}),
+    ...(typeof req.query.source === 'string' && req.query.source ? { source: req.query.source } : {}),
+    ...(typeof req.query.status === 'string' && req.query.status ? { status: req.query.status } : {}),
+    ...(typeof req.query.reference_id === 'string' && req.query.reference_id ? { referenceId: { contains: req.query.reference_id } } : {}),
+    ...((dateFrom || dateTo) ? { createdAt: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lt: dateTo } : {}) } } : {}),
+    ...((Number.isFinite(minAmount) || Number.isFinite(maxAmount)) ? { amount: { ...(Number.isFinite(minAmount) ? { gte: minAmount! } : {}), ...(Number.isFinite(maxAmount) ? { lte: maxAmount! } : {}) } } : {}),
+  };
   const [employers, wallets, transactions] = await Promise.all([
     prisma.user.findMany({
       where: { role: 'employer' },
@@ -160,6 +179,7 @@ export async function adminIndex(_req: Request, res: Response) {
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.walletTransaction.findMany({
+      where: transactionWhere,
       orderBy: { createdAt: 'desc' },
       take: 250,
     }),

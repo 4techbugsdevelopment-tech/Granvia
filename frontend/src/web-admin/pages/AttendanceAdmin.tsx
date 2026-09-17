@@ -62,15 +62,18 @@ function LocationCell({ lat, lng, site, fallback = '--' }: { lat: number | strin
 
 export default function AttendanceAdmin() {
   const [data, setData] = useState<AdminAttendance | null>(null);
+  const [filters, setFilters] = useState({ employer_id: '', site_id: '', guard_id: '', job_id: '', status: '', date_from: '', date_to: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [actionBusy, setActionBusy] = useState<string | null>(null);
 
+  const activeFilters = () => Object.fromEntries(Object.entries(filters).filter(([, value]) => value.trim()));
+
   const load = () => {
     let active = true;
     setLoading(true);
-    getAdminAttendance()
+    getAdminAttendance(activeFilters())
       .then((d) => { if (active) setData(d); })
       .catch((e) => { if (active) setError(e?.response?.data?.message || e.message); })
       .finally(() => { if (active) setLoading(false); });
@@ -89,7 +92,7 @@ export default function AttendanceAdmin() {
     setNotice('');
     try {
       await updateAdminAttendanceStatus(recordId, status, remarks?.trim());
-      await getAdminAttendance().then(setData);
+      await getAdminAttendance(activeFilters()).then(setData);
       setNotice(status === 'approved' ? 'Attendance approved and settlement moved to processing.' : 'Attendance rejected.');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to update attendance.'));
@@ -105,6 +108,28 @@ export default function AttendanceAdmin() {
     <motion.div className="p-6" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader title="Attendance" subtitle="Daily in/out logs across all sites" />
       {notice && <div className="mb-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700">{notice}</div>}
+
+      <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <input value={filters.employer_id} onChange={event => setFilters(current => ({ ...current, employer_id: event.target.value }))} className="form-input" placeholder="Employer ID" />
+          <input value={filters.site_id} onChange={event => setFilters(current => ({ ...current, site_id: event.target.value }))} className="form-input" placeholder="Site ID" />
+          <input value={filters.guard_id} onChange={event => setFilters(current => ({ ...current, guard_id: event.target.value }))} className="form-input" placeholder="Associate ID" />
+          <input value={filters.job_id} onChange={event => setFilters(current => ({ ...current, job_id: event.target.value }))} className="form-input" placeholder="Job ID" />
+          <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} className="form-input">
+            <option value="">All statuses</option>
+            <option value="pending_verification">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="verified">Verified</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <input type="date" value={filters.date_from} onChange={event => setFilters(current => ({ ...current, date_from: event.target.value }))} className="form-input" />
+          <input type="date" value={filters.date_to} onChange={event => setFilters(current => ({ ...current, date_to: event.target.value }))} className="form-input" />
+        </div>
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button onClick={() => { setFilters({ employer_id: '', site_id: '', guard_id: '', job_id: '', status: '', date_from: '', date_to: '' }); setTimeout(load, 0); }} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Reset</button>
+          <button onClick={load} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Apply Filters</button>
+        </div>
+      </div>
 
       {loading && (
         <div className="text-center py-20 text-gray-400">

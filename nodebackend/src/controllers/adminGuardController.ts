@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
@@ -8,17 +7,18 @@ import { serializeUserRow } from '../serializers/userSerializer';
 import { snakeKeys } from '../utils/serialize';
 import { deliverHiringDocumentsForVerifiedAssociate } from '../services/hiringDocumentDelivery';
 import { assertActiveCityState } from './locationMasterController';
+import { generateStrongPassword, guardDobSchema, humanNameSchema, indianMobileSchema, moneySchema, normalizedEmailSchema, strongPasswordSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\Admin\GuardController.
 
 const guardSchema = z.object({
-  full_name: z.string().min(2),
-  email: z.string().email(),
-  mobile: z.string().regex(/^[6-9]\d{9}$/, 'The mobile format is invalid.'),
-  password: z.string().min(8).nullish(),
+  full_name: humanNameSchema('Full name'),
+  email: normalizedEmailSchema,
+  mobile: indianMobileSchema,
+  password: strongPasswordSchema.nullish(),
   profile_type: z.string().min(1).nullish(),
   gender: z.string().nullish(),
-  dob: z.coerce.date().nullish(),
+  dob: guardDobSchema().nullish(),
   address: z.string().nullish(),
   city: z.string().nullish(),
   state: z.string().nullish(),
@@ -28,8 +28,8 @@ const guardSchema = z.object({
   skills: z.array(z.string()).nullish(),
   languages: z.array(z.string()).nullish(),
   experience: z.string().nullish(),
-  daily_rate: z.coerce.number().positive().nullish(),
-  hourly_rate: z.coerce.number().positive().nullish(),
+  daily_rate: moneySchema('Daily rate').nullish(),
+  hourly_rate: moneySchema('Hourly rate').nullish(),
   verification_status: z.enum(['pending', 'verified', 'rejected']).nullish(),
   account_status: z.enum(['active', 'inactive', 'blocked', 'pending']).nullish(),
 });
@@ -120,7 +120,7 @@ export async function store(req: Request, res: Response) {
   await assertUnique(data.email, data.mobile ?? undefined);
   const associateType = await resolveAssociateType(data.profile_type);
 
-  const tempPassword = data.password ?? crypto.randomBytes(9).toString('base64').slice(0, 12);
+  const tempPassword = data.password ?? generateStrongPassword();
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
@@ -207,7 +207,7 @@ export async function resetPassword(req: Request, res: Response) {
   const guard = await prisma.user.findUnique({ where: { id: req.params.guard } });
   if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
 
-  const tempPassword = crypto.randomBytes(9).toString('base64url');
+  const tempPassword = generateStrongPassword();
   await prisma.$transaction([
     prisma.user.update({ where: { id: guard.id }, data: { password: await hashPassword(tempPassword) } }),
     prisma.personalAccessToken.deleteMany({ where: { tokenableId: guard.id } }),
