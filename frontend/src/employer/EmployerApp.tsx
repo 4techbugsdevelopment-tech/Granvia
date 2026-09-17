@@ -26,7 +26,8 @@ import {
   listAgreements, createAgreement, updateAgreement,
 } from '../services/hiringService';
 import { listCompanyDocuments, createDocumentRecord, updateDocumentRecord, deleteDocumentRecord } from '../services/documentService';
-import { geocodeAddress, buildSiteAddress, reverseGeocode, distanceKm } from '../lib/geoUtils';
+import { buildSiteAddress, distanceKm } from '../lib/geoUtils';
+import { geocodeAddressWithGoogle, reverseGeocodeWithGoogle } from '../components/map/google/googleGeocoding';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
@@ -1206,7 +1207,7 @@ function SiteLocationSection({
 
     timerRef.current = setTimeout(async () => {
       setGeocoding(true);
-      const pos = await geocodeAddress(addrStr);
+      const pos = await geocodeAddressWithGoogle(addrStr).catch(() => null);
       if (pos) {
         setForm(f => ({ ...f, latitude: pos.lat.toFixed(6), longitude: pos.lng.toFixed(6) }));
         setLocSource('geocoded');
@@ -1227,7 +1228,7 @@ function SiteLocationSection({
     setForm(f => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }));
     setLocSource('manual');
     setRevGeocoding(true);
-    const result = await reverseGeocode(lat, lng);
+    const result = await reverseGeocodeWithGoogle(lat, lng).catch(() => null);
     if (result) {
       // Suppress the forward-geocode effect that would fire when we update
       // these address fields — we don't want to re-geocode what we just reversed.
