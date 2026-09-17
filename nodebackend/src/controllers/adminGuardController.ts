@@ -7,6 +7,7 @@ import { hashPassword } from '../utils/password';
 import { serializeUserRow } from '../serializers/userSerializer';
 import { snakeKeys } from '../utils/serialize';
 import { deliverHiringDocumentsForVerifiedAssociate } from '../services/hiringDocumentDelivery';
+import { assertActiveCityState } from './locationMasterController';
 
 // Port of App\Http\Controllers\Admin\GuardController.
 
@@ -115,6 +116,7 @@ export async function index(req: Request, res: Response) {
 /** POST /admin/guards */
 export async function store(req: Request, res: Response) {
   const data = guardSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   await assertUnique(data.email, data.mobile ?? undefined);
   const associateType = await resolveAssociateType(data.profile_type);
 
@@ -154,6 +156,7 @@ export async function update(req: Request, res: Response) {
   if (!guard || guard.role !== 'guard') throw new HttpError(404, 'Not an associate account.');
 
   const data = guardSchema.partial().parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   await assertUnique(data.email, data.mobile ?? undefined, guard.id);
   const associateType = data.profile_type !== undefined ? await resolveAssociateType(data.profile_type) : null;
 

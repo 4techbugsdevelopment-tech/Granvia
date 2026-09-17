@@ -9,6 +9,7 @@ import { signedVerifyUrl, verifyEmailSignature, emailHash } from '../utils/signi
 import { sendVerificationEmail, sendEmployerWelcome, sendSmtpTestEmail, sendNewUserRegistrationAlert } from '../services/mailService';
 import { issueOtp, verifyOtp } from '../services/otpService';
 import { meResponse } from '../serializers/userSerializer';
+import { assertActiveCityState } from './locationMasterController';
 
 const frontend = () => env.frontendUrl.replace(/\/$/, '');
 
@@ -118,6 +119,7 @@ function uniqueViolationToHttpError(err: unknown) {
 
 export async function registerEmployer(req: Request, res: Response) {
   const data = registerEmployerSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   await assertEmailAvailable(data.email);
   await assertMobileAvailable(data.mobile);
 
@@ -199,6 +201,7 @@ export async function registerEmployer(req: Request, res: Response) {
 
 export async function registerGuard(req: Request, res: Response) {
   const data = registerGuardSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   await assertEmailAvailable(data.email);
   await assertMobileAvailable(data.mobile);
   const associateType = await prisma.associateType.findFirst({

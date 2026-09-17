@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import EmailLogs from './pages/EmailLogs';
 import RoleMaster from './pages/RoleMaster';
 import AssociateTypeMaster from './pages/AssociateTypeMaster';
+import LocationMaster from './pages/LocationMaster';
 import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
@@ -37,6 +38,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   'email-logs': 'Email Logs',
   roles: 'Manage Roles',
   'associate-types': 'Associate Types',
+  locations: 'City & State Master',
   settings: 'Settings',
 };
 
@@ -52,6 +54,7 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/reports') return 'reports';
   if (pathname === '/admin/roles') return 'roles';
   if (pathname === '/admin/associate-types') return 'associate-types';
+  if (pathname === '/admin/locations') return 'locations';
   if (pathname === '/admin/settings') return 'settings';
   return 'dashboard';
 }
@@ -60,6 +63,7 @@ function getAdminPath(page: AdminPage): string {
   if (page === 'email-logs') return '/admin/email-logs';
   if (page === 'roles') return '/admin/roles';
   if (page === 'associate-types') return '/admin/associate-types';
+  if (page === 'locations') return '/admin/locations';
   if (page === 'guards' || page === 'add-guard') return page === 'guards' ? '/admin/guards' : '/admin/guards/add';
   return page === 'dashboard' ? '/admin' : `/admin/${page}`;
 }
@@ -97,6 +101,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'email-logs': return <EmailLogs />;
       case 'roles': return <RoleMaster />;
       case 'associate-types': return <AssociateTypeMaster />;
+      case 'locations': return <LocationMaster />;
       case 'settings': return <SettingsPage />;
       default: return <PlaceholderPage page={page} />;
     }

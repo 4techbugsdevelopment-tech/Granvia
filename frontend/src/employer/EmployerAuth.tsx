@@ -8,6 +8,7 @@ import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../serv
 import { getErrorMessage } from '../services/apiErrors';
 import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
+import CityStateSelect from '../components/CityStateSelect';
 
 interface EmployerAuthProps {
   onLogin: () => void;
@@ -273,8 +274,17 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
                   <TextInput label="Mobile *" kind="mobile" value={register.mobile} onChange={value => updateRegister('mobile', value, 'mobile')} />
                   <TextInput label="Email *" value={register.email} onChange={value => updateRegister('email', value)} />
                   <TextInput label="Pincode *" kind="pincode" value={register.pincode} onChange={value => updateRegister('pincode', value, 'pincode')} />
-                  <TextInput label="City *" kind="cityState" value={register.city} onChange={value => updateRegister('city', value, 'cityState')} />
-                  <TextInput label="State *" kind="cityState" value={register.state} onChange={value => updateRegister('state', value, 'cityState')} />
+                  <div className="col-span-2">
+                    <CityStateSelect
+                      city={register.city}
+                      state={register.state}
+                      onCityChange={value => updateRegister('city', value, 'cityState')}
+                      onStateChange={value => updateRegister('state', value, 'cityState')}
+                      required
+                      className="grid grid-cols-2 gap-3"
+                      inputClassName="register-input w-full px-3.5 py-3.5 rounded-2xl text-sm outline-none"
+                    />
+                  </div>
                   <TextInput label="GST Number" kind="gst" value={register.gstNumber} onChange={value => updateRegister('gstNumber', value, 'gst')} />
                   <TextInput label="PAN Number" kind="pan" value={register.panNumber} onChange={value => updateRegister('panNumber', value, 'pan')} />
                   <TextInput label="Website" kind="url" value={register.website} onChange={value => updateRegister('website', value, 'url')} />

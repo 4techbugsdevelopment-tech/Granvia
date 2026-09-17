@@ -75,6 +75,39 @@ model AssociateType {
   @@map("associate_types")
 }
 
+model StateMaster {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  code            String   @unique @db.NVarChar(20)
+  name            String   @unique @db.NVarChar(150)
+  type            String   @default("state") @db.NVarChar(30)
+  status          String   @default("active")
+  createdByUserId String?  @map("created_by_user_id") @db.NVarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  cities          CityMaster[]
+
+  @@index([status])
+  @@map("state_masters")
+}
+
+model CityMaster {
+  id              String      @id @default(uuid()) @db.NVarChar(36)
+  stateId         String      @map("state_id") @db.NVarChar(36)
+  name            String      @db.NVarChar(150)
+  status          String      @default("active")
+  createdByUserId String?     @map("created_by_user_id") @db.NVarChar(36)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  state           StateMaster @relation(fields: [stateId], references: [id], onDelete: Cascade)
+
+  @@unique([stateId, name])
+  @@index([status])
+  @@index([name])
+  @@map("city_masters")
+}
+
 model PasswordResetToken {
   email     String    @id @db.NVarChar(255)
   token     String

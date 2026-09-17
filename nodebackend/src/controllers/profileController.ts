@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys, toPrismaData } from '../utils/serialize';
 import { serializeUserRow, serializeGuardProfile } from '../serializers/userSerializer';
 import { storeFile, IncomingFile } from '../utils/fileStorage';
+import { assertActiveCityState } from './locationMasterController';
 
 // Port of App\Http\Controllers\ProfileController (shared /me routes).
 
@@ -94,6 +95,7 @@ export async function showGuardProfile(req: Request, res: Response) {
 /** PATCH /me/guard-profile */
 export async function updateGuardProfile(req: Request, res: Response) {
   const data = guardProfileSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   const profile = await prisma.guardProfile.findUnique({ where: { userId: req.user!.id } });
   if (!profile) throw new HttpError(404, 'Associate profile not found.');
 
@@ -122,6 +124,7 @@ export async function showEmployerProfile(req: Request, res: Response) {
 /** PATCH /me/employer-profile */
 export async function updateEmployerProfile(req: Request, res: Response) {
   const data = employerProfileSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   const profile = await prisma.employerProfile.findUnique({ where: { userId: req.user!.id } });
   if (!profile) throw new HttpError(404, 'Employer profile not found.');
 

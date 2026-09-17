@@ -16,6 +16,7 @@ import {
 } from '../../services/adminEmployerService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
+import CityStateSelect from '../../components/CityStateSelect';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],
@@ -491,8 +492,9 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
             <DialogInput label="Email Address" value={form.email} error={fieldErrors.email} onChange={value => update('email', value)} />
             <DialogInput label="Temporary Password" value={form.password} onChange={value => update('password', value)} />
             <DialogInput label="Business Type" kind="name" value={form.businessType} onChange={value => update('businessType', value, 'name')} />
-            <DialogInput label="City" kind="cityState" value={form.city} onChange={value => update('city', value, 'cityState')} />
-            <DialogInput label="State" kind="cityState" value={form.state} onChange={value => update('state', value, 'cityState')} />
+            <div className="sm:col-span-2">
+              <CityStateSelect city={form.city} state={form.state} cityError={fieldErrors.city} stateError={fieldErrors.state} onCityChange={value => update('city', value, 'cityState')} onStateChange={value => update('state', value, 'cityState')} className="grid grid-cols-1 sm:grid-cols-2 gap-3" required />
+            </div>
             <DialogInput label="Pincode" kind="pincode" value={form.pincode} onChange={value => update('pincode', value, 'pincode')} />
             <DialogInput label="GST Number (Optional)" kind="gst" value={form.gstNumber} error={fieldErrors.gst_number} onChange={value => update('gstNumber', value, 'gst')} />
             <DialogInput label="PAN Number (Optional)" kind="pan" value={form.panNumber} error={fieldErrors.pan_number} onChange={value => update('panNumber', value, 'pan')} />
@@ -611,8 +613,9 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
               <DialogInput label="Designation" kind="name" value={form.designation} onChange={value => update('designation', value, 'name')} />
               <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} onChange={value => update('mobile', value, 'mobile')} />
               <DialogInput label="Email Address" value={form.email} onChange={value => update('email', value)} />
-              <DialogInput label="City" kind="cityState" value={form.city} onChange={value => update('city', value, 'cityState')} />
-              <DialogInput label="State" kind="cityState" value={form.state} onChange={value => update('state', value, 'cityState')} />
+              <div className="sm:col-span-2">
+                <CityStateSelect city={form.city} state={form.state} onCityChange={value => update('city', value, 'cityState')} onStateChange={value => update('state', value, 'cityState')} className="grid grid-cols-1 sm:grid-cols-2 gap-3" required />
+              </div>
               <DialogInput label="Pincode" kind="pincode" value={form.pincode} onChange={value => update('pincode', value, 'pincode')} />
             </div>
             <DialogInput className="mt-3" label="Registered Address" value={form.companyAddress} onChange={value => update('companyAddress', value)} />

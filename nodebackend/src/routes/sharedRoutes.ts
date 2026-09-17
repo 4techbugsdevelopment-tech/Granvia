@@ -8,6 +8,7 @@ import * as notification from '../controllers/notificationController';
 import * as support from '../controllers/supportTicketController';
 import * as roles from '../controllers/roleController';
 import * as associateTypes from '../controllers/associateTypeController';
+import * as locationMaster from '../controllers/locationMasterController';
 import { env } from '../config/env';
 import * as hiringDocument from '../controllers/hiringDocumentController';
 
@@ -20,6 +21,8 @@ const router = Router();
 // Public.
 router.get('/jobs', asyncHandler(job.active));
 router.get('/associate-types', asyncHandler(associateTypes.active));
+router.get('/location-master/states', asyncHandler(locationMaster.activeStates));
+router.get('/location-master/cities', asyncHandler(locationMaster.activeCities));
 router.get('/config/public', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   return res.json({

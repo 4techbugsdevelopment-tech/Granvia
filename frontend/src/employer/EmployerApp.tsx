@@ -9,6 +9,7 @@ import {
 import NotificationBell from '../components/NotificationBell';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
+import CityStateSelect from '../components/CityStateSelect';
 import MobileChrome from '../universal-mobile/MobileChrome';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
@@ -706,8 +707,9 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
           <Input label="Contact Person Name" value={form.contactPersonName} onChange={v => setForm({ ...form, contactPersonName: v })} />
           <Input label="Mobile" value={form.mobile} onChange={v => setForm({ ...form, mobile: v })} />
           <Input label="Email" value={employer.email} onChange={() => {}} />
-          <Input label="City" value={form.city} onChange={v => setForm({ ...form, city: v })} />
-          <Input label="State" value={form.state} onChange={v => setForm({ ...form, state: v })} />
+          <div className="md:col-span-2">
+            <CityStateSelect city={form.city} state={form.state} onCityChange={v => setForm({ ...form, city: v })} onStateChange={v => setForm({ ...form, state: v })} />
+          </div>
           <Input label="Pincode" value={form.pincode} onChange={v => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} />
         </div>
       </Card>
@@ -937,8 +939,9 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
           <Input label="Company Email" value={form.company_email} error={companyErrors.company_email} onChange={v => { setForm({ ...form, company_email: v }); setCompanyErrors(e => clearValidationError(e, 'company_email')); }} />
           <Input label="Company Phone" value={form.company_phone} error={companyErrors.company_phone} onChange={v => { setForm({ ...form, company_phone: v.replace(/\D/g, '').slice(0, 10) }); setCompanyErrors(e => clearValidationError(e, 'company_phone')); }} />
           <Input label="Website" value={form.website} error={companyErrors.website} onChange={v => { setForm({ ...form, website: v }); setCompanyErrors(e => clearValidationError(e, 'website')); }} />
-          <Input label="City" value={form.city} onChange={v => setForm({ ...form, city: v })} />
-          <Input label="State" value={form.state} onChange={v => setForm({ ...form, state: v })} />
+          <div className="md:col-span-2">
+            <CityStateSelect city={form.city} state={form.state} onCityChange={v => setForm({ ...form, city: v })} onStateChange={v => setForm({ ...form, state: v })} />
+          </div>
           <Input label="Pincode" value={form.pincode} error={companyErrors.pincode} onChange={v => { setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) }); setCompanyErrors(e => clearValidationError(e, 'pincode')); }} />
         </div>
         <Input className="mt-3" label="Registered Address" value={form.registered_address} error={companyErrors.registered_address} onChange={v => { setForm({ ...form, registered_address: v }); setCompanyErrors(e => clearValidationError(e, 'registered_address')); }} />
@@ -1555,8 +1558,9 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Site Name"      value={form.site_name}       error={formErrors.site_name} onChange={v => setForm(f => ({ ...f, site_name: v }))} />
           <Sel   label="Site Type"      value={form.site_type}       error={formErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setForm(f => ({ ...f, site_type: v }))} />
-          <Input label="City"           value={form.city}            error={formErrors.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
-          <Input label="State"          value={form.state}           error={formErrors.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
+          <div className="md:col-span-2">
+            <CityStateSelect city={form.city} state={form.state} cityError={formErrors.city} stateError={formErrors.state} onCityChange={v => setForm(f => ({ ...f, city: v }))} onStateChange={v => setForm(f => ({ ...f, state: v }))} />
+          </div>
           <Input label="Pincode"        value={form.pincode}         error={formErrors.pincode} onChange={v => setForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
           <Input label="Site Contact"   value={form.contact_person}  error={formErrors.contact_person} onChange={v => setForm(f => ({ ...f, contact_person: v }))} />
           <Input label="Contact Mobile" value={form.contact_mobile}  error={formErrors.contact_mobile} onChange={v => setForm(f => ({ ...f, contact_mobile: v }))} />
@@ -1659,8 +1663,9 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input label="Site Name"      value={editForm.site_name}       error={editErrors.site_name} onChange={v => setEditForm(f => ({ ...f, site_name: v }))} />
                 <Sel   label="Site Type"      value={editForm.site_type}       options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setEditForm(f => ({ ...f, site_type: v }))} />
-                <Input label="City"           value={editForm.city}            onChange={v => setEditForm(f => ({ ...f, city: v }))} />
-                <Input label="State"          value={editForm.state}           onChange={v => setEditForm(f => ({ ...f, state: v }))} />
+                <div className="md:col-span-2">
+                  <CityStateSelect city={editForm.city} state={editForm.state} cityError={editErrors.city} stateError={editErrors.state} onCityChange={v => setEditForm(f => ({ ...f, city: v }))} onStateChange={v => setEditForm(f => ({ ...f, state: v }))} />
+                </div>
                 <Input label="Pincode"        value={editForm.pincode}         error={editErrors.pincode} onChange={v => setEditForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
                 <Input label="Site Contact"   value={editForm.contact_person}  onChange={v => setEditForm(f => ({ ...f, contact_person: v }))} />
                 <Input label="Contact Mobile" value={editForm.contact_mobile}  error={editErrors.contact_mobile} onChange={v => setEditForm(f => ({ ...f, contact_mobile: v }))} />
@@ -1862,8 +1867,9 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Input label="Site Name" value={siteForm.site_name} error={siteErrors.site_name} onChange={v => setSiteForm(f => ({ ...f, site_name: v }))} />
             <Sel label="Site Type" value={siteForm.site_type} error={siteErrors.site_type} options={['Office','Mall','Warehouse','Factory','Society','Event','Hospital','School']} onChange={v => setSiteForm(f => ({ ...f, site_type: v }))} />
-            <Input label="City" value={siteForm.city} onChange={v => setSiteForm(f => ({ ...f, city: v }))} />
-            <Input label="State" value={siteForm.state} onChange={v => setSiteForm(f => ({ ...f, state: v }))} />
+            <div className="md:col-span-2">
+              <CityStateSelect city={siteForm.city} state={siteForm.state} cityError={siteErrors.city} stateError={siteErrors.state} onCityChange={v => setSiteForm(f => ({ ...f, city: v }))} onStateChange={v => setSiteForm(f => ({ ...f, state: v }))} />
+            </div>
             <Input label="Pincode" value={siteForm.pincode} error={siteErrors.pincode} onChange={v => setSiteForm(f => ({ ...f, pincode: v.replace(/\D/g, '').slice(0, 6) }))} />
             <Input label="Site Contact" value={siteForm.contact_person} onChange={v => setSiteForm(f => ({ ...f, contact_person: v }))} />
             <Input label="Contact Mobile" value={siteForm.contact_mobile} error={siteErrors.contact_mobile} onChange={v => setSiteForm(f => ({ ...f, contact_mobile: v }))} />

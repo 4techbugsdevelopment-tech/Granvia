@@ -9,6 +9,7 @@ import { serializeUserRow } from '../serializers/userSerializer';
 import { env } from '../config/env';
 import { sendEmployerWelcome } from '../services/mailService';
 import { urlFor } from '../utils/fileStorage';
+import { assertActiveCityState } from './locationMasterController';
 
 // Port of App\Http\Controllers\Admin\EmployerController.
 
@@ -100,6 +101,7 @@ export async function index(_req: Request, res: Response) {
 /** POST /admin/employers */
 export async function store(req: Request, res: Response) {
   const data = normalizeCodes(employerSchema.parse(req.body));
+  await assertActiveCityState(data.city, data.state);
   await assertUnique(data.email, data.mobile);
 
   const tempPassword = data.password ?? crypto.randomBytes(9).toString('base64').slice(0, 12);
@@ -172,6 +174,7 @@ export async function update(req: Request, res: Response) {
   if (!employer || employer.role !== 'employer') throw new HttpError(404, 'Not an employer account.');
 
   const data = normalizeCodes(employerSchema.partial().parse(req.body));
+  await assertActiveCityState(data.city, data.state);
   await assertUnique(data.email, data.mobile, employer.id);
 
   await prisma.$transaction(async (tx) => {

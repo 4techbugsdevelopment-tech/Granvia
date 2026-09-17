@@ -12,6 +12,7 @@ import {
   listMyDocuments, uploadMyDocument,
 } from '../../services/guardVerificationService';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
+import CityStateSelect from '../../components/CityStateSelect';
 
 const QUALIFICATION_OPTIONS = ['Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate'];
 
@@ -564,10 +565,16 @@ export default function ProfileScreen() {
                     <SheetInput label="Experience" value={form.experience ?? ''} onChange={set('experience')} placeholder="e.g. 3 years" />
                   </div>
                   <SheetInput label="Address" value={form.address ?? ''} onChange={set('address')} placeholder="Full address" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <SheetInput label="City" value={form.city ?? ''} onChange={set('city')} />
-                    <SheetInput label="State" value={form.state ?? ''} onChange={set('state')} />
-                  </div>
+                  <CityStateSelect
+                    city={form.city ?? ''}
+                    state={form.state ?? ''}
+                    cityError={profileErrors.city}
+                    stateError={profileErrors.state}
+                    onCityChange={set('city')}
+                    onStateChange={set('state')}
+                    className="grid grid-cols-2 gap-3"
+                    inputClassName="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none bg-slate-50"
+                  />
                   <SheetInput label="Pincode" value={form.pincode ?? ''} onChange={value => set('pincode')(value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit pincode" error={profileErrors.pincode} />
                   <div className="grid grid-cols-2 gap-3">
                     <div>

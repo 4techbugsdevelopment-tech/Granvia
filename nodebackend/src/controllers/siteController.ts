@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { serializeOut, toPrismaData } from '../utils/serialize';
+import { assertActiveCityState } from './locationMasterController';
 
 // Port of App\Http\Controllers\SiteController.
 
@@ -67,6 +68,7 @@ export async function index(req: Request, res: Response) {
 /** POST /employer/sites */
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
 
   const company = await prisma.employerCompany.findFirst({
     where: { id: data.company_id, employerUserId: req.user!.id },
@@ -92,6 +94,7 @@ export async function update(req: Request, res: Response) {
   if (site.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = updateSchema.parse(req.body);
+  await assertActiveCityState(data.city, data.state);
   const updated = await prisma.companySite.update({
     where: { id: site.id },
     data: toPrismaData(data) as never,

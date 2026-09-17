@@ -5,6 +5,7 @@ import { createGuard } from '../../services/adminGuardService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
+import CityStateSelect from '../../components/CityStateSelect';
 
 interface AddGuardProps {
   onSuccess: () => void;
@@ -12,8 +13,6 @@ interface AddGuardProps {
 
 const SKILLS = ['CCTV Monitoring', 'Access Control', 'Fire Safety', 'Patrolling', 'Emergency Response', 'First Aid', 'VIP Security', 'Crowd Management', 'Communication', 'Investigation'];
 const LANGUAGES = ['Hindi', 'English', 'Marathi', 'Tamil', 'Telugu', 'Bengali', 'Gujarati', 'Kannada', 'Punjabi', 'Urdu'];
-const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Rajasthan', 'Uttar Pradesh', 'West Bengal', 'Telangana', 'Punjab'];
-
 function FloatingInput({
   label, value, onChange, type = 'text', required = false,
   placeholder = '', error = '', readOnly = false,
@@ -306,8 +305,19 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           <div className="sm:col-span-2">
             <FloatingInput label="Address" value={form.address} onChange={set('address')} placeholder="Full address" />
           </div>
-          <FloatingInput label="City" value={form.city} onChange={set('city')} required error={errors.city} placeholder="City" />
-          <SelectInput label="State" value={form.state} onChange={set('state')} options={form.state && !STATES.includes(form.state) ? [form.state, ...STATES] : STATES} required />
+          <div className="sm:col-span-2">
+            <CityStateSelect
+              city={form.city}
+              state={form.state}
+              cityError={errors.city}
+              stateError={errors.state}
+              onCityChange={set('city')}
+              onStateChange={set('state')}
+              required
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              inputClassName="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none transition-all bg-slate-50"
+            />
+          </div>
           <div className="sm:col-span-2">
             <FloatingInput
               label="Pincode"

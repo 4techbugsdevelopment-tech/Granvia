@@ -4,6 +4,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { storeFile, IncomingFile } from '../utils/fileStorage';
+import { assertActiveCityState } from './locationMasterController';
 
 // Port of App\Http\Controllers\CompanyController.
 
@@ -88,6 +89,7 @@ export async function index(req: Request, res: Response) {
 /** POST /employer/companies */
 export async function store(req: Request, res: Response) {
   const data = normalizeCodes(createSchema.parse(req.body));
+  await assertActiveCityState(data.city, data.state);
   const company = await prisma.employerCompany.create({
     data: {
       ...toColumns(data),
@@ -104,6 +106,7 @@ export async function store(req: Request, res: Response) {
 export async function update(req: Request, res: Response) {
   await ownedCompanyOrFail(req.params.company, req.user!.id);
   const data = normalizeCodes(updateSchema.parse(req.body));
+  await assertActiveCityState(data.city, data.state);
   const company = await prisma.employerCompany.update({
     where: { id: req.params.company },
     data: toColumns(data) as never,
