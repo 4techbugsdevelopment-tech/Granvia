@@ -31,12 +31,14 @@ const checkInSchema = z.object({
   guard_remarks: z.string().nullish(),
   latitude: latitude.nullish(),
   longitude: longitude.nullish(),
+  location_name: z.string().trim().max(500).nullish(),
 });
 
 const checkOutSchema = z.object({
   guard_remarks: z.string().nullish(),
   latitude: latitude.nullish(),
   longitude: longitude.nullish(),
+  location_name: z.string().trim().max(500).nullish(),
 });
 
 function requireLiveLocation(data: { latitude?: number | null; longitude?: number | null }) {
@@ -66,6 +68,28 @@ function siteAddress(job: {
   return site?.address || [site?.siteName, site?.city, site?.state, site?.pincode].filter(Boolean).join(', ')
     || company?.registeredAddress || company?.billingAddress || [company?.city, company?.state, company?.pincode].filter(Boolean).join(', ')
     || 'job location';
+}
+
+function mapAttendanceDatabaseError(error: unknown): HttpError | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+
+  if (error.code === 'P2002') {
+    return new HttpError(409, 'Attendance is already marked for this job and date.');
+  }
+
+  if (error.code === 'P2003') {
+    return new HttpError(422, 'Attendance cannot be marked because the selected job, employer, company, or site is no longer valid.');
+  }
+
+  if (['P2021', 'P2022'].includes(error.code)) {
+    return new HttpError(503, 'Attendance cannot be marked because the server database is missing the latest attendance update. Please contact support.');
+  }
+
+  return null;
+}
+
+function logAttendanceSideEffectFailure(step: string, error: unknown) {
+  console.error(`[attendance] ${step} failed`, error);
 }
 
 async function notifyEmployerLocationMismatch(params: {
@@ -117,36 +141,45 @@ async function enforceGeofence(params: {
   const siteLng = params.job.site?.longitude == null ? null : Number(params.job.site.longitude);
 
   const createBlockedAttempt = async (reason: string, distance: number | null) => {
-    await prisma.attendanceLocationAttempt.create({
-      data: {
-        guardUserId: params.guardId,
-        employerUserId: params.job.employerUserId ?? null,
-        companyId: params.job.companyId ?? null,
-        jobId: params.job.id,
-        siteId: params.job.siteId ?? null,
+    try {
+      await prisma.attendanceLocationAttempt.create({
+        data: {
+          guardUserId: params.guardId,
+          employerUserId: params.job.employerUserId ?? null,
+          companyId: params.job.companyId ?? null,
+          jobId: params.job.id,
+          siteId: params.job.siteId ?? null,
+          attemptType: params.attemptType,
+          status: 'blocked',
+          deviceLatitude: params.latitude ?? null,
+          deviceLongitude: params.longitude ?? null,
+          siteLatitude: siteLat,
+          siteLongitude: siteLng,
+          distanceMeters: distance == null ? null : new Prisma.Decimal(distance.toFixed(2)),
+          radiusMeters: radius,
+          reason,
+        },
+      });
+    } catch (error) {
+      logAttendanceSideEffectFailure('blocked location audit', error);
+    }
+
+    try {
+      await notifyEmployerLocationMismatch({
+        guardId: params.guardId,
+        employerUserId: params.job.employerUserId,
+        jobTitle: params.job.title,
+        targetAddress,
         attemptType: params.attemptType,
-        status: 'blocked',
-        deviceLatitude: params.latitude ?? null,
-        deviceLongitude: params.longitude ?? null,
-        siteLatitude: siteLat,
-        siteLongitude: siteLng,
-        distanceMeters: distance == null ? null : new Prisma.Decimal(distance.toFixed(2)),
-        radiusMeters: radius,
+        latitude: params.latitude!,
+        longitude: params.longitude!,
+        distance,
+        radius,
         reason,
-      },
-    });
-    await notifyEmployerLocationMismatch({
-      guardId: params.guardId,
-      employerUserId: params.job.employerUserId,
-      jobTitle: params.job.title,
-      targetAddress,
-      attemptType: params.attemptType,
-      latitude: params.latitude!,
-      longitude: params.longitude!,
-      distance,
-      radius,
-      reason,
-    });
+      });
+    } catch (error) {
+      logAttendanceSideEffectFailure('blocked location notification', error);
+    }
   };
 
   if (siteLat == null || siteLng == null || Number.isNaN(siteLat) || Number.isNaN(siteLng)) {
@@ -173,8 +206,10 @@ const historicalSchema = z.object({
   out_time: z.string().datetime(),
   check_in_latitude: latitude.nullish(),
   check_in_longitude: longitude.nullish(),
+  check_in_location_name: z.string().trim().max(500).nullish(),
   check_out_latitude: latitude.nullish(),
   check_out_longitude: longitude.nullish(),
+  check_out_location_name: z.string().trim().max(500).nullish(),
   guard_remarks: z.string().max(2000).nullish(),
 });
 
@@ -236,91 +271,105 @@ export async function guardIndex(req: Request, res: Response) {
 
 /** POST /guard/attendance/check-in */
 export async function checkIn(req: Request, res: Response) {
-  const data = checkInSchema.parse(req.body);
-  const guardId = req.user!.id;
-  const today = todayDateOnly();
-  const job = await assignedJob(guardId, data.job_id, today);
+  try {
+    const data = checkInSchema.parse(req.body);
+    const guardId = req.user!.id;
+    const today = todayDateOnly();
+    const job = await assignedJob(guardId, data.job_id, today);
 
-  const existing = await prisma.attendanceRecord.findFirst({
-    where: {
-      guardUserId: guardId,
-      attendanceDate: today,
-      jobId: job.id,
-    },
-  });
+    const existing = await prisma.attendanceRecord.findFirst({
+      where: {
+        guardUserId: guardId,
+        attendanceDate: today,
+        jobId: job.id,
+      },
+    });
 
-  if (existing) {
-    throw new HttpError(422, 'Attendance already marked for today.');
+    if (existing) {
+      throw new HttpError(422, 'Attendance already marked for today.');
+    }
+
+    const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: job.id }, include: { site: true, company: true } });
+    if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+    await enforceGeofence({ guardId, job: jobWithLocation, attemptType: 'check_in', latitude: data.latitude, longitude: data.longitude });
+
+    const inTime = new Date();
+    const record = await prisma.attendanceRecord.create({
+      data: {
+        guardUserId: guardId,
+        employerUserId: job.employerUserId,
+        companyId: job.companyId,
+        jobId: job.id,
+        siteId: job.siteId,
+        attendanceDate: today,
+        inTime,
+        scheduledOutTime: scheduledCheckout(inTime, job.dutyHours),
+        checkInLatitude: data.latitude ?? null,
+        checkInLongitude: data.longitude ?? null,
+        checkInLocationName: data.location_name?.trim() || null,
+        entryMode: env.locationCaptureEnabled ? 'live' : 'live_location_disabled',
+        status: 'pending_verification',
+        guardRemarks: data.guard_remarks ?? null,
+      },
+      include: jobInclude,
+    });
+
+    return res.status(201).json(snakeKeys(record));
+  } catch (error) {
+    const mapped = mapAttendanceDatabaseError(error);
+    if (mapped) throw mapped;
+    throw error;
   }
-
-  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: job.id }, include: { site: true, company: true } });
-  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
-  await enforceGeofence({ guardId, job: jobWithLocation, attemptType: 'check_in', latitude: data.latitude, longitude: data.longitude });
-
-  const inTime = new Date();
-  const record = await prisma.attendanceRecord.create({
-    data: {
-      guardUserId: guardId,
-      employerUserId: job.employerUserId,
-      companyId: job.companyId,
-      jobId: job.id,
-      siteId: job.siteId,
-      attendanceDate: today,
-      inTime,
-      scheduledOutTime: scheduledCheckout(inTime, job.dutyHours),
-      checkInLatitude: data.latitude ?? null,
-      checkInLongitude: data.longitude ?? null,
-      entryMode: env.locationCaptureEnabled ? 'live' : 'live_location_disabled',
-      status: 'pending_verification',
-      guardRemarks: data.guard_remarks ?? null,
-    },
-    include: jobInclude,
-  });
-
-  return res.status(201).json(snakeKeys(record));
 }
 
 /** PATCH /guard/attendance/:record/check-out */
 export async function checkOut(req: Request, res: Response) {
-  await autoCheckoutExpiredAttendance();
-  const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record }, include: jobInclude });
-  if (!record) {
-    throw new HttpError(404, 'Not found.');
+  try {
+    await autoCheckoutExpiredAttendance();
+    const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.record }, include: jobInclude });
+    if (!record) {
+      throw new HttpError(404, 'Not found.');
+    }
+
+    if (record.guardUserId !== req.user!.id) {
+      throw new HttpError(403, 'Forbidden.');
+    }
+
+    if (record.outTime) {
+      throw new HttpError(422, 'Already checked out for this record.');
+    }
+
+    const data = checkOutSchema.parse(req.body);
+    if (!record.jobId || !record.job) throw new HttpError(422, 'Attendance is not linked to a job location.');
+    const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: record.jobId }, include: { site: true, company: true } });
+    if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+    await enforceGeofence({ guardId: record.guardUserId, job: jobWithLocation, attemptType: 'check_out', latitude: data.latitude, longitude: data.longitude });
+
+    const outTime = new Date();
+    const totalHours = record.inTime
+      ? Math.round(((outTime.getTime() - record.inTime.getTime()) / 3_600_000) * 100) / 100
+      : null;
+
+    const updated = await prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: {
+        outTime,
+        totalHours,
+        checkOutLatitude: data.latitude ?? null,
+        checkOutLongitude: data.longitude ?? null,
+        checkOutLocationName: data.location_name?.trim() || null,
+        checkoutMethod: 'associate',
+        guardRemarks: data.guard_remarks ?? record.guardRemarks,
+      },
+      include: jobInclude,
+    });
+
+    return res.json(snakeKeys(updated));
+  } catch (error) {
+    const mapped = mapAttendanceDatabaseError(error);
+    if (mapped) throw mapped;
+    throw error;
   }
-
-  if (record.guardUserId !== req.user!.id) {
-    throw new HttpError(403, 'Forbidden.');
-  }
-
-  if (record.outTime) {
-    throw new HttpError(422, 'Already checked out for this record.');
-  }
-
-  const data = checkOutSchema.parse(req.body);
-  if (!record.jobId || !record.job) throw new HttpError(422, 'Attendance is not linked to a job location.');
-  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: record.jobId }, include: { site: true, company: true } });
-  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
-  await enforceGeofence({ guardId: record.guardUserId, job: jobWithLocation, attemptType: 'check_out', latitude: data.latitude, longitude: data.longitude });
-
-  const outTime = new Date();
-  const totalHours = record.inTime
-    ? Math.round(((outTime.getTime() - record.inTime.getTime()) / 3_600_000) * 100) / 100
-    : null;
-
-  const updated = await prisma.attendanceRecord.update({
-    where: { id: record.id },
-    data: {
-      outTime,
-      totalHours,
-      checkOutLatitude: data.latitude ?? null,
-      checkOutLongitude: data.longitude ?? null,
-      checkoutMethod: 'associate',
-      guardRemarks: data.guard_remarks ?? record.guardRemarks,
-    },
-    include: jobInclude,
-  });
-
-  return res.json(snakeKeys(updated));
 }
 
 /** POST /guard/attendance/history — create or correct an unapproved past record. */
@@ -363,8 +412,10 @@ export async function saveHistorical(req: Request, res: Response) {
     totalHours,
     checkInLatitude: data.check_in_latitude ?? null,
     checkInLongitude: data.check_in_longitude ?? null,
+    checkInLocationName: data.check_in_location_name?.trim() || null,
     checkOutLatitude: data.check_out_latitude ?? null,
     checkOutLongitude: data.check_out_longitude ?? null,
+    checkOutLocationName: data.check_out_location_name?.trim() || null,
     entryMode: 'historical_manual',
     checkoutMethod: 'historical_manual',
     status: 'pending_verification',

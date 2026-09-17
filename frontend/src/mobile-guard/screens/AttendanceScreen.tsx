@@ -11,7 +11,8 @@ import {
   getAttendanceConfiguration,
 } from '../../services/attendanceService';
 import { listMyApplications } from '../../services/applicationService';
-import { getCurrentPosition } from '../../lib/geoUtils';
+import { getCurrentPosition, reverseGeocode } from '../../lib/geoUtils';
+import { getErrorMessage } from '../../services/apiErrors';
 
 function formatTime(value: string | null | undefined) {
   if (!value) return null;
@@ -56,6 +57,18 @@ function coordinateLink(lat: number | string | null, lng: number | string | null
   return `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}`;
 }
 
+function coordinateLabel(lat: number, lng: number) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function reverseLocationName(result: Awaited<ReturnType<typeof reverseGeocode>> | null, lat: number, lng: number) {
+  const name = [result?.address, result?.city, result?.state, result?.pincode]
+    .filter(Boolean)
+    .join(', ')
+    .trim();
+  return name || `Device GPS ${coordinateLabel(lat, lng)}`;
+}
+
 function attendanceDateKey(value: string) {
   return value.slice(0, 10);
 }
@@ -92,6 +105,7 @@ export default function AttendanceScreen() {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [flashError, setFlashError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
   const [pulseActive, setPulseActive] = useState(false);
   const [successType, setSuccessType] = useState<'in' | 'out' | 'history' | null>(null);
@@ -110,6 +124,24 @@ export default function AttendanceScreen() {
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(now));
   const [locationRequired, setLocationRequired] = useState<boolean | null>(null);
 
+  const showError = (cause: unknown, fallback = 'Unable to complete this action.') => {
+    const message = getErrorMessage(cause, fallback);
+    setError(message);
+    setFlashError(message);
+  };
+
+  const captureDeviceLocation = async () => {
+    const position = await getCurrentPosition();
+    if (!position) {
+      throw new Error('A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
+    }
+    const reverse = await reverseGeocode(position.lat, position.lng);
+    return {
+      ...position,
+      locationName: reverseLocationName(reverse, position.lat, position.lng),
+    };
+  };
+
   useEffect(() => {
     void getAttendanceConfiguration()
       .then(config => setLocationRequired(config.attendanceLocationEnabled))
@@ -117,12 +149,18 @@ export default function AttendanceScreen() {
     listMyApplications().then(data => setApplications(data ?? [])).catch(() => {});
     const load = () => listMyAttendance()
       .then(setRecords)
-      .catch(e => setError(e?.response?.data?.message || e.message))
+      .catch(e => showError(e, 'Could not load attendance.'))
       .finally(() => setLoading(false));
     void load();
     const timer = window.setInterval(load, 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!flashError) return;
+    const timer = window.setTimeout(() => setFlashError(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [flashError]);
 
   const todayRecord = records.find(r => isToday(r.attendance_date));
   const canMarkIn = !loading && locationRequired !== null && !todayRecord;
@@ -132,21 +170,30 @@ export default function AttendanceScreen() {
     setPulseActive(true);
     setMarking(true);
     setError(null);
+    setFlashError(null);
     try {
       if (locationRequired === null) throw new Error('Attendance settings are still loading. Please try again.');
-      const position = locationRequired ? await getCurrentPosition() : null;
-      if (locationRequired && !position) throw new Error('A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
+      const position = await captureDeviceLocation();
       if (type === 'in') {
-        const record = await checkInAttendance({ latitude: position?.lat, longitude: position?.lng, jobId: currentJob?.id });
+        const record = await checkInAttendance({
+          latitude: position.lat,
+          longitude: position.lng,
+          locationName: position.locationName,
+          jobId: currentJob?.id,
+        });
         setRecords(prev => [record, ...prev]);
       } else if (todayRecord) {
-        const record = await checkOutAttendance(todayRecord.id, { latitude: position?.lat, longitude: position?.lng });
+        const record = await checkOutAttendance(todayRecord.id, {
+          latitude: position.lat,
+          longitude: position.lng,
+          locationName: position.locationName,
+        });
         setRecords(prev => prev.map(r => (r.id === record.id ? record : r)));
       }
       setSuccessType(type);
       setTimeout(() => setSuccessType(null), 2000);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message);
+      showError(e, type === 'in' ? 'Could not check in.' : 'Could not check out.');
     } finally {
       setMarking(false);
       setPulseActive(false);
@@ -157,6 +204,7 @@ export default function AttendanceScreen() {
     event.preventDefault();
     setHistorySaving(true);
     setError(null);
+    setFlashError(null);
     try {
       const inTime = new Date(`${historyDate}T${historyIn}:00`);
       const outTime = new Date(`${historyDate}T${historyOut}:00`);
@@ -175,7 +223,7 @@ export default function AttendanceScreen() {
       setSuccessType('history');
       setTimeout(() => setSuccessType(null), 2000);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message);
+      showError(e, 'Could not submit past attendance.');
     } finally {
       setHistorySaving(false);
     }
@@ -183,6 +231,7 @@ export default function AttendanceScreen() {
 
   const openEditRecord = (record: any) => {
     setError(null);
+    setFlashError(null);
     setEditingRecord(record);
     setEditIn(timeInputValue(record.in_time));
     setEditOut(timeInputValue(record.out_time));
@@ -194,6 +243,7 @@ export default function AttendanceScreen() {
     if (!editingRecord) return;
     setEditSaving(true);
     setError(null);
+    setFlashError(null);
     try {
       const dateKey = attendanceDateKey(editingRecord.attendance_date);
       const inTime = new Date(`${dateKey}T${editIn}:00`);
@@ -209,7 +259,7 @@ export default function AttendanceScreen() {
       setSuccessType('history');
       setTimeout(() => setSuccessType(null), 2000);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message);
+      showError(e, 'Could not save attendance changes.');
     } finally {
       setEditSaving(false);
     }
@@ -242,6 +292,24 @@ export default function AttendanceScreen() {
 
   return (
     <div className="pb-4">
+      <AnimatePresence>
+        {flashError && (
+          <motion.div
+            className="fixed left-3 right-3 top-3 z-[120] flex items-start gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-2xl"
+            style={{ paddingTop: 'max(12px, env(safe-area-inset-top, 12px))' }}
+            initial={{ opacity: 0, y: -18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            role="alert"
+          >
+            <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+            <span className="min-w-0 flex-1 leading-snug">{flashError}</span>
+            <button type="button" aria-label="Dismiss error" onClick={() => setFlashError(null)} className="rounded-full p-0.5 text-white/90">
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <div
         className="px-4 pt-5 pb-6"
@@ -469,7 +537,7 @@ export default function AttendanceScreen() {
       <div className="px-4 mt-4">
         {!showHistoryForm ? (
           <button
-            onClick={() => { setError(null); setShowHistoryForm(true); }}
+            onClick={() => { setError(null); setFlashError(null); setShowHistoryForm(true); }}
             className="w-full py-3.5 rounded-2xl border border-blue-100 bg-blue-50 text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mobile-touch-interactive"
           >
             <History size={16} /> Add or correct past attendance
@@ -574,9 +642,11 @@ export default function AttendanceScreen() {
                         {coordinateLink(rec.check_in_latitude, rec.check_in_longitude) && (
                           <a href={coordinateLink(rec.check_in_latitude, rec.check_in_longitude)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600">Check-in GPS</a>
                         )}
+                        {rec.check_in_location_name && <span className="text-[10px] text-slate-500">{rec.check_in_location_name}</span>}
                         {coordinateLink(rec.check_out_latitude, rec.check_out_longitude) && (
                           <a href={coordinateLink(rec.check_out_latitude, rec.check_out_longitude)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600">Check-out GPS</a>
                         )}
+                        {rec.check_out_location_name && <span className="text-[10px] text-slate-500">{rec.check_out_location_name}</span>}
                         {rec.checkout_method === 'automatic' && <span className="text-[10px] text-purple-600">Auto checkout</span>}
                         {rec.entry_mode === 'historical_manual' && <span className="text-[10px] text-amber-600">Manual past entry</span>}
                       </div>

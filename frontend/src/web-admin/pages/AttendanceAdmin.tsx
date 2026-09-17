@@ -43,7 +43,7 @@ function gpsLink(lat: number | string | null, lng: number | string | null, fallb
   );
 }
 
-function LocationCell({ lat, lng, site, fallback = '--' }: { lat: number | string | null; lng: number | string | null; site: { latitude: number | string | null; longitude: number | string | null } | null | undefined; fallback?: string }) {
+function LocationCell({ lat, lng, name, site, fallback = '--' }: { lat: number | string | null; lng: number | string | null; name?: string | null; site: { latitude: number | string | null; longitude: number | string | null } | null | undefined; fallback?: string }) {
   const currentLat = lat == null ? null : Number(lat);
   const currentLng = lng == null ? null : Number(lng);
   const siteLat = site?.latitude == null ? null : Number(site.latitude);
@@ -53,7 +53,8 @@ function LocationCell({ lat, lng, site, fallback = '--' }: { lat: number | strin
     : null;
   return (
     <div className="space-y-1">
-      {gpsLink(lat, lng, fallback)}
+      <div className="text-[10px] font-semibold text-slate-500">Device: {gpsLink(lat, lng, fallback)}</div>
+      {name && <div className="max-w-48 text-[10px] leading-snug text-slate-600">{name}</div>}
       {distance != null && <div className="text-[10px] text-gray-600">{distance} m from site</div>}
       {siteLat != null && siteLng != null && <div className="text-[10px] text-gray-400">Site: {gpsLink(siteLat, siteLng)}</div>}
     </div>
@@ -162,9 +163,9 @@ export default function AttendanceAdmin() {
                   {r.attendance_date ? new Date(r.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.in_time)}</td>
-                <td className="px-4 py-3.5"><LocationCell lat={r.check_in_latitude} lng={r.check_in_longitude} site={r.job?.site} /></td>
+                <td className="px-4 py-3.5"><LocationCell lat={r.check_in_latitude} lng={r.check_in_longitude} name={r.check_in_location_name} site={r.job?.site} /></td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{fmtTime(r.out_time)}</td>
-                <td className="px-4 py-3.5"><LocationCell lat={r.check_out_latitude} lng={r.check_out_longitude} site={r.job?.site} fallback={r.checkout_method === 'automatic' ? 'Auto - unavailable' : '--'} /></td>
+                <td className="px-4 py-3.5"><LocationCell lat={r.check_out_latitude} lng={r.check_out_longitude} name={r.check_out_location_name} site={r.job?.site} fallback={r.checkout_method === 'automatic' ? 'Auto - unavailable' : '--'} /></td>
                 <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#0f1e3c' }}>{fmtHours(r.total_hours)}</td>
                 <td className="px-4 py-3.5">
                   <Pill label={statusLabel(r.status)} tone={tone(r.status) as any} />

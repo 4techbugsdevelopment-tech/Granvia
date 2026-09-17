@@ -438,7 +438,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const submit = async () => {
@@ -548,7 +548,7 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const save = async () => {

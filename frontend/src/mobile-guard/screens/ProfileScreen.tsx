@@ -105,7 +105,7 @@ export default function ProfileScreen() {
 
   usePincodeAutofill(form.pincode ?? '', result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   useEffect(() => {
     const viewport = window.visualViewport;

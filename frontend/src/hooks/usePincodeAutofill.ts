@@ -12,6 +12,7 @@ export function usePincodeAutofill(
   pincode: string,
   onResolved: (result: PincodeLookupResult) => void,
   debounceMs = 250,
+  enabled = true,
 ): PincodeAutofillStatus {
   const callbackRef = useRef(onResolved);
   const [status, setStatus] = useState<PincodeAutofillStatus>('idle');
@@ -19,6 +20,11 @@ export function usePincodeAutofill(
   callbackRef.current = onResolved;
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus('idle');
+      return;
+    }
+
     const normalized = pincode.replace(/\D/g, '').slice(0, 6);
     if (normalized.length !== 6) {
       setStatus('idle');
@@ -48,7 +54,7 @@ export function usePincodeAutofill(
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [debounceMs, pincode]);
+  }, [debounceMs, enabled, pincode]);
 
   return status;
 }

@@ -36,6 +36,7 @@ export async function getAttendanceConfiguration(): Promise<{ attendanceLocation
 export async function checkInAttendance(input: {
   latitude?: number;
   longitude?: number;
+  locationName?: string;
   jobId?: string;
   guardRemarks?: string;
 }) {
@@ -44,6 +45,7 @@ export async function checkInAttendance(input: {
     guard_remarks: input.guardRemarks,
     latitude: input.latitude,
     longitude: input.longitude,
+    location_name: input.locationName,
   });
   return remap(data);
 }
@@ -51,12 +53,14 @@ export async function checkInAttendance(input: {
 export async function checkOutAttendance(recordId: string, input: {
   latitude?: number;
   longitude?: number;
+  locationName?: string;
   guardRemarks?: string;
 }) {
   const { data } = await apiClient.patch(`/guard/attendance/${recordId}/check-out`, {
     guard_remarks: input.guardRemarks,
     latitude: input.latitude,
     longitude: input.longitude,
+    location_name: input.locationName,
   });
   return remap(data);
 }
@@ -67,8 +71,10 @@ export async function saveHistoricalAttendance(input: {
   outTime: string;
   checkInLatitude?: number;
   checkInLongitude?: number;
+  checkInLocationName?: string;
   checkOutLatitude?: number;
   checkOutLongitude?: number;
+  checkOutLocationName?: string;
   jobId?: string;
   guardRemarks?: string;
 }) {
@@ -78,8 +84,10 @@ export async function saveHistoricalAttendance(input: {
     out_time: input.outTime,
     check_in_latitude: input.checkInLatitude,
     check_in_longitude: input.checkInLongitude,
+    check_in_location_name: input.checkInLocationName,
     check_out_latitude: input.checkOutLatitude,
     check_out_longitude: input.checkOutLongitude,
+    check_out_location_name: input.checkOutLocationName,
     job_id: input.jobId,
     guard_remarks: input.guardRemarks,
   });

@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useRef, useState } from 'react';
+import { Children, isValidElement, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
@@ -27,8 +27,7 @@ import {
   listAgreements, createAgreement, updateAgreement,
 } from '../services/hiringService';
 import { listCompanyDocuments, createDocumentRecord, updateDocumentRecord, deleteDocumentRecord } from '../services/documentService';
-import { buildSiteAddress, distanceKm } from '../lib/geoUtils';
-import { geocodeAddressWithGoogle, reverseGeocodeWithGoogle } from '../components/map/google/googleGeocoding';
+import { distanceKm } from '../lib/geoUtils';
 import { getAadhaarStatus } from '../services/aadhaarVerificationService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
@@ -662,7 +661,7 @@ function EmployerProfile({ employer, activeCompany, onChanged }: { employer: Emp
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   useEffect(() => {
     if (activeCompany?.id) listCompanyDocuments(activeCompany.id).then(setDocs).catch(() => setDocs([]));
@@ -797,7 +796,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   useEffect(() => {
     listMyCompanies().then(setCompanies).catch(console.error);
@@ -1180,73 +1179,17 @@ function SiteLocationSection({
   setForm: React.Dispatch<React.SetStateAction<SiteFormState>>;
   errors?: ValidationErrors;
 }) {
-  const [geocoding, setGeocoding]       = useState(false);
-  const [revGeocoding, setRevGeocoding] = useState(false);
   const [locSource, setLocSource]       = useState<'manual' | 'geocoded' | null>(
     form.latitude && form.longitude ? 'manual' : null,
   );
-  const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // When true, the next run of the forward-geocode effect is skipped.
-  // Set before updating address fields from a reverse geocode result so we
-  // don't create an infinite address→pin→address loop.
-  const suppressFwdRef = useRef(false);
-
-  // Forward geocode: fires 900 ms after address fields change.
-  // Always runs — address entry overrides any previous pin.
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    // Skip if this address update came from reverse geocoding
-    if (suppressFwdRef.current) {
-      suppressFwdRef.current = false;
-      return;
-    }
-
-    const addrStr = buildSiteAddress({
-      address: form.address, city: form.city, state: form.state, pincode: form.pincode,
-    });
-    const meaningful = addrStr.replace(/,?\s*India\s*$/i, '').trim();
-    if (!meaningful) return;
-
-    timerRef.current = setTimeout(async () => {
-      setGeocoding(true);
-      const pos = await geocodeAddressWithGoogle(addrStr).catch(() => null);
-      if (pos) {
-        setForm(f => ({ ...f, latitude: pos.lat.toFixed(6), longitude: pos.lng.toFixed(6) }));
-        setLocSource('geocoded');
-      }
-      setGeocoding(false);
-    }, 900);
-
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.address, form.city, form.state, form.pincode]);
 
   const mapValue = form.latitude && form.longitude
     ? { lat: Number(form.latitude), lng: Number(form.longitude) }
     : null;
 
-  // Reverse geocode when pin is moved (click or drag) and fill address fields
   const handleMapChange = async ({ lat, lng }: { lat: number; lng: number }) => {
     setForm(f => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }));
     setLocSource('manual');
-    setRevGeocoding(true);
-    const result = await reverseGeocodeWithGoogle(lat, lng).catch(() => null);
-    if (result) {
-      // Suppress the forward-geocode effect that would fire when we update
-      // these address fields — we don't want to re-geocode what we just reversed.
-      suppressFwdRef.current = true;
-      setForm(f => ({
-        ...f,
-        latitude:  lat.toFixed(6),
-        longitude: lng.toFixed(6),
-        address:   result.address || f.address,
-        city:      result.city    || f.city,
-        state:     result.state   || f.state,
-        pincode:   result.pincode || f.pincode,
-      }));
-    }
-    setRevGeocoding(false);
   };
 
   const handleLatInput = (v: string) => {
@@ -1306,23 +1249,11 @@ function SiteLocationSection({
 
       {/* Status chip */}
       <div className="flex items-center gap-2 text-xs">
-        {(geocoding || revGeocoding) && (
-          <span className="flex items-center gap-1 text-blue-500">
-            <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            {revGeocoding ? 'Fetching address from pin…' : 'Locating from address…'}
-          </span>
-        )}
-        {!geocoding && !revGeocoding && locSource === 'geocoded' && mapValue && (
-          <span className="text-amber-600">📌 Auto-located from address · {mapValue.lat.toFixed(5)}, {mapValue.lng.toFixed(5)}</span>
-        )}
-        {!geocoding && !revGeocoding && locSource === 'manual' && mapValue && (
+        {locSource === 'manual' && mapValue && (
           <span className="text-green-700">✅ Manually pinned · {mapValue.lat.toFixed(5)}, {mapValue.lng.toFixed(5)}</span>
         )}
-        {!geocoding && !revGeocoding && !locSource && (
-          <span className="text-gray-400">Enter lat/lng, type an address, or click the map to place a pin</span>
+        {!locSource && (
+          <span className="text-gray-400">Enter lat/lng or click the map to place a pin</span>
         )}
       </div>
 
@@ -1369,10 +1300,10 @@ function SitesPage({ employer, company, onChanged }: { employer: EmployerInfo; c
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
   usePincodeAutofill(editForm.pincode, result => {
     setEditForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   const reloadSites = () => listCompanySites(company.id).then(setSites).catch(console.error);
 
@@ -1738,7 +1669,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
 
   usePincodeAutofill(siteForm.pincode, result => {
     setSiteForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
+  }, 250, false);
 
   useEffect(() => {
     listCompanySites(company.id).then(data => {
@@ -2553,7 +2484,7 @@ function AttendanceGps({ lat, lng, fallback = '--' }: { lat: any; lng: any; fall
   );
 }
 
-function AttendanceLocation({ lat, lng, site, fallback = '--' }: { lat: any; lng: any; site: any; fallback?: string }) {
+function AttendanceLocation({ lat, lng, name, site, fallback = '--' }: { lat: any; lng: any; name?: string | null; site: any; fallback?: string }) {
   const siteLat = site?.latitude == null ? null : Number(site.latitude);
   const siteLng = site?.longitude == null ? null : Number(site.longitude);
   const currentLat = lat == null ? null : Number(lat);
@@ -2563,7 +2494,8 @@ function AttendanceLocation({ lat, lng, site, fallback = '--' }: { lat: any; lng
     : null;
   return (
     <div className="space-y-1">
-      <AttendanceGps lat={lat} lng={lng} fallback={fallback} />
+      <div className="text-[10px] font-semibold text-slate-500">Device: <AttendanceGps lat={lat} lng={lng} fallback={fallback} /></div>
+      {name && <div className="max-w-48 text-[10px] leading-snug text-slate-600">{name}</div>}
       {distance != null && <div className="text-[10px] text-gray-600">{distance} m from site</div>}
       {siteLat != null && siteLng != null && <div className="text-[10px] text-gray-400">Site: <AttendanceGps lat={siteLat} lng={siteLng} /></div>}
     </div>
@@ -2623,8 +2555,8 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
               <Td>{r.job_posts?.title}</Td>
               <Td>{r.attendance_date}</Td>
               <Td>{r.in_time ? new Date(r.in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'} / {r.out_time ? new Date(r.out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</Td>
-              <Td><AttendanceLocation lat={r.check_in_latitude} lng={r.check_in_longitude} site={r.job_posts?.site} /></Td>
-              <Td><AttendanceLocation lat={r.check_out_latitude} lng={r.check_out_longitude} site={r.job_posts?.site} fallback={r.checkout_method === 'automatic' ? 'Auto checkout - unavailable' : '--'} /></Td>
+              <Td><AttendanceLocation lat={r.check_in_latitude} lng={r.check_in_longitude} name={r.check_in_location_name} site={r.job_posts?.site} /></Td>
+              <Td><AttendanceLocation lat={r.check_out_latitude} lng={r.check_out_longitude} name={r.check_out_location_name} site={r.job_posts?.site} fallback={r.checkout_method === 'automatic' ? 'Auto checkout - unavailable' : '--'} /></Td>
               <Td>{r.total_hours ?? '--'}</Td>
               <Td>
                 {statusBadge(r.status)}

@@ -105,6 +105,19 @@ function normalizePath(pathname: string): string {
   return pathname.replace(/\/+$/, '') || '/';
 }
 
+function disableLoggedInBrowserAutofill(root: ParentNode = document) {
+  root.querySelectorAll('form').forEach(form => {
+    form.setAttribute('autoComplete', 'off');
+    form.setAttribute('autocomplete', 'off');
+  });
+  root.querySelectorAll('input, textarea, select').forEach(field => {
+    field.setAttribute('autoComplete', 'off');
+    field.setAttribute('autocomplete', 'off');
+    field.setAttribute('data-lpignore', 'true');
+    field.setAttribute('data-form-type', 'other');
+  });
+}
+
 function LandingPage({ onSelect }: { onSelect: (mode: AppMode) => void }) {
   return (
     <div
@@ -420,6 +433,20 @@ function AppShell() {
     window.addEventListener('popstate', applyRoute);
     return () => window.removeEventListener('popstate', applyRoute);
   }, [authLoading, profile?.role]);
+
+  useEffect(() => {
+    if (!profile) return;
+    disableLoggedInBrowserAutofill();
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach(node => {
+          if (node instanceof Element) disableLoggedInBrowserAutofill(node);
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [profile]);
 
   if (authLoading) {
     return <div className="min-h-screen grid place-items-center text-sm text-gray-500">Loading...</div>;

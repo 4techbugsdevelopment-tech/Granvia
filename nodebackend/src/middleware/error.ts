@@ -13,6 +13,15 @@ function zodToValidationError(err: ZodError) {
   return { message: first, errors };
 }
 
+function errorMessage(err: unknown) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === 'object' && err && 'message' in err) {
+    const message = String((err as { message?: unknown }).message ?? '').trim();
+    if (message) return message;
+  }
+  return 'Unexpected server error.';
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
@@ -24,7 +33,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
 
   console.error('[unhandled error]', err);
-  return res.status(500).json({ message: 'Server error.' });
+  return res.status(500).json({ message: errorMessage(err) });
 }
 
 export function notFound(_req: Request, res: Response) {

@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, Loader2, ArrowLeft } from 'lucide-react';
+import { CheckCircle, AlertCircle, User, Phone, MapPin, FileText, CreditCard, ArrowLeft } from 'lucide-react';
 import { createGuard } from '../../services/adminGuardService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
-import { geocodeAddress, buildSiteAddress } from '../../lib/geoUtils';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 import CityStateSelect from '../../components/CityStateSelect';
 
@@ -132,13 +131,6 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
-  // Geocoding status for the address → lat/lng auto-fill
-  const [geo, setGeo] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; message: string }>({
-    status: 'idle',
-    message: '',
-  });
-  const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const geoReqId = useRef(0);
 
   const set = (key: string) => (v: string) => setForm(f => ({ ...f, [key]: v }));
 
@@ -153,45 +145,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
-  });
-
-  // Auto-fill lat/lng from address + city + state + pincode using the free
-  // Nominatim (OpenStreetMap) geocoder — the same one the employer site form uses.
-  // Debounced to respect Nominatim's rate limit; stale responses are ignored.
-  useEffect(() => {
-    const address = form.address.trim();
-    const city = form.city.trim();
-    const state = form.state.trim();
-    const pincode = form.pincode.trim();
-
-    // Need at least city + state before a lookup makes sense
-    if (!city || !state) {
-      setGeo({ status: 'idle', message: '' });
-      setForm(f => (f.latitude || f.longitude ? { ...f, latitude: '', longitude: '' } : f));
-      return;
-    }
-
-    setGeo({ status: 'loading', message: 'Locating from address…' });
-    const reqId = ++geoReqId.current;
-    if (geoTimer.current) clearTimeout(geoTimer.current);
-    geoTimer.current = setTimeout(async () => {
-      const query = buildSiteAddress({ address, city, state, pincode });
-      const result = await geocodeAddress(query);
-      if (reqId !== geoReqId.current) return; // a newer edit superseded this lookup
-      if (result) {
-        setForm(f => ({ ...f, latitude: result.lat.toFixed(6), longitude: result.lng.toFixed(6) }));
-        setGeo({ status: 'ok', message: 'Location found from the address, city, state and pincode.' });
-      } else {
-        setForm(f => ({ ...f, latitude: '', longitude: '' }));
-        setGeo({
-          status: 'error',
-          message: 'We could not locate this address. Please check the address, city, state and pincode.',
-        });
-      }
-    }, 900);
-
-    return () => { if (geoTimer.current) clearTimeout(geoTimer.current); };
-  }, [form.address, form.city, form.state, form.pincode]);
+  }, 250, false);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -204,13 +158,16 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
     if (!form.dob) e.dob = 'Date of birth is required';
     if (!form.city.trim()) e.city = 'City is required';
     if (!form.state) e.state = 'State is required';
-    // Location must be verified — lat/lng are derived, not typed
-    if (geo.status !== 'ok' || !form.latitude || !form.longitude) {
-      e.location = geo.status === 'error'
-        ? geo.message
-        : geo.status === 'loading'
-          ? 'Please wait for the location to finish loading.'
-          : 'Enter a valid address, city, state and pincode so the location can be found.';
+    const hasLatitude = Boolean(form.latitude.trim());
+    const hasLongitude = Boolean(form.longitude.trim());
+    if (hasLatitude !== hasLongitude) {
+      e.location = 'Enter both latitude and longitude, or leave both blank.';
+    } else if (hasLatitude && hasLongitude) {
+      const lat = Number(form.latitude);
+      const lng = Number(form.longitude);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+        e.location = 'Enter valid latitude and longitude values.';
+      }
     }
     return e;
   };
@@ -328,31 +285,18 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
             />
           </div>
           <div className="grid grid-cols-2 gap-2 sm:col-span-2">
-            <FloatingInput label="Latitude" value={form.latitude} onChange={set('latitude')} placeholder="Auto-filled" readOnly />
-            <FloatingInput label="Longitude" value={form.longitude} onChange={set('longitude')} placeholder="Auto-filled" readOnly />
+            <FloatingInput label="Latitude" value={form.latitude} onChange={set('latitude')} placeholder="Optional latitude" />
+            <FloatingInput label="Longitude" value={form.longitude} onChange={set('longitude')} placeholder="Optional longitude" />
           </div>
           <div className="sm:col-span-2">
-            {geo.status === 'loading' && (
-              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#64748b' }}>
-                <Loader2 size={14} className="animate-spin" />
-                {geo.message}
-              </div>
-            )}
-            {geo.status === 'ok' && (
-              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#166534' }}>
-                <CheckCircle size={14} />
-                {geo.message}
-              </div>
-            )}
-            {(geo.status === 'error' || (errors.location && geo.status === 'idle')) && (
+            {errors.location ? (
               <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#ef4444' }}>
                 <AlertCircle size={14} />
-                {geo.status === 'error' ? geo.message : errors.location}
+                {errors.location}
               </div>
-            )}
-            {geo.status === 'idle' && !errors.location && (
+            ) : (
               <p className="text-xs text-gray-400">
-                Latitude and longitude are filled automatically from the address, city, state and pincode.
+                Latitude and longitude are manual. They will not be auto-filled from the address.
               </p>
             )}
           </div>
@@ -450,11 +394,11 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           <div className="xl:col-span-2 flex justify-start gap-3 pt-2">
             <motion.button
               type="submit"
-              disabled={submitting || geo.status !== 'ok'}
+              disabled={submitting}
               className="min-w-56 px-6 py-3.5 rounded-2xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
-              whileHover={geo.status === 'ok' ? { scale: 1.02, boxShadow: '0 8px 24px rgba(15,30,60,0.3)' } : {}}
-              whileTap={geo.status === 'ok' ? { scale: 0.98 } : {}}
+              whileHover={{ scale: 1.02, boxShadow: '0 8px 24px rgba(15,30,60,0.3)' }}
+              whileTap={{ scale: 0.98 }}
             >
               {submitting ? (
                 <motion.div
