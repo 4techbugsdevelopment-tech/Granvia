@@ -11,7 +11,6 @@ import {
 import { getErrorMessage } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
-import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import CityStateSelect from '../components/CityStateSelect';
 import { addError, emailError, humanNameError, indianMobileError, passwordError, pincodeError, type ValidationMap } from '../lib/formValidation';
 
@@ -183,10 +182,6 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [registerOtp, setRegisterOtp] = useState<{ email: string; devOtp?: string } | null>(null);
   const [register, setRegister] = useState(emptyRegister);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
-
-  usePincodeAutofill(register.pincode, result => {
-    setRegister(current => ({ ...current, city: result.city, state: result.state }));
-  });
 
   useEffect(() => {
     listActiveAssociateTypes()

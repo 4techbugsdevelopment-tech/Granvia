@@ -220,6 +220,7 @@ const editAttendanceSchema = z.object({
 });
 
 const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const normalizedHiredStatuses = new Set(HIRED_STATUSES);
 
 function todayDateOnly(): Date {
   const iso = indiaDateString(new Date());
@@ -234,7 +235,6 @@ async function assignedJob(guardId: string, requestedJobId?: string | null, atte
   const applications = await prisma.jobApplication.findMany({
     where: {
       guardUserId: guardId,
-      status: { in: HIRED_STATUSES },
       ...(requestedJobId ? { jobId: requestedJobId } : {}),
     },
     include: { job: true },
@@ -242,12 +242,15 @@ async function assignedJob(guardId: string, requestedJobId?: string | null, atte
     take: 50,
   });
 
+  const assignedApplications = applications.filter((application) =>
+    normalizedHiredStatuses.has(String(application.status ?? '').trim().toLowerCase())
+  );
   const application = attendanceDate
-    ? applications.find(({ job }) =>
+    ? assignedApplications.find(({ job }) =>
         (!job.startDate || job.startDate <= attendanceDate) &&
         (!job.endDate || job.endDate >= attendanceDate)
       )
-    : applications[0];
+    : assignedApplications[0];
 
   if (!application) {
     throw new HttpError(422, requestedJobId

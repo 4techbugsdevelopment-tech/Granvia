@@ -303,7 +303,6 @@ export default function ApplicationsScreen() {
                     { label: 'Salary', value: selectedJob.salary_amount ? `₹${selectedJob.salary_amount}/${selectedJob.payment_type === 'Monthly' ? 'mo' : 'day'}` : '—' },
                     { label: 'Shift', value: selectedJob.shift_type ?? '—' },
                     { label: 'Shift Hours', value: selectedJob.duty_hours ?? '—' },
-                    { label: 'Duration', value: selectedJob.duration_type ?? '—' },
                     { label: 'Openings', value: selectedJob.guards_required ? `${selectedJob.guards_required} posts` : '—' },
                     { label: 'Experience', value: selectedJob.experience_required ?? '—' },
                     { label: 'Qualification', value: selectedJob.qualification_required ?? '—' },

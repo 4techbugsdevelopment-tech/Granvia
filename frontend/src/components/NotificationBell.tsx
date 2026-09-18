@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck, RefreshCw, ShieldCheck } from 'lucide-react';
 import { downloadHiringDocument, listMyNotifications, markNotificationRead, type HiringDocument } from '../services/notificationService';
 
@@ -11,6 +11,7 @@ export default function NotificationBell({ onCompleteVerification, dark = false 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<any[]>([]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -23,6 +24,17 @@ export default function NotificationBell({ onCompleteVerification, dark = false 
 
   useEffect(() => { void refresh(); }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && containerRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [open]);
+
   const unread = items.filter(item => !item.is_read).length;
   const read = async (item: any) => {
     if (item.is_read) return;
@@ -31,7 +43,7 @@ export default function NotificationBell({ onCompleteVerification, dark = false 
   };
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => { setOpen(value => !value); void refresh(); }}
         className={`relative rounded-xl p-2 transition-colors ${dark ? 'text-white/80 hover:bg-white/10' : 'text-gray-400 hover:bg-gray-100'}`}

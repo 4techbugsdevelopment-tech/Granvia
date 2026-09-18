@@ -390,7 +390,6 @@ export default function JobApprovals() {
                           ['Associate Type', associateTypeLabel(job.guard_type)],
                           ['Gender Pref', job.gender_preference],
                           ['Experience', job.experience_required],
-                          ['Duration', job.duration_type],
                           ['End Date', job.end_date ? new Date(job.end_date).toLocaleDateString('en-IN') : '—'],
                           ['Police Verify', job.police_verification_required ? 'Required' : 'Not required'],
                           ['Uniform', job.uniform_required ? 'Required' : 'Not required'],

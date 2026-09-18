@@ -434,7 +434,6 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
                     <div className="min-w-0">
                       <p className="text-xs text-blue-200">{job.shift_type ?? 'Day'} Shift</p>
                       <p className="text-sm font-bold truncate">{job.guards_required ?? 1} opening{(job.guards_required ?? 1) !== 1 ? 's' : ''}</p>
-                      <p className="text-xs text-blue-200 mt-1 truncate">{job.duration_type ?? ''}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs text-blue-200">Salary</p>

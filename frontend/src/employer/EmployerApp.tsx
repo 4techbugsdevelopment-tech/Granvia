@@ -1680,7 +1680,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
   const [job, setJob] = useState({
     title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: '',
     gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
-    duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '', duration_type: 'Monthly',
+    duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
     police_verification_required: true, uniform_required: true, food_facility: false, accommodation_facility: false,
     description: '', special_instructions: '', status: 'active',
@@ -1789,7 +1789,6 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
         shift_type: job.shift_type,
         start_date: job.start_date || null,
         end_date: job.end_date || null,
-        duration_type: job.duration_type,
         required_skills: job.required_skills.split(',').map(s => s.trim()).filter(Boolean),
         language_requirements: job.language_requirements.split(',').map(s => s.trim()).filter(Boolean),
         police_verification_required: job.police_verification_required,
@@ -1897,7 +1896,6 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Shift Type" value={job.shift_type} options={['Day', 'Night', 'Rotational']} onChange={v => setJob({ ...job, shift_type: v })} />
           <Input label="Start Date" type="date" value={job.start_date} error={jobErrors.start_date} onChange={v => setJob({ ...job, start_date: v })} />
           <Input label="End Date" type="date" value={job.end_date} error={jobErrors.end_date} onChange={v => setJob({ ...job, end_date: v })} />
-          <Sel label="Duration" value={job.duration_type} options={['One day', 'Monthly', 'Long-term', 'Contract-based']} onChange={v => setJob({ ...job, duration_type: v })} />
           <Sel label="Status" value={job.status} options={['draft', 'active']} onChange={v => setJob({ ...job, status: v })} />
           <Input label="Required Skills" value={job.required_skills} onChange={v => setJob({ ...job, required_skills: v })} />
           <Input label="Languages" value={job.language_requirements} onChange={v => setJob({ ...job, language_requirements: v })} />
@@ -1974,7 +1972,6 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
       duty_hours:          job.duty_hours ?? '8 hours',
       start_date:          job.start_date ?? '',
       end_date:            job.end_date ?? '',
-      duration_type:       job.duration_type ?? 'Monthly',
       experience_required: job.experience_required ?? '',
       guard_type:          job.guard_type ?? associateTypes[0]?.code ?? '',
       description:         job.description ?? '',
@@ -2003,7 +2000,6 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
         duty_hours:          editForm.duty_hours,
         start_date:          editForm.start_date || null,
         end_date:            editForm.end_date || null,
-        duration_type:       editForm.duration_type,
         experience_required: editForm.experience_required,
         guard_type:          editForm.guard_type,
         description:         editForm.description,
@@ -2172,7 +2168,6 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
                 <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />
                 <Input label="End Date"        value={ef.end_date}            error={editErrors.end_date} onChange={set('end_date')} />
-                <Sel   label="Duration"        value={ef.duration_type}       options={['Monthly','Weekly','Daily','Contract']} labels={{Monthly:'Monthly',Weekly:'Weekly',Daily:'Daily',Contract:'Contract'}} onChange={set('duration_type')} />
                 <Input label="Experience"      value={ef.experience_required} onChange={set('experience_required')} />
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
               </div>

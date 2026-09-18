@@ -364,7 +364,6 @@ export default function JobSearch() {
                     { label: 'Salary', value: `₹${selectedJob.salary_amount}/${selectedJob.payment_type === 'Monthly' ? 'mo' : 'day'}`, color: '#166534' },
                     { label: 'Shift', value: selectedJob.shift_type, color: '#0f1e3c' },
                     { label: 'Shift Hours', value: selectedJob.duty_hours ?? '—', color: '#0f1e3c' },
-                    { label: 'Duration', value: selectedJob.duration_type, color: '#0f1e3c' },
                     { label: 'Openings', value: `${selectedJob.guards_required} posts`, color: '#7c2d12' },
                     { label: 'Associate Type', value: associateTypeLabel(selectedJob.guard_type), color: '#0f1e3c' },
                     { label: 'Experience', value: selectedJob.experience_required, color: '#0f1e3c' },

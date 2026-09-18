@@ -36,7 +36,6 @@ const jobFields = {
   shift_type: z.string().nullish(),
   start_date: z.coerce.date().nullish(),
   end_date: z.coerce.date().nullish(),
-  duration_type: z.string().nullish(),
   required_skills: z.array(z.any()).nullish(),
   language_requirements: z.array(z.any()).nullish(),
   police_verification_required: z.boolean().nullish(),

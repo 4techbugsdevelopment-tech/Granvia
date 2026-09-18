@@ -7,7 +7,6 @@ import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
 import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { LoginOtpDialog, ForgotPasswordDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
-import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import CityStateSelect from '../components/CityStateSelect';
 
 interface EmployerAuthProps {
@@ -90,10 +89,6 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
   const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const [verify, setVerify] = useState<{ email: string; devOtp?: string } | null>(null);
-
-  usePincodeAutofill(register.pincode, result => {
-    setRegister(current => ({ ...current, city: result.city, state: result.state }));
-  });
 
   const updateRegister = (key: keyof typeof initialRegister, value: string, kind: EmployerFieldKind = 'text') => {
     setRegister(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
