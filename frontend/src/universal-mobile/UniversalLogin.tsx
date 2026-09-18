@@ -12,6 +12,8 @@ import { getErrorMessage } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
+import CityStateSelect from '../components/CityStateSelect';
+import { addError, emailError, humanNameError, indianMobileError, passwordError, pincodeError, type ValidationMap } from '../lib/formValidation';
 
 interface UniversalLoginProps {
   onLogin: () => void;
@@ -44,10 +46,6 @@ function generateCaptcha() {
   return { question: `${left} ${op} ${right} = ?`, answer: String(answer) };
 }
 
-function validatePassword(password: string) {
-  return password.length >= 8 && /[A-Z]/.test(password) && /\d/.test(password);
-}
-
 function Field({
   label,
   icon,
@@ -76,6 +74,7 @@ function Input({
   icon,
   inputMode,
   maxLength,
+  error,
 }: {
   label: string;
   value: string;
@@ -84,6 +83,7 @@ function Input({
   icon?: React.ReactNode;
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   maxLength?: number;
+  error?: string;
 }) {
   return (
     <label className="block">
@@ -97,9 +97,10 @@ function Input({
           inputMode={inputMode}
           maxLength={maxLength}
           className={`register-input w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm outline-none ${icon ? '' : ''}`}
-          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+          style={{ background: 'white', border: `1.5px solid ${error ? '#ef4444' : '#e2e8f0'}`, color: '#0f1e3c' }}
         />
       </div>
+      {error && <span className="mt-1 block text-xs font-medium text-red-500">{error}</span>}
     </label>
   );
 }
@@ -110,12 +111,14 @@ function PasswordInput({
   onChange,
   visible,
   onToggle,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   visible: boolean;
   onToggle: () => void;
+  error?: string;
 }) {
   return (
     <label className="block">
@@ -127,7 +130,7 @@ function PasswordInput({
           value={value}
           onChange={e => onChange(e.target.value)}
           className="register-input w-full pl-10 pr-11 py-3.5 rounded-2xl text-sm outline-none"
-          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+          style={{ background: 'white', border: `1.5px solid ${error ? '#ef4444' : '#e2e8f0'}`, color: '#0f1e3c' }}
         />
         <button
           type="button"
@@ -137,6 +140,7 @@ function PasswordInput({
           {visible ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
+      {error && <span className="mt-1 block text-xs font-medium text-red-500">{error}</span>}
     </label>
   );
 }
@@ -167,6 +171,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [captchaInput, setCaptchaInput] = useState('');
   const [error, setError] = useState('');
   const [registerError, setRegisterError] = useState('');
+  const [registerFieldErrors, setRegisterFieldErrors] = useState<ValidationMap>({});
   const [registerSuccess, setRegisterSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
@@ -204,6 +209,12 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
 
   const updateRegister = (key: keyof typeof emptyRegister, value: string) => {
     setRegister(current => ({ ...current, [key]: value }));
+    setRegisterFieldErrors(current => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   const finishLogin = () => {
@@ -250,27 +261,32 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError('');
+    setRegisterFieldErrors({});
     setRegisterSuccess('');
 
     const emailValue = register.email.trim().toLowerCase();
-    if (!register.fullName.trim() || !register.mobile.trim() || !emailValue || !register.password) {
-      setRegisterError('Full name, mobile, email, and password are required.');
-      return;
-    }
-    if (!validatePassword(register.password)) {
-      setRegisterError('Password must be at least 8 characters and include one uppercase letter and one number.');
-      return;
-    }
+    const validationErrors: ValidationMap = {};
+    addError(validationErrors, 'fullName', humanNameError(register.fullName, registerRole === 'employer' ? 'Contact person' : 'Full name'));
+    addError(validationErrors, 'mobile', indianMobileError(register.mobile));
+    addError(validationErrors, 'email', emailError(emailValue));
+    addError(validationErrors, 'password', passwordError(register.password));
     if (register.password !== register.confirmPassword) {
-      setRegisterError('Password and confirm password must match.');
-      return;
+      validationErrors.confirmPassword = 'Password and confirm password must match.';
     }
     if (registerRole === 'employer' && !register.companyName.trim()) {
-      setRegisterError('Company name is required for employer registration.');
-      return;
+      validationErrors.companyName = 'Company name is required for employer registration.';
     }
     if (registerRole === 'guard' && !register.profileType) {
-      setRegisterError('Associate type is required.');
+      validationErrors.profileType = 'Associate type is required.';
+    }
+    if (register.city.trim() || register.state.trim()) {
+      if (!register.city.trim()) validationErrors.city = 'City is required when state is selected.';
+      if (!register.state.trim()) validationErrors.state = 'State is required when city is selected.';
+    }
+    addError(validationErrors, 'pincode', pincodeError(register.pincode));
+    if (Object.keys(validationErrors).length > 0) {
+      setRegisterFieldErrors(validationErrors);
+      setRegisterError('Please correct the highlighted fields.');
       return;
     }
 
@@ -493,9 +509,10 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     value={register.fullName}
                     onChange={value => updateRegister('fullName', value)}
                     icon={registerRole === 'employer' ? <UserCheck size={14} /> : <User size={14} />}
+                    error={registerFieldErrors.fullName}
                   />
-                  <Input label="Mobile *" value={register.mobile} onChange={value => updateRegister('mobile', value)} icon={<UserCheck size={14} />} />
-                  <Input label="Email *" value={register.email} onChange={value => updateRegister('email', value)} type="email" icon={<Mail size={14} />} />
+                  <Input label="Mobile *" value={register.mobile} onChange={value => updateRegister('mobile', value)} icon={<UserCheck size={14} />} inputMode="numeric" maxLength={10} error={registerFieldErrors.mobile} />
+                  <Input label="Email *" value={register.email} onChange={value => updateRegister('email', value)} type="email" icon={<Mail size={14} />} error={registerFieldErrors.email} />
                   <div className="sm:col-span-2">
                     <Input
                       label="Pincode"
@@ -504,13 +521,24 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                       icon={<Building2 size={14} />}
                       inputMode="numeric"
                       maxLength={6}
+                      error={registerFieldErrors.pincode}
                     />
                   </div>
-                  <Input label="City" value={register.city} onChange={value => updateRegister('city', value)} icon={<Building2 size={14} />} />
-                  <Input label="State" value={register.state} onChange={value => updateRegister('state', value)} icon={<Building2 size={14} />} />
+                  <div className="sm:col-span-2">
+                    <CityStateSelect
+                      city={register.city}
+                      state={register.state}
+                      cityError={registerFieldErrors.city}
+                      stateError={registerFieldErrors.state}
+                      onCityChange={value => updateRegister('city', value)}
+                      onStateChange={value => updateRegister('state', value)}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                      inputClassName="register-input w-full px-4 py-3.5 rounded-2xl text-sm outline-none bg-white"
+                    />
+                  </div>
                   {registerRole === 'employer' && (
                     <div className="sm:col-span-2">
-                      <Input label="Company Name *" value={register.companyName} onChange={value => updateRegister('companyName', value)} icon={<Building2 size={14} />} />
+                      <Input label="Company Name *" value={register.companyName} onChange={value => updateRegister('companyName', value)} icon={<Building2 size={14} />} error={registerFieldErrors.companyName} />
                     </div>
                   )}
                   {registerRole === 'guard' && (
@@ -522,7 +550,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                           value={register.profileType}
                           onChange={event => updateRegister('profileType', event.target.value)}
                           className="register-input w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm outline-none"
-                          style={{ background: 'white', border: '1.5px solid #e2e8f0', color: '#0f1e3c' }}
+                          style={{ background: 'white', border: `1.5px solid ${registerFieldErrors.profileType ? '#ef4444' : '#e2e8f0'}`, color: '#0f1e3c' }}
                         >
                           <option value="">Select profile</option>
                           {associateTypes.map(type => (
@@ -530,6 +558,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                           ))}
                         </select>
                       </div>
+                      {registerFieldErrors.profileType && <span className="mt-1 block text-xs font-medium text-red-500">{registerFieldErrors.profileType}</span>}
                     </label>
                   )}
                 </div>
@@ -541,6 +570,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     onChange={value => updateRegister('password', value)}
                     visible={showRegisterPassword}
                     onToggle={() => setShowRegisterPassword(current => !current)}
+                    error={registerFieldErrors.password}
                   />
                   <PasswordInput
                     label="Confirm Password *"
@@ -548,6 +578,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     onChange={value => updateRegister('confirmPassword', value)}
                     visible={showRegisterConfirmPassword}
                     onToggle={() => setShowRegisterConfirmPassword(current => !current)}
+                    error={registerFieldErrors.confirmPassword}
                   />
                 </div>
 

@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, serializeOut } from '../utils/serialize';
 import { hashPassword, verifyPassword } from '../utils/password';
+import { moneySchema, textSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\SalesController (role: sales_executive).
 
@@ -206,15 +207,15 @@ export async function storeJob(req: Request, res: Response) {
       employer_user_id: z.string().uuid(),
       company_id: z.string().uuid(),
       site_id: z.string().uuid().nullish(),
-      title: z.string(),
+      title: textSchema('Job title', { min: 2, max: 150 }),
       guard_type: z.string().trim().min(1, 'Select an associate type.'),
       duty_hours: z.string().nullish(),
-      guards_required: z.coerce.number().int().min(1).nullish(),
+      guards_required: z.coerce.number().int('Headcount must be a whole number.').min(1, 'Headcount must be at least 1.').nullish(),
       experience_required: z.string().nullish(),
       qualification_required: z.string().nullish(),
       language_requirements: z.array(z.any()).nullish(),
-      salary_amount: z.coerce.number().nullish(),
-      description: z.string().nullish(),
+      salary_amount: moneySchema('Salary amount').nullish(),
+      description: textSchema('Description', { min: 1, max: 5000 }).nullish(),
     })
     .parse(req.body);
 

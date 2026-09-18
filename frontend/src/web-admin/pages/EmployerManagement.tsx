@@ -17,6 +17,18 @@ import {
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 import CityStateSelect from '../../components/CityStateSelect';
+import {
+  addError,
+  emailError,
+  gstError,
+  httpUrlError,
+  humanNameError,
+  indianMobileError,
+  panError,
+  passwordError,
+  pincodeError,
+  type ValidationMap,
+} from '../../lib/formValidation';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],
@@ -27,6 +39,52 @@ const EMPTY_DATA: EmployerManagementData = {
   walletBalances: {},
   walletBreakdown: {},
 };
+
+function requiredTextError(value: string, field: string, min = 2) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return `${field} is required.`;
+  if (normalized.length < min) return `${field} must contain at least ${min} characters.`;
+  return '';
+}
+
+function optionalTextError(value: string, field: string, min = 2) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return '';
+  if (normalized.length < min) return `${field} must contain at least ${min} characters.`;
+  return '';
+}
+
+function validateEmployerDraft(form: {
+  companyName: string;
+  contactPersonName: string;
+  mobile: string;
+  email: string;
+  password?: string;
+  companyAddress?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  businessType?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  website?: string;
+}, opts: { validatePassword?: boolean } = {}) {
+  const errors: ValidationMap = {};
+  addError(errors, 'company_name', optionalTextError(form.companyName, 'Company name'));
+  addError(errors, 'contact_person_name', humanNameError(form.contactPersonName, 'Contact person'));
+  addError(errors, 'mobile', indianMobileError(form.mobile));
+  addError(errors, 'email', emailError(form.email));
+  addError(errors, 'city', requiredTextError(form.city, 'City', 1));
+  addError(errors, 'state', requiredTextError(form.state, 'State', 1));
+  addError(errors, 'pincode', pincodeError(form.pincode, true));
+  addError(errors, 'business_type', optionalTextError(form.businessType ?? '', 'Business type'));
+  addError(errors, 'company_address', optionalTextError(form.companyAddress ?? '', 'Company address', 5));
+  addError(errors, 'gst_number', gstError(form.gstNumber ?? ''));
+  addError(errors, 'pan_number', panError(form.panNumber ?? ''));
+  addError(errors, 'website', httpUrlError(form.website ?? ''));
+  if (opts.validatePassword && form.password) addError(errors, 'password', passwordError(form.password));
+  return errors;
+}
 
 export default function EmployerManagement() {
   const [data, setData] = useState<EmployerManagementData>(EMPTY_DATA);
@@ -435,6 +493,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   });
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
+  const [saving, setSaving] = useState(false);
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -443,7 +502,13 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const submit = async () => {
     setError('');
-    setFieldErrors({});
+    const localErrors = validateEmployerDraft(form, { validatePassword: true });
+    setFieldErrors(localErrors);
+    if (Object.keys(localErrors).length > 0) {
+      setError('Please correct the highlighted fields.');
+      return;
+    }
+    setSaving(true);
     try {
       const result = await createEmployerFromAdmin({
         companyName: form.companyName,
@@ -467,6 +532,8 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
       const validationErrors = getValidationErrors(err);
       setFieldErrors(validationErrors);
       setError(Object.keys(validationErrors).length ? 'Please correct the highlighted fields.' : getErrorMessage(err, 'Unable to create employer.'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -490,17 +557,17 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
             <DialogInput label="Contact Person" kind="name" value={form.contactPersonName} error={fieldErrors.contact_person_name} onChange={value => update('contactPersonName', value, 'name')} />
             <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} error={fieldErrors.mobile} onChange={value => update('mobile', value, 'mobile')} />
             <DialogInput label="Email Address" value={form.email} error={fieldErrors.email} onChange={value => update('email', value)} />
-            <DialogInput label="Temporary Password" value={form.password} onChange={value => update('password', value)} />
-            <DialogInput label="Business Type" kind="name" value={form.businessType} onChange={value => update('businessType', value, 'name')} />
+            <DialogInput label="Temporary Password" value={form.password} error={fieldErrors.password} onChange={value => update('password', value)} />
+            <DialogInput label="Business Type" value={form.businessType} error={fieldErrors.business_type} onChange={value => update('businessType', value)} />
             <div className="sm:col-span-2">
               <CityStateSelect city={form.city} state={form.state} cityError={fieldErrors.city} stateError={fieldErrors.state} onCityChange={value => update('city', value, 'cityState')} onStateChange={value => update('state', value, 'cityState')} className="grid grid-cols-1 sm:grid-cols-2 gap-3" required />
             </div>
-            <DialogInput label="Pincode" kind="pincode" value={form.pincode} onChange={value => update('pincode', value, 'pincode')} />
+            <DialogInput label="Pincode" kind="pincode" value={form.pincode} error={fieldErrors.pincode} onChange={value => update('pincode', value, 'pincode')} />
             <DialogInput label="GST Number (Optional)" kind="gst" value={form.gstNumber} error={fieldErrors.gst_number} onChange={value => update('gstNumber', value, 'gst')} />
             <DialogInput label="PAN Number (Optional)" kind="pan" value={form.panNumber} error={fieldErrors.pan_number} onChange={value => update('panNumber', value, 'pan')} />
-            <DialogInput label="Website" kind="url" value={form.website} onChange={value => update('website', value, 'url')} />
+            <DialogInput label="Website" kind="url" value={form.website} error={fieldErrors.website} onChange={value => update('website', value, 'url')} />
           </div>
-          <DialogInput className="mt-3" label="Company Address" value={form.companyAddress} onChange={value => update('companyAddress', value)} />
+          <DialogInput className="mt-3" label="Company Address" value={form.companyAddress} error={fieldErrors.company_address} onChange={value => update('companyAddress', value)} />
           <DialogInput className="mt-3" label="Remarks" value={form.remarks} onChange={value => update('remarks', value)} />
           <label className="block mt-3">
             <span className="form-label">Account Status</span>
@@ -513,7 +580,7 @@ function AddEmployerDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           {error && <div className="mt-3 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
           <div className="flex justify-end gap-3 mt-5">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Cancel</button>
-            <button onClick={submit} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Create Employer</button>
+            <button onClick={submit} disabled={saving} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>{saving ? 'Creating...' : 'Create Employer'}</button>
           </div>
         </div>
       </motion.div>
@@ -545,6 +612,8 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
     rejectionReason: employer.rejectionReason,
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
+  const [saving, setSaving] = useState(false);
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -553,18 +622,13 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
   const update = (key: keyof typeof form, value: string, kind: EmployerFieldKind = 'text') => setForm(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   const save = async () => {
     setError('');
-    if (!form.companyName.trim() || !form.contactPersonName.trim() || !form.mobile.trim() || !form.email.trim()) {
-      setError('Company, contact person, mobile, and email are required.');
+    const localErrors = validateEmployerDraft(form);
+    setFieldErrors(localErrors);
+    if (Object.keys(localErrors).length > 0) {
+      setError('Please correct the highlighted fields.');
       return;
     }
-    if (!form.mobile.trim().match(/^[6-9]\d{9}$/)) {
-      setError('Enter a valid 10 digit Indian mobile number.');
-      return;
-    }
-    if (!form.email.trim().match(/^\S+@\S+\.\S+$/)) {
-      setError('Enter a valid email address.');
-      return;
-    }
+    setSaving(true);
     try {
       await assertUniqueEmployerForEdit(employer.id, form.email.trim().toLowerCase(), form.mobile.trim());
       await updateEmployerFromAdmin(employer.id, {
@@ -579,7 +643,11 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
       });
       await onSaved();
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to update employer.'));
+      const validationErrors = getValidationErrors(err);
+      setFieldErrors(validationErrors);
+      setError(Object.keys(validationErrors).length ? 'Please correct the highlighted fields.' : getErrorMessage(err, 'Unable to update employer.'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -597,11 +665,11 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
           <section>
             <h3 className="font-bold text-gray-900 mb-3">Company Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <DialogInput label="Company Name" kind="name" value={form.companyName} onChange={value => update('companyName', value, 'name')} />
-              <DialogInput label="Business Type" kind="name" value={form.businessType} onChange={value => update('businessType', value, 'name')} />
-              <DialogInput label="Website" kind="url" value={form.website} onChange={value => update('website', value, 'url')} />
-              <DialogInput label="GST Number" kind="gst" value={form.gstNumber} onChange={value => update('gstNumber', value, 'gst')} />
-              <DialogInput label="PAN Number" kind="pan" value={form.panNumber} onChange={value => update('panNumber', value, 'pan')} />
+              <DialogInput label="Company Name" value={form.companyName} error={fieldErrors.company_name} onChange={value => update('companyName', value)} />
+              <DialogInput label="Business Type" value={form.businessType} error={fieldErrors.business_type} onChange={value => update('businessType', value)} />
+              <DialogInput label="Website" kind="url" value={form.website} error={fieldErrors.website} onChange={value => update('website', value, 'url')} />
+              <DialogInput label="GST Number" kind="gst" value={form.gstNumber} error={fieldErrors.gst_number} onChange={value => update('gstNumber', value, 'gst')} />
+              <DialogInput label="PAN Number" kind="pan" value={form.panNumber} error={fieldErrors.pan_number} onChange={value => update('panNumber', value, 'pan')} />
             </div>
             <DialogInput className="mt-3" label="Description" value={form.description} onChange={value => update('description', value)} />
           </section>
@@ -609,16 +677,16 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
           <section>
             <h3 className="font-bold text-gray-900 mb-3">Contact & Address</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <DialogInput label="Contact Person" kind="name" value={form.contactPersonName} onChange={value => update('contactPersonName', value, 'name')} />
+              <DialogInput label="Contact Person" kind="name" value={form.contactPersonName} error={fieldErrors.contact_person_name} onChange={value => update('contactPersonName', value, 'name')} />
               <DialogInput label="Designation" kind="name" value={form.designation} onChange={value => update('designation', value, 'name')} />
-              <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} onChange={value => update('mobile', value, 'mobile')} />
-              <DialogInput label="Email Address" value={form.email} onChange={value => update('email', value)} />
+              <DialogInput label="Mobile Number" kind="mobile" value={form.mobile} error={fieldErrors.mobile} onChange={value => update('mobile', value, 'mobile')} />
+              <DialogInput label="Email Address" value={form.email} error={fieldErrors.email} onChange={value => update('email', value)} />
               <div className="sm:col-span-2">
-                <CityStateSelect city={form.city} state={form.state} onCityChange={value => update('city', value, 'cityState')} onStateChange={value => update('state', value, 'cityState')} className="grid grid-cols-1 sm:grid-cols-2 gap-3" required />
+                <CityStateSelect city={form.city} state={form.state} cityError={fieldErrors.city} stateError={fieldErrors.state} onCityChange={value => update('city', value, 'cityState')} onStateChange={value => update('state', value, 'cityState')} className="grid grid-cols-1 sm:grid-cols-2 gap-3" required />
               </div>
-              <DialogInput label="Pincode" kind="pincode" value={form.pincode} onChange={value => update('pincode', value, 'pincode')} />
+              <DialogInput label="Pincode" kind="pincode" value={form.pincode} error={fieldErrors.pincode} onChange={value => update('pincode', value, 'pincode')} />
             </div>
-            <DialogInput className="mt-3" label="Registered Address" value={form.companyAddress} onChange={value => update('companyAddress', value)} />
+            <DialogInput className="mt-3" label="Registered Address" value={form.companyAddress} error={fieldErrors.company_address} onChange={value => update('companyAddress', value)} />
             <DialogInput className="mt-3" label="Billing Address" value={form.billingAddress} onChange={value => update('billingAddress', value)} />
           </section>
 
@@ -656,7 +724,7 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
           {error && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
           <div className="flex justify-end gap-3">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Cancel</button>
-            <button onClick={save} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}>Save Changes</button>
+            <button onClick={save} disabled={saving} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </div>
       </motion.div>

@@ -5,6 +5,7 @@ import { createGuard } from '../../services/adminGuardService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 import CityStateSelect from '../../components/CityStateSelect';
+import { addError, dob14Error, emailError, humanNameError, indianMobileError, moneyError, passwordError, pincodeError } from '../../lib/formValidation';
 
 interface AddGuardProps {
   onSuccess: () => void;
@@ -149,15 +150,18 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.fullName.trim()) e.fullName = 'Full name is required';
+    addError(e, 'fullName', humanNameError(form.fullName, 'Full name'));
     if (!form.profileType) e.profileType = 'Please select associate type';
-    if (!form.mobile.match(/^[6-9]\d{9}$/)) e.mobile = 'Enter valid 10-digit mobile number';
-    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = 'Enter valid email';
-    if (!form.password || form.password.length < 8) e.password = 'Password must be at least 8 characters';
+    addError(e, 'mobile', indianMobileError(form.mobile));
+    addError(e, 'email', emailError(form.email));
+    addError(e, 'password', passwordError(form.password));
     if (!form.gender) e.gender = 'Please select gender';
-    if (!form.dob) e.dob = 'Date of birth is required';
+    addError(e, 'dob', dob14Error(form.dob));
     if (!form.city.trim()) e.city = 'City is required';
     if (!form.state) e.state = 'State is required';
+    addError(e, 'pincode', pincodeError(form.pincode));
+    addError(e, 'dailyRate', moneyError(form.dailyRate, 'Daily rate'));
+    addError(e, 'hourlyRate', moneyError(form.hourlyRate, 'Hourly rate'));
     const hasLatitude = Boolean(form.latitude.trim());
     const hasLongitude = Boolean(form.longitude.trim());
     if (hasLatitude !== hasLongitude) {
@@ -238,8 +242,8 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
           <SelectInput label="Gender" value={form.gender} onChange={set('gender')} options={['Male', 'Female', 'Other']} required />
           <FloatingInput label="Date of Birth" value={form.dob} onChange={set('dob')} type="date" required error={errors.dob} />
           <FloatingInput label="Experience" value={form.experience} onChange={set('experience')} placeholder="e.g. 3 years" />
-          <FloatingInput label="Daily Rate" value={form.dailyRate} onChange={v => set('dailyRate')(v.replace(/[^\d.]/g, ''))} placeholder="e.g. 900" />
-          <FloatingInput label="Hourly Rate" value={form.hourlyRate} onChange={v => set('hourlyRate')(v.replace(/[^\d.]/g, ''))} placeholder="e.g. 120" />
+          <FloatingInput label="Daily Rate" value={form.dailyRate} onChange={v => set('dailyRate')(v.replace(/[^\d.]/g, ''))} error={errors.dailyRate} placeholder="e.g. 900" />
+          <FloatingInput label="Hourly Rate" value={form.hourlyRate} onChange={v => set('hourlyRate')(v.replace(/[^\d.]/g, ''))} error={errors.hourlyRate} placeholder="e.g. 120" />
         </div>
       ),
     },
@@ -250,7 +254,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FloatingInput label="Mobile Number" value={form.mobile} onChange={set('mobile')} required error={errors.mobile} placeholder="10-digit mobile" />
           <FloatingInput label="Email Address" value={form.email} onChange={set('email')} type="email" required error={errors.email} placeholder="email@example.com" />
-          <FloatingInput label="Login Password" value={form.password} onChange={set('password')} type="password" required error={errors.password} placeholder="Min 6 characters" />
+          <FloatingInput label="Login Password" value={form.password} onChange={set('password')} type="password" required error={errors.password} placeholder="12+ chars with upper, lower, number and special" />
         </div>
       ),
     },

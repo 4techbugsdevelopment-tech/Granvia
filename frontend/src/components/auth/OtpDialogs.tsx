@@ -13,6 +13,7 @@ import {
 } from '../../services/authService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { UserRole } from '../../lib/apiTypes';
+import { passwordError } from '../../lib/formValidation';
 
 function Backdrop({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
   return (
@@ -213,8 +214,13 @@ export function ForgotPasswordDialog({ initialEmail = '', onClose }: { initialEm
   };
 
   const reset = async () => {
-    if (otp.length < 6 || password.length < 8) {
-      setError('Enter the code and a password of at least 8 characters.');
+    if (otp.length < 6) {
+      setError('Enter the 6-digit code.');
+      return;
+    }
+    const passwordMessage = passwordError(password);
+    if (passwordMessage) {
+      setError(passwordMessage);
       return;
     }
     setBusy(true);
@@ -271,7 +277,7 @@ export function ForgotPasswordDialog({ initialEmail = '', onClose }: { initialEm
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-3 rounded-lg text-sm outline-none"
               style={inputStyle}
-              placeholder="New password (min 8 chars)"
+              placeholder="12+ chars with upper, lower, number and special"
             />
             {error && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100">{error}</p>}
             <button onClick={reset} disabled={busy} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #166534, #15803d)' }}>

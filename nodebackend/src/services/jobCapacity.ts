@@ -18,6 +18,9 @@ export async function enforceJobCapacityForApplication(
   if (!isFilledStatus(nextStatus)) return;
 
   const wasAlreadyFilled = isFilledStatus(application.status);
+  if (application.status === nextStatus) {
+    throw new HttpError(422, `This application is already marked ${nextStatus.replaceAll('_', ' ')}.`);
+  }
   const job = await tx.jobPost.findUnique({
     where: { id: application.jobId },
     select: { id: true, status: true, guardsRequired: true },

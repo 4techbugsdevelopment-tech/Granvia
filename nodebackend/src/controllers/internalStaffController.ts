@@ -1,16 +1,16 @@
-import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { hashPassword } from '../utils/password';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
+import { generateStrongPassword, humanNameSchema, indianMobileSchema, normalizedEmailSchema, strongPasswordSchema } from '../utils/validation';
 
 const staffSchema = z.object({
-  full_name: z.string().trim().min(2).max(150),
-  email: z.string().trim().email(),
-  mobile: z.string().trim().min(8).max(20).nullish(),
-  password: z.string().min(8).nullish(),
+  full_name: humanNameSchema('Full name'),
+  email: normalizedEmailSchema,
+  mobile: indianMobileSchema.nullish(),
+  password: strongPasswordSchema.nullish(),
   role: z.enum(['operations', 'finance']),
   employer_user_id: z.string().uuid().nullish(),
   company_id: z.string().uuid().nullish(),
@@ -44,7 +44,7 @@ async function createStaff(data: z.infer<typeof staffSchema>, forcedEmployerId?:
   const employerId = await validateOperationsScope(data, forcedEmployerId);
   const duplicate = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
   if (duplicate) throw new HttpError(422, 'The email has already been taken.');
-  const temporaryPassword = data.password ?? crypto.randomBytes(9).toString('base64url');
+  const temporaryPassword = data.password ?? generateStrongPassword();
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {

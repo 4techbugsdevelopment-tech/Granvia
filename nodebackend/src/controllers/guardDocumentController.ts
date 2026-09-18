@@ -4,11 +4,14 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { storeFile, urlFor, IncomingFile } from '../utils/fileStorage';
+import { validateUploadFile } from '../utils/validation';
 
 // Port of the guard-facing methods of App\Http\Controllers\GuardDocumentController.
 
 const DOCUMENT_TYPES = ['id_proof', 'police_verification', 'bank_proof', 'skill_training_certificate', 'other'] as const;
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf'];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf'];
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 const storeSchema = z.object({
   document_type: z.enum(DOCUMENT_TYPES),
@@ -35,23 +38,12 @@ export async function store(req: Request, res: Response) {
   const { document_type } = storeSchema.parse(req.body);
   const file = req.file as IncomingFile | undefined;
 
-  if (!file) {
-    throw new HttpError(422, 'The file field is required.', {
-      errors: { file: ['The file field is required.'] },
-    });
-  }
-
-  if (!ALLOWED_MIME.includes(file.mimetype)) {
-    throw new HttpError(422, 'The file must be a file of type: jpg, jpeg, png, pdf.', {
-      errors: { file: ['The file must be a file of type: jpg, jpeg, png, pdf.'] },
-    });
-  }
-
-  if (file.size > 10 * 1024 * 1024) {
-    throw new HttpError(422, 'The file must not be greater than 10240 kilobytes.', {
-      errors: { file: ['The file must not be greater than 10240 kilobytes.'] },
-    });
-  }
+  const fileErrors = validateUploadFile(file, {
+    allowedMime: ALLOWED_MIME,
+    allowedExtensions: ALLOWED_EXTENSIONS,
+    maxBytes: MAX_DOCUMENT_BYTES,
+  });
+  if (fileErrors.length || !file) throw new HttpError(422, fileErrors[0], { errors: { file: fileErrors } });
 
   const stored = storeFile('guard-documents', req.user!.id, file);
 

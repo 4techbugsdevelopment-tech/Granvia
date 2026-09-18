@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { autoCheckoutExpiredAttendance } from '../services/attendanceAutoCheckout';
+import { buildAdminAttendanceWhere } from '../utils/queryFilters';
 
 // Platform-wide admin views for the Super Admin panel:
 //   GET /admin/attendance            — all attendance + today stats
@@ -16,18 +17,6 @@ function todayDateOnly(): Date {
   const indiaNow = new Date(Date.now() + 330 * 60_000);
   const iso = indiaNow.toISOString().slice(0, 10);
   return new Date(`${iso}T00:00:00.000Z`);
-}
-
-function dayStart(value: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
-function nextDay(value: string): Date | null {
-  const date = dayStart(value);
-  if (!date) return null;
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date;
 }
 
 const jobInclude = {
@@ -45,17 +34,7 @@ const jobInclude = {
 export async function attendance(req: Request, res: Response) {
   await autoCheckoutExpiredAttendance();
   const today = todayDateOnly();
-  const dateFrom = typeof req.query.date_from === 'string' ? dayStart(req.query.date_from) : null;
-  const dateTo = typeof req.query.date_to === 'string' ? nextDay(req.query.date_to) : null;
-  const where = {
-    ...(typeof req.query.employer_id === 'string' && req.query.employer_id ? { employerUserId: req.query.employer_id } : {}),
-    ...(typeof req.query.company_id === 'string' && req.query.company_id ? { companyId: req.query.company_id } : {}),
-    ...(typeof req.query.site_id === 'string' && req.query.site_id ? { siteId: req.query.site_id } : {}),
-    ...(typeof req.query.guard_id === 'string' && req.query.guard_id ? { guardUserId: req.query.guard_id } : {}),
-    ...(typeof req.query.job_id === 'string' && req.query.job_id ? { jobId: req.query.job_id } : {}),
-    ...(typeof req.query.status === 'string' && req.query.status ? { status: req.query.status } : {}),
-    ...((dateFrom || dateTo) ? { attendanceDate: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lt: dateTo } : {}) } } : {}),
-  };
+  const where = buildAdminAttendanceWhere(req.query);
 
   const [records, checkedInToday, activeToday, verified, pending] = await Promise.all([
     prisma.attendanceRecord.findMany({

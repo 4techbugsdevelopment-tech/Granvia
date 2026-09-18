@@ -6,6 +6,7 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { syncAssociateWallet } from '../services/associateWalletService';
+import { dayStart, nextDay } from '../utils/queryFilters';
 
 const requestSchema = z.object({ amount: z.coerce.number().positive().max(1_000_000) });
 const decisionSchema = z.discriminatedUnion('decision', [
@@ -81,8 +82,20 @@ export async function requestWithdrawal(req: Request, res: Response) {
 
 export async function financeIndex(req: Request, res: Response) {
   const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const guardId = typeof req.query.guard_id === 'string' && req.query.guard_id ? req.query.guard_id : undefined;
+  const reference = typeof req.query.gateway_reference === 'string' && req.query.gateway_reference ? req.query.gateway_reference : undefined;
+  const dateFrom = typeof req.query.date_from === 'string' ? dayStart(req.query.date_from) : null;
+  const dateTo = typeof req.query.date_to === 'string' ? nextDay(req.query.date_to) : null;
+  const minAmount = typeof req.query.min_amount === 'string' && req.query.min_amount !== '' ? Number(req.query.min_amount) : null;
+  const maxAmount = typeof req.query.max_amount === 'string' && req.query.max_amount !== '' ? Number(req.query.max_amount) : null;
   const rows = await prisma.withdrawalRequest.findMany({
-    where: status ? { status } : undefined,
+    where: {
+      ...(status ? { status } : {}),
+      ...(guardId ? { guardUserId: guardId } : {}),
+      ...(reference ? { gatewayReference: { contains: reference } } : {}),
+      ...((dateFrom || dateTo) ? { createdAt: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lt: dateTo } : {}) } } : {}),
+      ...((Number.isFinite(minAmount) || Number.isFinite(maxAmount)) ? { amount: { ...(Number.isFinite(minAmount) ? { gte: minAmount! } : {}), ...(Number.isFinite(maxAmount) ? { lte: maxAmount! } : {}) } } : {}),
+    },
     orderBy: { createdAt: 'desc' },
   });
   const guardIds = [...new Set(rows.map((row) => row.guardUserId))];

@@ -3,14 +3,15 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { snakeKeys } from '../utils/serialize';
+import { textSchema } from '../utils/validation';
 
 // Port of App\Http\Controllers\SupportTicketController.
 
 const createSchema = z.object({
   company_id: z.string().uuid().nullish(),
-  subject: z.string(),
-  priority: z.string().nullish(),
-  message: z.string(),
+  subject: textSchema('Subject', { min: 3, max: 150 }),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).nullish(),
+  message: textSchema('Message', { min: 10, max: 5000 }),
 });
 
 function ticketNumber(): string {

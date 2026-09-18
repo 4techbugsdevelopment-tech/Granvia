@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 const PASSWORD_SPECIAL = /[^A-Za-z0-9]/;
 const HUMAN_NAME = /^[\p{L}][\p{L} .'-]*$/u;
+const SAFE_TEXT = /^[^<>]*$/;
 
 export function normalizeSpaces(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
@@ -75,6 +76,16 @@ export function moneySchema(field = 'Amount', opts: { positive?: boolean; max?: 
     .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, `${field} can have at most 2 decimal places.`);
 }
 
+export function textSchema(field = 'Text', opts: { min?: number; max?: number } = {}) {
+  const min = opts.min ?? 1;
+  const max = opts.max ?? 2000;
+  return z.string()
+    .transform(normalizeSpaces)
+    .refine((value) => value.length >= min, `${field} must contain at least ${min} characters.`)
+    .refine((value) => value.length <= max, `${field} must not exceed ${max} characters.`)
+    .refine((value) => SAFE_TEXT.test(value), `${field} cannot contain angle brackets.`);
+}
+
 export function guardDobSchema() {
   return z.coerce.date()
     .refine((value) => !Number.isNaN(value.getTime()), 'Enter a valid date of birth.')
@@ -84,4 +95,30 @@ export function guardDobSchema() {
       const cutoff = new Date(today.getFullYear() - 14, today.getMonth(), today.getDate());
       return value <= cutoff;
     }, 'Associate must be at least 14 years old.');
+}
+
+export function validateUploadFile(
+  file: { originalname?: string; mimetype: string; size: number } | undefined,
+  options: { field?: string; allowedMime: string[]; allowedExtensions: string[]; maxBytes: number },
+) {
+  const field = options.field ?? 'file';
+  if (!file) {
+    return [`The ${field} field is required.`];
+  }
+  const name = file.originalname ?? '';
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  const errors: string[] = [];
+  if (!options.allowedMime.includes(file.mimetype)) {
+    errors.push(`The ${field} must be a file of type: ${options.allowedExtensions.join(', ')}.`);
+  }
+  if (!ext || !options.allowedExtensions.includes(ext)) {
+    errors.push(`The ${field} extension must be one of: ${options.allowedExtensions.join(', ')}.`);
+  }
+  if (file.size <= 0) {
+    errors.push(`The ${field} must not be empty.`);
+  }
+  if (file.size > options.maxBytes) {
+    errors.push(`The ${field} must not be greater than ${Math.floor(options.maxBytes / 1024)} kilobytes.`);
+  }
+  return errors;
 }

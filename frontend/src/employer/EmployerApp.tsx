@@ -37,6 +37,7 @@ import AvailableGuardsPage from './AvailableGuardsPage';
 import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
+import { addError, moneyError } from '../lib/formValidation';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1118,6 +1119,22 @@ function validateSiteForm(form: SiteFormState): ValidationErrors {
   return errors;
 }
 
+function validateJobForm(form: Record<string, string>): ValidationErrors {
+  const errors: ValidationErrors = {};
+  if (!form.title?.trim()) errors.title = 'Job title is required.';
+  if (!form.site_id) errors.site_id = 'Select a site.';
+  if (!form.guard_type) errors.guard_type = 'Select an associate type.';
+  if (!/^[1-9]\d*$/.test(String(form.guards_required ?? '').trim())) {
+    errors.guards_required = 'Associates required must be a whole number greater than 0.';
+  }
+  addError(errors, 'salary_amount', moneyError(String(form.salary_amount ?? ''), 'Salary amount', true));
+  if (!form.start_date) errors.start_date = 'Start date is required.';
+  if (form.start_date && form.end_date && form.end_date < form.start_date) {
+    errors.end_date = 'End date cannot be before start date.';
+  }
+  return errors;
+}
+
 function DocumentViewLink({ url }: { url?: string }) {
   return url ? (
     <a href={url} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
@@ -1651,6 +1668,8 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
   const [creatingSite, setCreatingSite] = useState(false);
   const [siteErrors, setSiteErrors] = useState<ValidationErrors>({});
   const [siteError, setSiteError] = useState('');
+  const [jobErrors, setJobErrors] = useState<ValidationErrors>({});
+  const [jobError, setJobError] = useState('');
   const [siteSuccessMessage, setSiteSuccessMessage] = useState('');
   const [siteForm, setSiteForm] = useState<SiteFormState>({
     site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
@@ -1740,9 +1759,15 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
   };
 
   const saveJob = async () => {
-    if (!job.site_id || !job.title || !job.guard_type || !job.salary_amount || !job.start_date) { alert('Select a site and complete title, associate type, salary and start date.'); return; }
+    const validationErrors = validateJobForm(job as Record<string, string>);
+    setJobErrors(validationErrors);
+    setJobError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setJobError('Please correct the highlighted fields.');
+      return;
+    }
     if (!wallet || Number(wallet.deposit_balance ?? 0) < 10000) {
-      alert('Please deposit at least Rs 10,000 in your wallet before posting a job. Super Admin credit cannot be used for this minimum deposit requirement.');
+      setJobError('Please deposit at least Rs 10,000 in your wallet before posting a job. Super Admin credit cannot be used for this minimum deposit requirement.');
       onDeposit();
       return;
     }
@@ -1754,7 +1779,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
         title: job.title,
         category: job.category,
         guard_type: job.guard_type,
-        guards_required: Number(job.guards_required) || 1,
+        guards_required: Number(job.guards_required),
         gender_preference: job.gender_preference,
         experience_required: job.experience_required,
         qualification_required: job.qualification_required,
@@ -1778,7 +1803,9 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
       window.alert('Job created successfully.');
       onSaved();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create job.');
+      const validationErrors = getValidationErrors(err);
+      setJobErrors(validationErrors);
+      setJobError(getErrorMessage(err, 'Failed to create job.'));
     } finally { setSaving(false); }
   };
 
@@ -1847,14 +1874,16 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
             <button type="button" onClick={onDeposit} className="rounded-lg px-3 py-2 text-xs font-bold text-white" style={{ background: '#0f1e3c' }}>Deposit</button>
           </div>
         )}
+        {jobError && <ValidationBanner message={jobError} />}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Input label="Job Title" value={job.title} onChange={v => setJob({ ...job, title: v })} />
-          <Sel label="Site / Location" value={job.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={v => setJob({ ...job, site_id: v })} />
-          <Input label="Associates Required" value={job.guards_required} onChange={v => setJob({ ...job, guards_required: v })} />
+          <Input label="Job Title" value={job.title} error={jobErrors.title} onChange={v => setJob({ ...job, title: v })} />
+          <Sel label="Site / Location" value={job.site_id} error={jobErrors.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={v => setJob({ ...job, site_id: v })} />
+          <Input label="Associates Required" value={job.guards_required} error={jobErrors.guards_required} onChange={v => setJob({ ...job, guards_required: v.replace(/\D/g, '') })} />
           <Input label="Category" value={job.category} onChange={v => setJob({ ...job, category: v })} />
           <Sel
             label="Associate Type"
             value={job.guard_type}
+            error={jobErrors.guard_type}
             options={associateTypes.map(type => type.code)}
             labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))}
             onChange={v => setJob({ ...job, guard_type: v })}
@@ -1862,12 +1891,12 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
-          <Input label="Salary / Payment" value={job.salary_amount} onChange={v => setJob({ ...job, salary_amount: v })} />
+          <Input label="Salary / Payment" value={job.salary_amount} error={jobErrors.salary_amount} onChange={v => setJob({ ...job, salary_amount: v.replace(/[^\d.]/g, '') })} />
           <Sel label="Payment Type" value={job.payment_type} options={['Daily', 'Monthly', 'Contract', 'Shift-based']} onChange={v => setJob({ ...job, payment_type: v })} />
           <Input label="Duty Hours" value={job.duty_hours} onChange={v => setJob({ ...job, duty_hours: v })} />
           <Sel label="Shift Type" value={job.shift_type} options={['Day', 'Night', 'Rotational']} onChange={v => setJob({ ...job, shift_type: v })} />
-          <Input label="Start Date" type="date" value={job.start_date} onChange={v => setJob({ ...job, start_date: v })} />
-          <Input label="End Date" type="date" value={job.end_date} onChange={v => setJob({ ...job, end_date: v })} />
+          <Input label="Start Date" type="date" value={job.start_date} error={jobErrors.start_date} onChange={v => setJob({ ...job, start_date: v })} />
+          <Input label="End Date" type="date" value={job.end_date} error={jobErrors.end_date} onChange={v => setJob({ ...job, end_date: v })} />
           <Sel label="Duration" value={job.duration_type} options={['One day', 'Monthly', 'Long-term', 'Contract-based']} onChange={v => setJob({ ...job, duration_type: v })} />
           <Sel label="Status" value={job.status} options={['draft', 'active']} onChange={v => setJob({ ...job, status: v })} />
           <Input label="Required Skills" value={job.required_skills} onChange={v => setJob({ ...job, required_skills: v })} />
@@ -1910,6 +1939,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState('');
   const [jobNotice, setJobNotice] = useState('');
+  const [editErrors, setEditErrors] = useState<ValidationErrors>({});
+  const [editError, setEditError] = useState('');
 
   const reload = () => {
     setJobsError('');
@@ -1931,6 +1962,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
 
   const openEdit = (job: any) => {
     setEditingJob(job);
+    setEditErrors({});
+    setEditError('');
     setEditForm({
       title:               job.title ?? '',
       site_id:             job.site_id ?? '',
@@ -1951,12 +1984,19 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
 
   const saveEdit = async () => {
     if (!editingJob) return;
+    const validationErrors = validateJobForm(editForm);
+    setEditErrors(validationErrors);
+    setEditError('');
+    if (Object.keys(validationErrors).length > 0) {
+      setEditError('Please correct the highlighted fields.');
+      return;
+    }
     setSaving(true);
     try {
       await updateJobPost(editingJob.id, {
         title:               editForm.title,
         site_id:             editForm.site_id,
-        guards_required:     Number(editForm.guards_required) || 1,
+        guards_required:     Number(editForm.guards_required),
         salary_amount:       Number(editForm.salary_amount),
         payment_type:        editForm.payment_type,
         shift_type:          editForm.shift_type,
@@ -1975,7 +2015,9 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
       setJobNotice('Job updated successfully.');
       window.alert('Job updated successfully.');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save.');
+      const validationErrors = getValidationErrors(err);
+      setEditErrors(validationErrors);
+      setEditError(getErrorMessage(err, 'Failed to save.'));
     } finally {
       setSaving(false);
     }
@@ -2118,17 +2160,18 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
             </div>
             <div className="px-6 pt-4 pb-6">
               <h3 className="font-bold text-gray-900 text-lg mb-4">Edit Job</h3>
+              {editError && <ValidationBanner message={editError} />}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Input label="Job Title"       value={ef.title}               onChange={set('title')} />
-                <Sel   label="Site"            value={ef.site_id}             options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
-                <Input label="Associates Required" value={ef.guards_required} onChange={set('guards_required')} />
-                <Input label="Salary"          value={ef.salary_amount}       onChange={set('salary_amount')} />
-                <Sel   label="Associate Type"  value={ef.guard_type}          options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
+                <Input label="Job Title"       value={ef.title}               error={editErrors.title} onChange={set('title')} />
+                <Sel   label="Site"            value={ef.site_id}             error={editErrors.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
+                <Input label="Associates Required" value={ef.guards_required} error={editErrors.guards_required} onChange={v => set('guards_required')(v.replace(/\D/g, ''))} />
+                <Input label="Salary"          value={ef.salary_amount}       error={editErrors.salary_amount} onChange={v => set('salary_amount')(v.replace(/[^\d.]/g, ''))} />
+                <Sel   label="Associate Type"  value={ef.guard_type}          error={editErrors.guard_type} options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
                 <Sel   label="Payment Type"    value={ef.payment_type}        options={['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
-                <Input label="Start Date"      value={ef.start_date}          onChange={set('start_date')} />
-                <Input label="End Date"        value={ef.end_date}            onChange={set('end_date')} />
+                <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />
+                <Input label="End Date"        value={ef.end_date}            error={editErrors.end_date} onChange={set('end_date')} />
                 <Sel   label="Duration"        value={ef.duration_type}       options={['Monthly','Weekly','Daily','Contract']} labels={{Monthly:'Monthly',Weekly:'Weekly',Daily:'Daily',Contract:'Contract'}} onChange={set('duration_type')} />
                 <Input label="Experience"      value={ef.experience_required} onChange={set('experience_required')} />
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
@@ -2723,8 +2766,18 @@ function WalletPage() {
   }, []);
 
   const addBalance = async () => {
+    const amountMessage = moneyError(amount, 'Recharge amount', true);
+    if (amountMessage) {
+      setSuccessMsg('');
+      setError(amountMessage);
+      return;
+    }
+    if (remarks.length > 500) {
+      setSuccessMsg('');
+      setError('Recharge note must be 500 characters or fewer.');
+      return;
+    }
     const value = Number(amount);
-    if (!value || value <= 0) return;
     setBusy(true);
     setError('');
     setSuccessMsg('');
@@ -2754,7 +2807,7 @@ function WalletPage() {
         </div>
         <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-[180px_1fr_auto]">
           <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} className="form-input" placeholder="Amount" />
-          <input value={remarks} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Recharge note" />
+          <input value={remarks} maxLength={500} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Recharge note" />
           <button onClick={addBalance} disabled={busy} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
             {busy ? 'Processing...' : 'Make Payment'}
           </button>
