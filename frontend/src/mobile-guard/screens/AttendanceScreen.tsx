@@ -133,7 +133,7 @@ export default function AttendanceScreen() {
   const captureDeviceLocation = async () => {
     const position = await getCurrentPosition();
     if (!position) {
-      throw new Error('A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
+      return null;
     }
     const reverse = await reverseGeocode(position.lat, position.lng);
     return {
@@ -176,17 +176,17 @@ export default function AttendanceScreen() {
       const position = await captureDeviceLocation();
       if (type === 'in') {
         const record = await checkInAttendance({
-          latitude: position.lat,
-          longitude: position.lng,
-          locationName: position.locationName,
-          jobId: currentJob?.id,
+          latitude: position?.lat,
+          longitude: position?.lng,
+          locationName: position?.locationName,
+          jobId: currentJobId,
         });
         setRecords(prev => [record, ...prev]);
       } else if (todayRecord) {
         const record = await checkOutAttendance(todayRecord.id, {
-          latitude: position.lat,
-          longitude: position.lng,
-          locationName: position.locationName,
+          latitude: position?.lat,
+          longitude: position?.lng,
+          locationName: position?.locationName,
         });
         setRecords(prev => prev.map(r => (r.id === record.id ? record : r)));
       }
@@ -281,6 +281,7 @@ export default function AttendanceScreen() {
   const isCurrentCalendarMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
   const currentApp = currentJobApplication(applications);
   const currentJob = currentApp?.job;
+  const currentJobId = currentApp?.job_id ?? currentJob?.id;
 
   const moveCalendarMonth = (amount: number) => {
     const target = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + amount, 1);

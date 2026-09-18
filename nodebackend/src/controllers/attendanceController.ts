@@ -41,13 +41,6 @@ const checkOutSchema = z.object({
   location_name: z.string().trim().max(500).nullish(),
 });
 
-function requireLiveLocation(data: { latitude?: number | null; longitude?: number | null }) {
-  if (!env.locationCaptureEnabled) return;
-  if (data.latitude == null || data.longitude == null) {
-    throw new HttpError(422, 'A fresh device location is required to mark attendance. Enable Location/GPS and try again.');
-  }
-}
-
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const earthKm = 6371;
@@ -98,8 +91,8 @@ async function notifyEmployerLocationMismatch(params: {
   jobTitle?: string | null;
   targetAddress: string;
   attemptType: 'check_in' | 'check_out';
-  latitude: number;
-  longitude: number;
+  latitude?: number | null;
+  longitude?: number | null;
   distance?: number | null;
   radius: number;
   reason: string;
@@ -107,11 +100,14 @@ async function notifyEmployerLocationMismatch(params: {
   if (!params.employerUserId) return;
   const guard = await prisma.user.findUnique({ where: { id: params.guardId }, select: { fullName: true, email: true } });
   const distanceText = params.distance == null ? 'unknown distance' : `${Math.round(params.distance)} m away`;
+  const deviceText = params.latitude == null || params.longitude == null
+    ? 'without captured device GPS'
+    : `at ${params.latitude.toFixed(6)}, ${params.longitude.toFixed(6)}`;
   await prisma.notification.create({
     data: {
       userId: params.employerUserId,
-      title: 'Attendance location blocked',
-      message: `${guard?.fullName ?? guard?.email ?? 'An associate'} tried to ${params.attemptType === 'check_in' ? 'check in' : 'check out'} for ${params.jobTitle ?? 'a job'} at ${params.latitude.toFixed(6)}, ${params.longitude.toFixed(6)} (${distanceText}). Assigned location: ${params.targetAddress}. Allowed radius: ${params.radius} m.`,
+      title: 'Attendance location needs review',
+      message: `${guard?.fullName ?? guard?.email ?? 'An associate'} marked ${params.attemptType === 'check_in' ? 'check in' : 'check out'} for ${params.jobTitle ?? 'a job'} ${deviceText} (${distanceText}). Assigned location: ${params.targetAddress}. Allowed radius: ${params.radius} m. Please review before approval.`,
       type: 'attendance_geofence',
     },
   });
@@ -133,14 +129,13 @@ async function enforceGeofence(params: {
   longitude?: number | null;
 }) {
   if (!env.locationCaptureEnabled) return;
-  requireLiveLocation(params);
 
   const radius = env.attendanceGeofenceRadiusMeters;
   const targetAddress = siteAddress(params.job);
   const siteLat = params.job.site?.latitude == null ? null : Number(params.job.site.latitude);
   const siteLng = params.job.site?.longitude == null ? null : Number(params.job.site.longitude);
 
-  const createBlockedAttempt = async (reason: string, distance: number | null) => {
+  const createReviewAttempt = async (reason: string, distance: number | null) => {
     try {
       await prisma.attendanceLocationAttempt.create({
         data: {
@@ -150,7 +145,7 @@ async function enforceGeofence(params: {
           jobId: params.job.id,
           siteId: params.job.siteId ?? null,
           attemptType: params.attemptType,
-          status: 'blocked',
+          status: 'review_required',
           deviceLatitude: params.latitude ?? null,
           deviceLongitude: params.longitude ?? null,
           siteLatitude: siteLat,
@@ -161,7 +156,7 @@ async function enforceGeofence(params: {
         },
       });
     } catch (error) {
-      logAttendanceSideEffectFailure('blocked location audit', error);
+      logAttendanceSideEffectFailure('location review audit', error);
     }
 
     try {
@@ -171,21 +166,26 @@ async function enforceGeofence(params: {
         jobTitle: params.job.title,
         targetAddress,
         attemptType: params.attemptType,
-        latitude: params.latitude!,
-        longitude: params.longitude!,
+        latitude: params.latitude,
+        longitude: params.longitude,
         distance,
         radius,
         reason,
       });
     } catch (error) {
-      logAttendanceSideEffectFailure('blocked location notification', error);
+      logAttendanceSideEffectFailure('location review notification', error);
     }
   };
 
+  if (params.latitude == null || params.longitude == null) {
+    await createReviewAttempt('Device location was not captured for this attendance mark.', null);
+    return;
+  }
+
   if (siteLat == null || siteLng == null || Number.isNaN(siteLat) || Number.isNaN(siteLng)) {
     const reason = 'Assigned job site is not configured with map coordinates.';
-    await createBlockedAttempt(reason, null);
-    throw new HttpError(422, 'Attendance cannot be marked because this job site does not have map coordinates configured. Ask the employer to update the site location.');
+    await createReviewAttempt(reason, null);
+    return;
   }
 
   const distance = distanceMeters(
@@ -194,8 +194,7 @@ async function enforceGeofence(params: {
   );
   if (distance > radius) {
     const reason = `Device location is ${Math.round(distance)} m from the assigned job location; allowed radius is ${radius} m.`;
-    await createBlockedAttempt(reason, distance);
-    throw new HttpError(422, `You are not on the job location. You are ${Math.round(distance)} m away from ${targetAddress}; attendance is allowed within ${radius} m.`);
+    await createReviewAttempt(reason, distance);
   }
 }
 
@@ -249,7 +248,7 @@ async function assignedJob(guardId: string, requestedJobId?: string | null, atte
     ? assignedApplications.find(({ job }) =>
         (!job.startDate || job.startDate <= attendanceDate) &&
         (!job.endDate || job.endDate >= attendanceDate)
-      )
+      ) ?? assignedApplications[0]
     : assignedApplications[0];
 
   if (!application) {
