@@ -2247,6 +2247,20 @@ function ApplicantDetailItem({ label, value }: { label: string; value: React.Rea
   );
 }
 
+function associateVerificationBadge(profile: any) {
+  const status = String(profile?.verification_status ?? '').trim().toLowerCase();
+  const verified = status === 'verified';
+  const label = verified ? 'Verified' : 'Not verified';
+  const bg = verified ? '#dcfce7' : '#fee2e2';
+  const color = verified ? '#166534' : '#991b1b';
+
+  return (
+    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: bg, color }}>
+      {label}
+    </span>
+  );
+}
+
 function ApplicantsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -2341,7 +2355,10 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
               <Td>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <b className="break-words">{app.guard_profiles?.full_name ?? 'Associate'}</b>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <b className="break-words">{app.guard_profiles?.full_name ?? 'Associate'}</b>
+                      {associateVerificationBadge(app.guard_profiles)}
+                    </div>
                     <div className="text-xs text-gray-400">{app.guard_profiles?.city ?? 'Location not set'}</div>
                   </div>
                   <button onClick={() => setDetailsApp(app)} className="table-action tone-blue shrink-0">View details</button>
@@ -2350,8 +2367,10 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
               <Td>{app.job_posts?.title}</Td>
               <Td>{app.guard_profiles?.skills?.join(', ') ?? '--'}</Td>
               <Td>
+                <div className="mb-1">{associateVerificationBadge(app.guard_profiles)}</div>
                 <div className="text-xs">Profile: {app.guard_profiles?.verification_status ?? '--'}</div>
                 <div className="text-xs">Aadhaar: {app.guard_profiles?.aadhaar_status ?? '--'}</div>
+                <div className="text-xs">Police: {app.guard_profiles?.police_verification_status ?? '--'}</div>
               </Td>
               <Td>{statusBadge(app.status)}</Td>
               <Td>

@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import { ensureOfferLetterForApplication } from './offerLetterService';
 
 export const HIRING_DOCUMENT_TYPES = {
   offerLetter: 'hiring_offer_letter',
@@ -98,6 +99,7 @@ export async function deliverHiringDocumentsForApplication(applicationId: string
 
   const jobTitle = application.job.title;
   const associateName = guardProfile.fullName?.trim() || 'Associate Partner';
+  await ensureOfferLetterForApplication(application.id);
   await createNotificationOnce({
     userId: application.guardUserId,
     type: `${HIRING_DOCUMENT_TYPES.offerLetter}:${application.id}`,

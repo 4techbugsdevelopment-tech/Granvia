@@ -15,6 +15,7 @@ interface NotificationItem {
   kind: Kind;
   type: string;
   documentType: HiringDocument | null;
+  applicationId: string | null;
   verificationRequired: boolean;
   employerDetails: EmployerNotificationDetails | null;
 }
@@ -85,6 +86,7 @@ function mapNotification(n: any): NotificationItem {
     kind: kindFromType(n.type),
     type: n.type ?? '',
     documentType: n.type?.startsWith('hiring_offer_letter:') ? 'offer-letter' : n.type?.startsWith('hiring_employment_agreement:') ? 'employment-agreement' : null,
+    applicationId: n.type?.startsWith('hiring_offer_letter:') ? String(n.type).split(':')[1] || null : null,
     verificationRequired: n.type?.startsWith('hiring_verification_required:'),
     employerDetails: employerDetailsFromNotification(n),
   };
@@ -186,7 +188,7 @@ export default function NotificationsScreen() {
               <p className="text-xs text-gray-400 mt-1">{n.time}</p>
               {n.employerDetails && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); setEmployerDetails(n.employerDetails); }} className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">View employer details</button>}
               {(n.type === 'associate_verification' || n.verificationRequired) && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
-              {n.documentType && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); void downloadHiringDocument(n.documentType as HiringDocument); }} className="mt-3 text-xs font-semibold text-blue-700 underline underline-offset-2">Click here to download {n.documentType === 'offer-letter' ? 'your offer letter' : 'the employment agreement'}</button>}
+              {n.documentType && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); void downloadHiringDocument(n.documentType as HiringDocument, n.applicationId ?? undefined); }} className="mt-3 text-xs font-semibold text-blue-700 underline underline-offset-2">Click here to download {n.documentType === 'offer-letter' ? 'your offer letter' : 'the employment agreement'}</button>}
             </div>
           </motion.div>
         ))}

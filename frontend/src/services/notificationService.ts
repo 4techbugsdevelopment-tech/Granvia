@@ -12,8 +12,11 @@ export async function markNotificationRead(notificationId: string) {
 
 export type HiringDocument = 'offer-letter' | 'employment-agreement';
 
-export async function downloadHiringDocument(document: HiringDocument): Promise<void> {
-  const { data } = await apiClient.get(`/me/documents/${document}`, { responseType: 'blob' });
+export async function downloadHiringDocument(document: HiringDocument, applicationId?: string): Promise<void> {
+  const { data } = await apiClient.get(`/me/documents/${document}`, {
+    params: applicationId ? { application_id: applicationId } : undefined,
+    responseType: 'blob',
+  });
   const url = URL.createObjectURL(data);
   const anchor = window.document.createElement('a');
   anchor.href = url;
