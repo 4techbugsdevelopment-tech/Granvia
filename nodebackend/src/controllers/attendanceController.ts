@@ -220,6 +220,8 @@ const editAttendanceSchema = z.object({
 
 const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
 const normalizedHiredStatuses = new Set(HIRED_STATUSES);
+const OFFER_ASSIGNMENT_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
+const normalizedOfferAssignmentStatuses = new Set(OFFER_ASSIGNMENT_STATUSES);
 
 function todayDateOnly(): Date {
   const iso = indiaDateString(new Date());
@@ -252,6 +254,33 @@ async function assignedJob(guardId: string, requestedJobId?: string | null, atte
     : assignedApplications[0];
 
   if (!application) {
+    const offers = await prisma.jobOffer.findMany({
+      where: {
+        guardUserId: guardId,
+        jobId: { not: null },
+        ...(requestedJobId ? { jobId: requestedJobId } : {}),
+      },
+      include: { job: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+
+    const assignedOffers = offers.filter((offer) =>
+      offer.job &&
+      normalizedOfferAssignmentStatuses.has(String(offer.status ?? '').trim().toLowerCase())
+    );
+    const offer = attendanceDate
+      ? assignedOffers.find(({ job }) =>
+          job &&
+          (!job.startDate || job.startDate <= attendanceDate) &&
+          (!job.endDate || job.endDate >= attendanceDate)
+        ) ?? assignedOffers[0]
+      : assignedOffers[0];
+
+    if (offer?.job) {
+      return offer.job;
+    }
+
     throw new HttpError(422, requestedJobId
       ? 'You are not assigned to this job.'
       : 'No assigned job was found. Attendance can only be marked for an active assignment.');

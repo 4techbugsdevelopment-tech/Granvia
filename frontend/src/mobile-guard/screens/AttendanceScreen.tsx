@@ -74,9 +74,21 @@ function attendanceDateKey(value: string) {
 }
 
 const CURRENT_JOB_STATUSES = ['joined', 'hired', 'accepted', 'offer_sent', 'selected'];
+const CURRENT_JOB_STATUS_PRIORITY = new Map(CURRENT_JOB_STATUSES.map((status, index) => [status, index]));
 
 function currentJobApplication(applications: any[]) {
-  return applications.find((app) => CURRENT_JOB_STATUSES.includes(String(app.status ?? '').toLowerCase())) ?? null;
+  return applications
+    .filter((app) => {
+      const status = String(app.status ?? '').trim().toLowerCase();
+      return Boolean(app.job_id ?? app.job?.id) && CURRENT_JOB_STATUS_PRIORITY.has(status);
+    })
+    .sort((a, b) => {
+      const aStatus = String(a.status ?? '').trim().toLowerCase();
+      const bStatus = String(b.status ?? '').trim().toLowerCase();
+      const statusOrder = (CURRENT_JOB_STATUS_PRIORITY.get(aStatus) ?? 99) - (CURRENT_JOB_STATUS_PRIORITY.get(bStatus) ?? 99);
+      if (statusOrder !== 0) return statusOrder;
+      return new Date(b.updated_at ?? b.applied_at ?? 0).getTime() - new Date(a.updated_at ?? a.applied_at ?? 0).getTime();
+    })[0] ?? null;
 }
 
 function jobAddress(job: any) {
