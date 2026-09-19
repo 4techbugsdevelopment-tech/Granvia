@@ -223,6 +223,57 @@ const normalizedHiredStatuses = new Set(HIRED_STATUSES);
 const OFFER_ASSIGNMENT_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 const normalizedOfferAssignmentStatuses = new Set(OFFER_ASSIGNMENT_STATUSES);
 
+function assignmentDebugSummary(rows: Array<{
+  status?: string | null;
+  job?: { startDate?: Date | null; endDate?: Date | null } | null;
+}>, attendanceDate?: Date) {
+  if (!rows.length) return 'no rows';
+  return rows.map((row) => {
+    const status = String(row.status ?? 'blank').trim() || 'blank';
+    const validStatus = normalizedHiredStatuses.has(status.toLowerCase()) || normalizedOfferAssignmentStatuses.has(status.toLowerCase());
+    const inDateWindow = !attendanceDate || !row.job
+      ? true
+      : (!row.job.startDate || row.job.startDate <= attendanceDate) &&
+        (!row.job.endDate || row.job.endDate >= attendanceDate);
+    return `${status}:${validStatus ? 'status-ok' : 'status-no'}:${inDateWindow ? 'date-ok' : 'date-no'}`;
+  }).join(', ');
+}
+
+function assignmentFailureReason(params: {
+  requestedJobId?: string | null;
+  applications: Array<{ status?: string | null; job?: { startDate?: Date | null; endDate?: Date | null } | null }>;
+  offers: Array<{ status?: string | null; job?: { startDate?: Date | null; endDate?: Date | null } | null }>;
+  attendanceDate?: Date;
+}) {
+  const dateText = params.attendanceDate ? indiaDateString(params.attendanceDate) : 'today';
+  const rows = [...params.applications, ...params.offers];
+  if (params.requestedJobId && rows.length === 0) {
+    return 'No application or accepted offer was found for the submitted job and logged-in Associate.';
+  }
+  if (!params.requestedJobId && rows.length === 0) {
+    return 'No assigned application or accepted offer was found for the logged-in Associate.';
+  }
+
+  const hasAllowedStatus = rows.some((row) => {
+    const status = String(row.status ?? '').trim().toLowerCase();
+    return normalizedHiredStatuses.has(status) || normalizedOfferAssignmentStatuses.has(status);
+  });
+  if (!hasAllowedStatus) {
+    return `Assignment row exists, but status is not eligible for attendance. Allowed application statuses: ${HIRED_STATUSES.join(', ')}. Allowed offer statuses: ${OFFER_ASSIGNMENT_STATUSES.join(', ')}.`;
+  }
+
+  const hasDateMatch = rows.some((row) =>
+    !params.attendanceDate || !row.job ||
+    ((!row.job.startDate || row.job.startDate <= params.attendanceDate) &&
+      (!row.job.endDate || row.job.endDate >= params.attendanceDate))
+  );
+  if (!hasDateMatch) {
+    return `Assignment row exists, but the job start/end date does not include ${dateText}.`;
+  }
+
+  return 'Assignment row exists, but it did not match the submitted job, eligible status, and active date together.';
+}
+
 function todayDateOnly(): Date {
   const iso = indiaDateString(new Date());
   return new Date(`${iso}T00:00:00.000Z`);
@@ -281,9 +332,20 @@ async function assignedJob(guardId: string, requestedJobId?: string | null, atte
       return offer.job;
     }
 
+    const details = {
+      submitted_job_id: requestedJobId ?? null,
+      attendance_date: attendanceDate ? indiaDateString(attendanceDate) : null,
+      application_rows_checked: applications.length,
+      application_match_summary: assignmentDebugSummary(applications, attendanceDate),
+      offer_rows_checked: offers.length,
+      offer_match_summary: assignmentDebugSummary(offers, attendanceDate),
+    };
+    const reason = assignmentFailureReason({ requestedJobId, applications, offers, attendanceDate });
     throw new HttpError(422, requestedJobId
-      ? 'You are not assigned to this job.'
-      : 'No assigned job was found. Attendance can only be marked for an active assignment.');
+      ? `Attendance assignment failed: ${reason}`
+      : `Attendance assignment failed: ${reason}`, {
+        attendance_assignment_debug: details,
+      });
   }
   return application.job;
 }
