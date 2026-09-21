@@ -7,8 +7,30 @@ import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
+
 async function assignments(userId: string) {
   return prisma.operationsAssignment.findMany({ where: { operationsUserId: userId, status: 'active' } });
+}
+
+async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string) {
+  const [application, offer] = await Promise.all([
+    prisma.jobApplication.findFirst({
+      where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.jobOffer.findFirst({
+      where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_OFFER_STATUSES } },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
+  const activeTitle = application?.job?.title ?? offer?.job?.title;
+  if (application || offer) {
+    throw new HttpError(422, `This Associate already has an active job${activeTitle ? ` (${activeTitle})` : ''}. They are not eligible for another active job until the current assignment is closed.`);
+  }
 }
 
 function applicationScope(rows: Awaited<ReturnType<typeof assignments>>) {
@@ -66,6 +88,9 @@ export async function updateApplication(req: Request, res: Response) {
   if (!application) throw new HttpError(404, 'Application not found in your Operations scope.');
   if (data.expected_updated_at && application.updatedAt.getTime() !== data.expected_updated_at.getTime()) {
     throw new HttpError(409, 'This application was updated by another user. Refresh before changing its status.');
+  }
+  if (ACTIVE_ASSIGNMENT_STATUSES.includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(application.status)) {
+    await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
   }
   const updated = await prisma.$transaction(async (tx) => {
     await enforceJobCapacityForApplication(tx, application, data.status);

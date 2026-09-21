@@ -69,6 +69,8 @@ router.delete('/employer/subadmins/:subAdmin', asyncHandler(team.destroySubAdmin
 router.patch('/employer/associates/:guard/aadhaar', asyncHandler(aadhaarManual.employerDeclareAssociate));
 
 router.get('/employer/attendance', asyncHandler(attendance.employerIndex));
+router.get('/employer/attendance/exception-requests', asyncHandler(attendance.employerExceptionRequests));
+router.patch('/employer/attendance/exception-requests/:request/status', asyncHandler(attendance.decideExceptionRequest));
 router.patch('/employer/attendance/:record/status', asyncHandler(attendance.updateStatus));
 
 router.get('/employer/interview-requests', asyncHandler(interview.index));

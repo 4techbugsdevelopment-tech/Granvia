@@ -41,6 +41,7 @@ router.post('/guard/withdrawals', asyncHandler(withdrawal.requestWithdrawal));
 
 router.get('/guard/attendance', asyncHandler(attendance.guardIndex));
 router.post('/guard/attendance/check-in', asyncHandler(attendance.checkIn));
+router.post('/guard/attendance/exception-requests', asyncHandler(attendance.requestAttendanceException));
 router.post('/guard/attendance/history', asyncHandler(attendance.saveHistorical));
 router.patch('/guard/attendance/:record', asyncHandler(attendance.updateOwnAttendance));
 router.patch('/guard/attendance/:record/check-out', asyncHandler(attendance.checkOut));

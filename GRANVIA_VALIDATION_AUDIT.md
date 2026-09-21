@@ -2,6 +2,12 @@
 
 Date: 2026-09-17
 
+Attendance audit update: 2026-09-21
+
+The attendance workflow now records an immutable `attendance_audit_events` entry for associate check-in, check-out, exception requests, historical/manual edits, employer/Super Admin approval, and rejection. Each event captures the actor user/role, event time, attendance date, device GPS/location name when supplied, assigned site context, IP address, user-agent, request origin/referer, and decision/request remarks. The Super Admin attendance report returns these events per attendance record and also exposes exception requests with their audit history. Database migration: `nodebackend/prisma/migrations/20260919130000_attendance_audit_events/migration.sql`.
+
+Verification completed: Prisma client generation, backend TypeScript build, frontend production build, and `git diff --check`. Runtime API/database verification remains dependent on applying the attendance exception and audit migrations to the configured SQL Server database.
+
 Scope: Phase 1 audit only. No application code changes were made.
 
 ## Inspection Summary

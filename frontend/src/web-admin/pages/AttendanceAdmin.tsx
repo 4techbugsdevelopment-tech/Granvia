@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { PageHeader, StatTile, Table, Pill } from './_adminUi';
-import { getAdminAttendance, AdminAttendance, updateAdminAttendanceStatus } from '../../services/reportService';
+import { getAdminAttendance, AdminAttendance, AdminAttendanceAuditEvent, updateAdminAttendanceStatus } from '../../services/reportService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { distanceKm } from '../../lib/geoUtils';
 
@@ -24,6 +24,28 @@ function fmtHours(h: number | null): string {
   const hours = Math.floor(h);
   const mins = Math.round((h - hours) * 60);
   return `${hours}h ${mins}m`;
+}
+
+function AuditTrail({ events }: { events: AdminAttendanceAuditEvent[] }) {
+  if (!events.length) return <span className="text-xs text-gray-400">No audit events</span>;
+  return (
+    <details className="min-w-56">
+      <summary className="cursor-pointer text-xs font-semibold text-blue-700">{events.length} audit event{events.length === 1 ? '' : 's'}</summary>
+      <div className="mt-2 max-h-56 space-y-2 overflow-auto text-[10px] text-gray-600">
+        {events.map((event) => (
+          <div key={event.id} className="border-l-2 border-slate-200 pl-2">
+            <div className="font-semibold text-slate-800">{event.event_type.replaceAll('_', ' ')} · {event.actor?.email || event.actor_role || event.actor_user_id || 'system'}</div>
+            <div>{new Date(event.event_at).toLocaleString('en-IN')}</div>
+            {event.device_location_name && <div>Device: {event.device_location_name}</div>}
+            {(event.device_latitude != null && event.device_longitude != null) && <div>GPS: {Number(event.device_latitude).toFixed(5)}, {Number(event.device_longitude).toFixed(5)}</div>}
+            {event.ip_address && <div>IP: {event.ip_address}</div>}
+            {event.user_agent && <div className="break-words">Device: {event.user_agent}</div>}
+            {event.remarks && <div>Reason: {event.remarks}</div>}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 function gpsLink(lat: number | string | null, lng: number | string | null, fallback = '—') {
@@ -154,7 +176,7 @@ export default function AttendanceAdmin() {
             <StatTile label="Pending Verification" value={String(stats?.pending ?? 0)} color="#854d0e" />
           </div>
 
-          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in Location', 'Out', 'Check-out Location', 'Hours', 'Status', 'Settlement', 'Actions']}>
+          <Table headers={['Associate', 'Site', 'Date', 'In', 'Check-in Location', 'Out', 'Check-out Location', 'Hours', 'Status', 'Settlement', 'Audit', 'Actions']}>
             {records.map((r) => (
               <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                 <td className="px-4 py-3.5 text-sm font-semibold text-gray-900">{r.guard_profile?.full_name ?? '—'}</td>
@@ -180,6 +202,7 @@ export default function AttendanceAdmin() {
                     </div>
                   ) : <span className="text-xs text-gray-400">Not settled</span>}
                 </td>
+                <td className="px-4 py-3.5"><AuditTrail events={r.audit_events ?? []} /></td>
                 <td className="px-4 py-3.5">
                   {r.status === 'pending_verification' ? (
                     <div className="flex items-center gap-2">
@@ -195,9 +218,25 @@ export default function AttendanceAdmin() {
               </tr>
             ))}
             {records.length === 0 && (
-              <tr><td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
+              <tr><td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">No attendance records yet</td></tr>
             )}
           </Table>
+
+          {(data?.attendance_requests?.length ?? 0) > 0 && (
+            <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-bold text-slate-900">Attendance Exception Requests</h2>
+              <div className="space-y-3">
+                {data.attendance_requests.map((request) => (
+                  <div key={request.id} className="grid gap-3 rounded-xl border border-slate-100 p-3 text-xs md:grid-cols-[1fr_1fr_1.5fr_1fr]">
+                    <div><div className="font-semibold text-slate-900">{request.guard_profile?.full_name ?? 'Associate'}</div><div>{request.job?.title ?? 'Job'} · {request.request_type.replaceAll('_', ' ')}</div></div>
+                    <div><Pill label={request.status} tone={request.status === 'approved' ? 'green' : request.status === 'rejected' ? 'red' : 'amber'} /></div>
+                    <div><div className="text-slate-700">{request.message}</div>{request.employer_remarks && <div className="mt-1 text-red-600">Decision: {request.employer_remarks}</div>}</div>
+                    <div><div>Submitted: {new Date(request.created_at).toLocaleString('en-IN')}</div>{request.decided_at && <div>Decided: {new Date(request.decided_at).toLocaleString('en-IN')}</div>}<AuditTrail events={request.audit_events ?? []} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </motion.div>

@@ -336,6 +336,7 @@ model JobPost {
   jobOffers         JobOffer[]
   agreements        Agreement[]
   payments          Payment[]
+  attendanceExceptionRequests AttendanceExceptionRequest[]
 
   @@index([employerUserId])
   @@index([companyId])
@@ -506,6 +507,75 @@ model AttendanceLocationAttempt {
   @@index([guardUserId, createdAt])
   @@index([jobId, createdAt])
   @@map("attendance_location_attempts")
+}
+
+model AttendanceExceptionRequest {
+  id                  String    @id @default(uuid()) @db.NVarChar(36)
+  guardUserId          String    @map("guard_user_id") @db.NVarChar(36)
+  employerUserId       String?   @map("employer_user_id") @db.NVarChar(36)
+  companyId            String?   @map("company_id") @db.NVarChar(36)
+  jobId                String    @map("job_id") @db.NVarChar(36)
+  siteId               String?   @map("site_id") @db.NVarChar(36)
+  attendanceRecordId   String?   @map("attendance_record_id") @db.NVarChar(36)
+  requestType          String    @map("request_type") @db.NVarChar(30)
+  status               String    @default("pending") @db.NVarChar(30)
+  message              String    @db.NVarChar(Max)
+  employerRemarks      String?   @map("employer_remarks") @db.NVarChar(Max)
+  deviceLatitude       Decimal?  @map("device_latitude") @db.Decimal(10, 6)
+  deviceLongitude      Decimal?  @map("device_longitude") @db.Decimal(10, 6)
+  deviceLocationName   String?   @map("device_location_name") @db.NVarChar(500)
+  siteLatitude         Decimal?  @map("site_latitude") @db.Decimal(10, 6)
+  siteLongitude        Decimal?  @map("site_longitude") @db.Decimal(10, 6)
+  distanceMeters       Decimal?  @map("distance_meters") @db.Decimal(10, 2)
+  radiusMeters         Int?      @map("radius_meters")
+  failureReason        String?   @map("failure_reason") @db.NVarChar(Max)
+  decidedAt            DateTime? @map("decided_at")
+  decidedBy            String?   @map("decided_by") @db.NVarChar(36)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  job JobPost @relation(fields: [jobId], references: [id])
+
+  @@index([employerUserId, status, createdAt])
+  @@index([guardUserId, status, createdAt])
+  @@index([jobId, createdAt])
+  @@map("attendance_exception_requests")
+}
+
+model AttendanceAuditEvent {
+  id                 String    @id @default(uuid()) @db.NVarChar(36)
+  attendanceRecordId String?   @map("attendance_record_id") @db.NVarChar(36)
+  exceptionRequestId String?   @map("exception_request_id") @db.NVarChar(36)
+  guardUserId        String?   @map("guard_user_id") @db.NVarChar(36)
+  employerUserId     String?   @map("employer_user_id") @db.NVarChar(36)
+  jobId              String?   @map("job_id") @db.NVarChar(36)
+  siteId             String?   @map("site_id") @db.NVarChar(36)
+  actorUserId        String?   @map("actor_user_id") @db.NVarChar(36)
+  actorRole          String?   @map("actor_role") @db.NVarChar(40)
+  eventType          String    @map("event_type") @db.NVarChar(60)
+  eventAt            DateTime  @default(now()) @map("event_at")
+  attendanceDate     DateTime? @map("attendance_date")
+  deviceLatitude     Decimal?  @map("device_latitude") @db.Decimal(10, 6)
+  deviceLongitude    Decimal?  @map("device_longitude") @db.Decimal(10, 6)
+  deviceLocationName String?   @map("device_location_name") @db.NVarChar(500)
+  siteLatitude       Decimal?  @map("site_latitude") @db.Decimal(10, 6)
+  siteLongitude      Decimal?  @map("site_longitude") @db.Decimal(10, 6)
+  distanceMeters     Decimal?  @map("distance_meters") @db.Decimal(10, 2)
+  radiusMeters       Int?      @map("radius_meters")
+  ipAddress          String?   @map("ip_address") @db.NVarChar(100)
+  userAgent          String?   @map("user_agent") @db.NVarChar(1000)
+  origin             String?   @db.NVarChar(500)
+  referer            String?   @db.NVarChar(500)
+  remarks            String?   @db.NVarChar(Max)
+  metadata           String?   @db.NVarChar(Max)
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@index([attendanceRecordId, eventAt])
+  @@index([exceptionRequestId, eventAt])
+  @@index([actorUserId, eventAt])
+  @@index([guardUserId, eventAt])
+  @@index([employerUserId, eventAt])
+  @@map("attendance_audit_events")
 }
 
 model EmployerWallet {

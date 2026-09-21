@@ -10,8 +10,21 @@ export async function listEmployerAttendance(companyId?: string) {
   return (data ?? []).map(remap);
 }
 
+export async function listEmployerAttendanceRequests(companyId?: string) {
+  const { data } = await apiClient.get('/employer/attendance/exception-requests', { params: { company_id: companyId } });
+  return data ?? [];
+}
+
 export async function updateAttendanceStatus(recordId: string, status: 'approved' | 'rejected', employerRemarks?: string) {
   const { data } = await apiClient.patch(`/employer/attendance/${recordId}/status`, {
+    status,
+    employer_remarks: employerRemarks,
+  });
+  return data;
+}
+
+export async function updateAttendanceRequestStatus(requestId: string, status: 'approved' | 'rejected', employerRemarks?: string) {
+  const { data } = await apiClient.patch(`/employer/attendance/exception-requests/${requestId}/status`, {
     status,
     employer_remarks: employerRemarks,
   });
@@ -63,6 +76,27 @@ export async function checkOutAttendance(recordId: string, input: {
     location_name: input.locationName,
   });
   return remap(data);
+}
+
+export async function requestAttendanceException(input: {
+  requestType: 'check_in' | 'check_out';
+  message: string;
+  jobId?: string;
+  attendanceRecordId?: string;
+  latitude?: number;
+  longitude?: number;
+  locationName?: string;
+}) {
+  const { data } = await apiClient.post('/guard/attendance/exception-requests', {
+    request_type: input.requestType,
+    message: input.message,
+    job_id: input.jobId,
+    attendance_record_id: input.attendanceRecordId,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    location_name: input.locationName,
+  });
+  return data;
 }
 
 export async function saveHistoricalAttendance(input: {

@@ -41,6 +41,87 @@ const checkOutSchema = z.object({
   location_name: z.string().trim().max(500).nullish(),
 });
 
+const attendanceExceptionRequestSchema = z.object({
+  request_type: z.enum(['check_in', 'check_out']),
+  job_id: z.string().uuid().nullish(),
+  attendance_record_id: z.string().uuid().nullish(),
+  message: z.string().trim().min(5, 'Please enter a short message for the employer.').max(2000),
+  latitude: latitude.nullish(),
+  longitude: longitude.nullish(),
+  location_name: z.string().trim().max(500).nullish(),
+});
+
+const attendanceExceptionDecisionSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  employer_remarks: z.string().trim().max(2000).nullish(),
+});
+
+type AttendanceAuditDb = Pick<typeof prisma, 'attendanceAuditEvent'>;
+
+type AttendanceAuditInput = {
+  eventType: string;
+  actorUserId?: string | null;
+  actorRole?: string | null;
+  attendanceRecordId?: string | null;
+  exceptionRequestId?: string | null;
+  guardUserId?: string | null;
+  employerUserId?: string | null;
+  jobId?: string | null;
+  siteId?: string | null;
+  attendanceDate?: Date | null;
+  deviceLatitude?: Prisma.Decimal | number | string | null;
+  deviceLongitude?: Prisma.Decimal | number | string | null;
+  deviceLocationName?: string | null;
+  siteLatitude?: Prisma.Decimal | number | string | null;
+  siteLongitude?: Prisma.Decimal | number | string | null;
+  distanceMeters?: Prisma.Decimal | number | string | null;
+  radiusMeters?: number | null;
+  remarks?: string | null;
+  metadata?: Record<string, unknown> | null;
+  requestContext?: { ipAddress?: string | null; userAgent?: string | null; origin?: string | null; referer?: string | null };
+};
+
+function requestAuditContext(req: Request) {
+  const forwarded = req.headers['x-forwarded-for'];
+  return {
+    ipAddress: (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0])?.trim() || req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    origin: req.get('origin') || null,
+    referer: req.get('referer') || null,
+  };
+}
+
+async function writeAttendanceAudit(db: AttendanceAuditDb, input: AttendanceAuditInput) {
+  const context = input.requestContext;
+  await db.attendanceAuditEvent.create({
+    data: {
+      eventType: input.eventType,
+      actorUserId: input.actorUserId ?? null,
+      actorRole: input.actorRole ?? null,
+      attendanceRecordId: input.attendanceRecordId ?? null,
+      exceptionRequestId: input.exceptionRequestId ?? null,
+      guardUserId: input.guardUserId ?? null,
+      employerUserId: input.employerUserId ?? null,
+      jobId: input.jobId ?? null,
+      siteId: input.siteId ?? null,
+      attendanceDate: input.attendanceDate ?? null,
+      deviceLatitude: input.deviceLatitude ?? null,
+      deviceLongitude: input.deviceLongitude ?? null,
+      deviceLocationName: input.deviceLocationName ?? null,
+      siteLatitude: input.siteLatitude ?? null,
+      siteLongitude: input.siteLongitude ?? null,
+      distanceMeters: input.distanceMeters ?? null,
+      radiusMeters: input.radiusMeters ?? null,
+      ipAddress: context?.ipAddress ?? null,
+      userAgent: context?.userAgent ?? null,
+      origin: context?.origin ?? null,
+      referer: context?.referer ?? null,
+      remarks: input.remarks ?? null,
+      metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+    },
+  });
+}
+
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const earthKm = 6371;
@@ -61,6 +142,55 @@ function siteAddress(job: {
   return site?.address || [site?.siteName, site?.city, site?.state, site?.pincode].filter(Boolean).join(', ')
     || company?.registeredAddress || company?.billingAddress || [company?.city, company?.state, company?.pincode].filter(Boolean).join(', ')
     || 'job location';
+}
+
+function geofenceDetails(params: {
+  job: {
+    site?: { latitude?: Prisma.Decimal | number | string | null; longitude?: Prisma.Decimal | number | string | null } | null;
+  };
+  latitude?: number | null;
+  longitude?: number | null;
+}) {
+  const radius = env.attendanceGeofenceRadiusMeters;
+  const siteLat = params.job.site?.latitude == null ? null : Number(params.job.site.latitude);
+  const siteLng = params.job.site?.longitude == null ? null : Number(params.job.site.longitude);
+
+  if (params.latitude == null || params.longitude == null) {
+    return {
+      ok: false,
+      reason: 'Device location was not captured. Attendance can be marked only from the assigned job location.',
+      distance: null,
+      radius,
+      siteLat,
+      siteLng,
+    };
+  }
+
+  if (siteLat == null || siteLng == null || Number.isNaN(siteLat) || Number.isNaN(siteLng)) {
+    return {
+      ok: false,
+      reason: 'Assigned job site is not configured with map coordinates. Request attendance for employer review.',
+      distance: null,
+      radius,
+      siteLat,
+      siteLng,
+    };
+  }
+
+  const distance = distanceMeters(
+    { lat: params.latitude, lng: params.longitude },
+    { lat: siteLat, lng: siteLng },
+  );
+  return {
+    ok: distance <= radius,
+    reason: distance <= radius
+      ? null
+      : `You are not at the assigned job location. Device location is ${Math.round(distance)} m away; allowed radius is ${radius} m.`,
+    distance,
+    radius,
+    siteLat,
+    siteLng,
+  };
 }
 
 function mapAttendanceDatabaseError(error: unknown): HttpError | null {
@@ -130,10 +260,8 @@ async function enforceGeofence(params: {
 }) {
   if (!env.locationCaptureEnabled) return;
 
-  const radius = env.attendanceGeofenceRadiusMeters;
   const targetAddress = siteAddress(params.job);
-  const siteLat = params.job.site?.latitude == null ? null : Number(params.job.site.latitude);
-  const siteLng = params.job.site?.longitude == null ? null : Number(params.job.site.longitude);
+  const details = geofenceDetails(params);
 
   const createReviewAttempt = async (reason: string, distance: number | null) => {
     try {
@@ -145,13 +273,13 @@ async function enforceGeofence(params: {
           jobId: params.job.id,
           siteId: params.job.siteId ?? null,
           attemptType: params.attemptType,
-          status: 'review_required',
+          status: 'blocked',
           deviceLatitude: params.latitude ?? null,
           deviceLongitude: params.longitude ?? null,
-          siteLatitude: siteLat,
-          siteLongitude: siteLng,
+          siteLatitude: details.siteLat,
+          siteLongitude: details.siteLng,
           distanceMeters: distance == null ? null : new Prisma.Decimal(distance.toFixed(2)),
-          radiusMeters: radius,
+          radiusMeters: details.radius,
           reason,
         },
       });
@@ -169,7 +297,7 @@ async function enforceGeofence(params: {
         latitude: params.latitude,
         longitude: params.longitude,
         distance,
-        radius,
+        radius: details.radius,
         reason,
       });
     } catch (error) {
@@ -177,24 +305,23 @@ async function enforceGeofence(params: {
     }
   };
 
-  if (params.latitude == null || params.longitude == null) {
-    await createReviewAttempt('Device location was not captured for this attendance mark.', null);
-    return;
-  }
-
-  if (siteLat == null || siteLng == null || Number.isNaN(siteLat) || Number.isNaN(siteLng)) {
-    const reason = 'Assigned job site is not configured with map coordinates.';
-    await createReviewAttempt(reason, null);
-    return;
-  }
-
-  const distance = distanceMeters(
-    { lat: params.latitude!, lng: params.longitude! },
-    { lat: siteLat, lng: siteLng },
-  );
-  if (distance > radius) {
-    const reason = `Device location is ${Math.round(distance)} m from the assigned job location; allowed radius is ${radius} m.`;
-    await createReviewAttempt(reason, distance);
+  if (!details.ok) {
+    const reason = details.reason ?? 'Device location is outside the assigned job location.';
+    await createReviewAttempt(reason, details.distance);
+    throw new HttpError(422, reason, {
+      attendance_location_error: {
+        request_attendance_available: true,
+        attempt_type: params.attemptType,
+        job_id: params.job.id,
+        device_latitude: params.latitude ?? null,
+        device_longitude: params.longitude ?? null,
+        site_latitude: details.siteLat,
+        site_longitude: details.siteLng,
+        distance_meters: details.distance == null ? null : Math.round(details.distance),
+        radius_meters: details.radius,
+        reason,
+      },
+    });
   }
 }
 
@@ -385,6 +512,7 @@ export async function checkIn(req: Request, res: Response) {
     const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: job.id }, include: { site: true, company: true } });
     if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
     await enforceGeofence({ guardId, job: jobWithLocation, attemptType: 'check_in', latitude: data.latitude, longitude: data.longitude });
+    const geo = geofenceDetails({ job: jobWithLocation, latitude: data.latitude, longitude: data.longitude });
 
     const inTime = new Date();
     const record = await prisma.attendanceRecord.create({
@@ -405,6 +533,26 @@ export async function checkIn(req: Request, res: Response) {
         guardRemarks: data.guard_remarks ?? null,
       },
       include: jobInclude,
+    });
+
+    await writeAttendanceAudit(prisma, {
+      eventType: 'check_in',
+      actorUserId: guardId,
+      actorRole: 'associate',
+      attendanceRecordId: record.id,
+      guardUserId: guardId,
+      employerUserId: job.employerUserId,
+      jobId: job.id,
+      siteId: job.siteId,
+      attendanceDate: today,
+      deviceLatitude: data.latitude,
+      deviceLongitude: data.longitude,
+      deviceLocationName: data.location_name?.trim() || null,
+      siteLatitude: geo.siteLat,
+      siteLongitude: geo.siteLng,
+      distanceMeters: geo.distance,
+      radiusMeters: geo.radius,
+      requestContext: requestAuditContext(req),
     });
 
     return res.status(201).json(snakeKeys(record));
@@ -437,6 +585,7 @@ export async function checkOut(req: Request, res: Response) {
     const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: record.jobId }, include: { site: true, company: true } });
     if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
     await enforceGeofence({ guardId: record.guardUserId, job: jobWithLocation, attemptType: 'check_out', latitude: data.latitude, longitude: data.longitude });
+    const geo = geofenceDetails({ job: jobWithLocation, latitude: data.latitude, longitude: data.longitude });
 
     const outTime = new Date();
     const totalHours = record.inTime
@@ -457,12 +606,130 @@ export async function checkOut(req: Request, res: Response) {
       include: jobInclude,
     });
 
+    await writeAttendanceAudit(prisma, {
+      eventType: 'check_out',
+      actorUserId: req.user!.id,
+      actorRole: 'associate',
+      attendanceRecordId: updated.id,
+      guardUserId: record.guardUserId,
+      employerUserId: record.employerUserId,
+      jobId: record.jobId,
+      siteId: record.siteId,
+      attendanceDate: record.attendanceDate,
+      deviceLatitude: data.latitude,
+      deviceLongitude: data.longitude,
+      deviceLocationName: data.location_name?.trim() || null,
+      siteLatitude: geo.siteLat,
+      siteLongitude: geo.siteLng,
+      distanceMeters: geo.distance,
+      radiusMeters: geo.radius,
+      requestContext: requestAuditContext(req),
+    });
+
     return res.json(snakeKeys(updated));
   } catch (error) {
     const mapped = mapAttendanceDatabaseError(error);
     if (mapped) throw mapped;
     throw error;
   }
+}
+
+/** POST /guard/attendance/exception-requests */
+export async function requestAttendanceException(req: Request, res: Response) {
+  const data = attendanceExceptionRequestSchema.parse(req.body);
+  const guardId = req.user!.id;
+  const today = todayDateOnly();
+
+  let jobId = data.job_id ?? null;
+  let attendanceRecordId = data.attendance_record_id ?? null;
+  let record: Awaited<ReturnType<typeof prisma.attendanceRecord.findUnique>> | null = null;
+
+  if (data.request_type === 'check_out') {
+    if (!attendanceRecordId) throw new HttpError(422, 'Attendance record is required for a check-out request.');
+    record = await prisma.attendanceRecord.findUnique({ where: { id: attendanceRecordId } });
+    if (!record || record.guardUserId !== guardId) throw new HttpError(404, 'Attendance record not found.');
+    if (record.outTime) throw new HttpError(422, 'This attendance is already checked out.');
+    if (!record.jobId) throw new HttpError(422, 'Attendance is not linked to a job.');
+    jobId = record.jobId;
+  }
+
+  const assigned = await assignedJob(guardId, jobId, today);
+  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: assigned.id }, include: { site: true, company: true } });
+  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+  const geo = geofenceDetails({ job: jobWithLocation, latitude: data.latitude, longitude: data.longitude });
+  if (geo.ok) {
+    throw new HttpError(422, 'You are within the assigned job location. Please mark normal attendance instead of requesting an exception.');
+  }
+
+  const existing = await prisma.attendanceExceptionRequest.findFirst({
+    where: {
+      guardUserId: guardId,
+      jobId: assigned.id,
+      requestType: data.request_type,
+      status: 'pending',
+      createdAt: { gte: today },
+    },
+  });
+  if (existing) {
+    throw new HttpError(409, 'A pending attendance request already exists for this job today.');
+  }
+
+  const request = await prisma.attendanceExceptionRequest.create({
+    data: {
+      guardUserId: guardId,
+      employerUserId: assigned.employerUserId,
+      companyId: assigned.companyId,
+      jobId: assigned.id,
+      siteId: assigned.siteId,
+      attendanceRecordId,
+      requestType: data.request_type,
+      message: data.message,
+      deviceLatitude: data.latitude ?? null,
+      deviceLongitude: data.longitude ?? null,
+      deviceLocationName: data.location_name?.trim() || null,
+      siteLatitude: geo.siteLat,
+      siteLongitude: geo.siteLng,
+      distanceMeters: geo.distance == null ? null : new Prisma.Decimal(geo.distance.toFixed(2)),
+      radiusMeters: geo.radius,
+      failureReason: geo.reason,
+    },
+    include: { job: { include: { company: true, site: true } } },
+  });
+
+  await writeAttendanceAudit(prisma, {
+    eventType: 'request_attendance',
+    actorUserId: guardId,
+    actorRole: 'associate',
+    exceptionRequestId: request.id,
+    guardUserId: guardId,
+    employerUserId: assigned.employerUserId,
+    jobId: assigned.id,
+    siteId: assigned.siteId,
+    attendanceDate: today,
+    deviceLatitude: data.latitude,
+    deviceLongitude: data.longitude,
+    deviceLocationName: data.location_name?.trim() || null,
+    siteLatitude: geo.siteLat,
+    siteLongitude: geo.siteLng,
+    distanceMeters: geo.distance,
+    radiusMeters: geo.radius,
+    remarks: data.message,
+    metadata: { request_type: data.request_type, failure_reason: geo.reason },
+    requestContext: requestAuditContext(req),
+  });
+
+  if (assigned.employerUserId) {
+    await prisma.notification.create({
+      data: {
+        userId: assigned.employerUserId,
+        title: 'Attendance request',
+        message: `An Associate requested ${data.request_type === 'check_in' ? 'check-in' : 'check-out'} attendance for ${assigned.title}.`,
+        type: 'attendance_exception',
+      },
+    });
+  }
+
+  return res.status(201).json(snakeKeys(request));
 }
 
 /** POST /guard/attendance/history — create or correct an unapproved past record. */
@@ -522,6 +789,29 @@ export async function saveHistorical(req: Request, res: Response) {
         include: jobInclude,
       });
 
+  await writeAttendanceAudit(prisma, {
+    eventType: 'historical_manual',
+    actorUserId: guardId,
+    actorRole: 'associate',
+    attendanceRecordId: record.id,
+    guardUserId: guardId,
+    employerUserId: job.employerUserId,
+    jobId: job.id,
+    siteId: job.siteId,
+    attendanceDate,
+    deviceLatitude: data.check_in_latitude,
+    deviceLongitude: data.check_in_longitude,
+    deviceLocationName: data.check_in_location_name?.trim() || null,
+    remarks: data.guard_remarks ?? null,
+    metadata: {
+      check_out_latitude: data.check_out_latitude ?? null,
+      check_out_longitude: data.check_out_longitude ?? null,
+      check_out_location_name: data.check_out_location_name?.trim() || null,
+      edited_existing: Boolean(existing),
+    },
+    requestContext: requestAuditContext(req),
+  });
+
   return res.status(existing ? 200 : 201).json(snakeKeys(record));
 }
 
@@ -561,6 +851,20 @@ export async function updateOwnAttendance(req: Request, res: Response) {
     include: jobInclude,
   });
 
+  await writeAttendanceAudit(prisma, {
+    eventType: 'associate_edit',
+    actorUserId: req.user!.id,
+    actorRole: 'associate',
+    attendanceRecordId: updated.id,
+    guardUserId: updated.guardUserId,
+    employerUserId: updated.employerUserId,
+    jobId: updated.jobId,
+    siteId: updated.siteId,
+    attendanceDate: updated.attendanceDate,
+    remarks: data.guard_remarks ?? null,
+    requestContext: requestAuditContext(req),
+  });
+
   return res.json(snakeKeys(updated));
 }
 
@@ -594,7 +898,7 @@ async function notifyRole(role: string, title: string, message: string, type = '
   await prisma.notification.createMany({ data: users.map((user) => ({ userId: user.id, title, message, type })) });
 }
 
-async function decideAttendance(recordId: string, actorId: string, actorRole: 'employer' | 'super_admin', data: z.infer<typeof updateAttendanceSchema>) {
+async function decideAttendance(recordId: string, actorId: string, actorRole: 'employer' | 'super_admin', data: z.infer<typeof updateAttendanceSchema>, requestContext?: ReturnType<typeof requestAuditContext>) {
   const updated = await prisma.$transaction(async (tx) => {
     const record = await tx.attendanceRecord.findUnique({
       where: { id: recordId },
@@ -626,13 +930,26 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
     }
 
     if (data.status === 'rejected') {
-      return tx.attendanceRecord.update({
+      const rejected = await tx.attendanceRecord.update({
         where: { id: record.id },
         data: {
           status: 'rejected',
           employerRemarks: data.employer_remarks!.trim(),
         },
       });
+      await writeAttendanceAudit(tx, {
+        eventType: 'reject_attendance',
+        actorUserId: actorId,
+        actorRole: actorRole === 'super_admin' ? 'super_admin' : 'employer',
+        attendanceRecordId: record.id,
+        guardUserId: record.guardUserId,
+        employerUserId: record.employerUserId,
+        jobId: record.jobId,
+        attendanceDate: record.attendanceDate,
+        remarks: data.employer_remarks!.trim(),
+        requestContext,
+      });
+      return rejected;
     }
 
     if (!record.employerUserId) throw new HttpError(422, 'Attendance is not linked to an employer.');
@@ -716,13 +1033,27 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
       },
     });
 
-    return tx.attendanceRecord.update({
+    const approved = await tx.attendanceRecord.update({
       where: { id: record.id },
       data: {
         status: 'approved',
         employerRemarks: data.employer_remarks?.trim() || `Approved by ${actorRole === 'super_admin' ? 'Super Admin' : 'employer'}`,
       },
     });
+    await writeAttendanceAudit(tx, {
+      eventType: 'approve_attendance',
+      actorUserId: actorId,
+      actorRole: actorRole === 'super_admin' ? 'super_admin' : 'employer',
+      attendanceRecordId: record.id,
+      guardUserId: record.guardUserId,
+      employerUserId: record.employerUserId,
+      jobId: record.jobId,
+      attendanceDate: record.attendanceDate,
+      remarks: data.employer_remarks?.trim() || null,
+      metadata: { settlement_created: true },
+      requestContext,
+    });
+    return approved;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (data.status === 'approved') {
@@ -730,6 +1061,183 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
   }
 
   return updated;
+}
+
+async function materializeExceptionAttendance(requestId: string, actorId: string) {
+  const request = await prisma.attendanceExceptionRequest.findUnique({
+    where: { id: requestId },
+    include: { job: true },
+  });
+  if (!request) throw new HttpError(404, 'Attendance request not found.');
+  if (!request.employerUserId || request.employerUserId !== actorId) throw new HttpError(403, 'Forbidden.');
+  if (request.status !== 'pending') throw new HttpError(422, 'This attendance request has already been decided.');
+
+  const now = new Date();
+  if (request.requestType === 'check_out') {
+    if (!request.attendanceRecordId) throw new HttpError(422, 'Check-out request is not linked to an attendance record.');
+    const record = await prisma.attendanceRecord.findUnique({ where: { id: request.attendanceRecordId } });
+    if (!record || record.guardUserId !== request.guardUserId || record.jobId !== request.jobId) {
+      throw new HttpError(422, 'Linked attendance record could not be found for this request.');
+    }
+    if (!record.inTime) throw new HttpError(422, 'Linked attendance does not have a check-in time.');
+    const outTime = request.createdAt > record.inTime ? request.createdAt : now;
+    if (outTime <= record.inTime) throw new HttpError(422, 'Request time is not after check-in time.');
+    const totalHours = Math.round(((outTime.getTime() - record.inTime.getTime()) / 3_600_000) * 100) / 100;
+    await prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: {
+        outTime,
+        totalHours,
+        checkOutLatitude: request.deviceLatitude,
+        checkOutLongitude: request.deviceLongitude,
+        checkOutLocationName: request.deviceLocationName,
+        checkoutMethod: 'exception_request',
+        status: 'pending_verification',
+        guardRemarks: request.message,
+      },
+    });
+    return record.id;
+  }
+
+  const attendanceDate = new Date(`${indiaDateString(request.createdAt)}T00:00:00.000Z`);
+  const existing = await prisma.attendanceRecord.findFirst({
+    where: { guardUserId: request.guardUserId, jobId: request.jobId, attendanceDate },
+  });
+  if (existing && ['approved', 'verified'].includes(existing.status)) {
+    throw new HttpError(422, 'Attendance for this job and date is already approved.');
+  }
+  const inTime = request.createdAt;
+  const scheduled = scheduledCheckout(inTime, request.job.dutyHours);
+  const outTime = scheduled ?? new Date(inTime.getTime() + 8 * 3_600_000);
+  const totalHours = Math.round(((outTime.getTime() - inTime.getTime()) / 3_600_000) * 100) / 100;
+  const values = {
+    employerUserId: request.employerUserId,
+    companyId: request.companyId,
+    jobId: request.jobId,
+    siteId: request.siteId,
+    attendanceDate,
+    inTime,
+    outTime,
+    scheduledOutTime: outTime,
+    totalHours,
+    checkInLatitude: request.deviceLatitude,
+    checkInLongitude: request.deviceLongitude,
+    checkInLocationName: request.deviceLocationName,
+    entryMode: 'exception_request',
+    checkoutMethod: 'exception_request',
+    status: 'pending_verification',
+    guardRemarks: request.message,
+  } as const;
+  const record = existing
+    ? await prisma.attendanceRecord.update({ where: { id: existing.id }, data: values })
+    : await prisma.attendanceRecord.create({ data: { guardUserId: request.guardUserId, ...values } });
+  return record.id;
+}
+
+/** GET /employer/attendance/exception-requests */
+export async function employerExceptionRequests(req: Request, res: Response) {
+  const companyId = req.query.company_id as string | undefined;
+  const rows = await prisma.attendanceExceptionRequest.findMany({
+    where: { employerUserId: req.user!.id, ...(companyId ? { companyId } : {}) },
+    include: { job: { include: { company: true, site: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  const shaped = snakeKeys(rows) as Array<Record<string, unknown> & { guard_user_id?: string }>;
+  return res.json(await attachGuardProfiles(shaped));
+}
+
+/** PATCH /employer/attendance/exception-requests/:request/status */
+export async function decideExceptionRequest(req: Request, res: Response) {
+  const data = attendanceExceptionDecisionSchema.parse(req.body);
+  const request = await prisma.attendanceExceptionRequest.findUnique({ where: { id: req.params.request } });
+  if (!request) throw new HttpError(404, 'Attendance request not found.');
+  if (request.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
+  if (request.status !== 'pending') throw new HttpError(422, 'This attendance request has already been decided.');
+  if (data.status === 'rejected' && !data.employer_remarks?.trim()) {
+    throw new HttpError(422, 'Reason is required when rejecting an attendance request.');
+  }
+
+  if (data.status === 'rejected') {
+    const rejected = await prisma.attendanceExceptionRequest.update({
+      where: { id: request.id },
+      data: {
+        status: 'rejected',
+        employerRemarks: data.employer_remarks!.trim(),
+        decidedAt: new Date(),
+        decidedBy: req.user!.id,
+      },
+      include: { job: { include: { company: true, site: true } } },
+    });
+    await writeAttendanceAudit(prisma, {
+      eventType: 'reject_exception_request',
+      actorUserId: req.user!.id,
+      actorRole: 'employer',
+      exceptionRequestId: request.id,
+      guardUserId: request.guardUserId,
+      employerUserId: request.employerUserId,
+      jobId: request.jobId,
+      siteId: request.siteId,
+      attendanceDate: request.createdAt,
+      deviceLatitude: request.deviceLatitude,
+      deviceLongitude: request.deviceLongitude,
+      deviceLocationName: request.deviceLocationName,
+      siteLatitude: request.siteLatitude,
+      siteLongitude: request.siteLongitude,
+      distanceMeters: request.distanceMeters,
+      radiusMeters: request.radiusMeters,
+      remarks: data.employer_remarks!.trim(),
+      requestContext: requestAuditContext(req),
+    });
+    await prisma.notification.create({
+      data: {
+        userId: request.guardUserId,
+        title: 'Attendance request rejected',
+        message: data.employer_remarks!.trim(),
+        type: 'attendance_exception',
+      },
+    });
+    return res.json(snakeKeys(rejected));
+  }
+
+  const recordId = await materializeExceptionAttendance(request.id, req.user!.id);
+  await decideAttendance(recordId, req.user!.id, 'employer', {
+    status: 'approved',
+    employer_remarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
+  }, requestAuditContext(req));
+  const approved = await prisma.attendanceExceptionRequest.update({
+    where: { id: request.id },
+    data: {
+      status: 'approved',
+      attendanceRecordId: recordId,
+      employerRemarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
+      decidedAt: new Date(),
+      decidedBy: req.user!.id,
+    },
+    include: { job: { include: { company: true, site: true } } },
+  });
+  await writeAttendanceAudit(prisma, {
+    eventType: 'approve_exception_request',
+    actorUserId: req.user!.id,
+    actorRole: 'employer',
+    exceptionRequestId: request.id,
+    attendanceRecordId: recordId,
+    guardUserId: request.guardUserId,
+    employerUserId: request.employerUserId,
+    jobId: request.jobId,
+    siteId: request.siteId,
+    attendanceDate: request.createdAt,
+    deviceLatitude: request.deviceLatitude,
+    deviceLongitude: request.deviceLongitude,
+    deviceLocationName: request.deviceLocationName,
+    siteLatitude: request.siteLatitude,
+    siteLongitude: request.siteLongitude,
+    distanceMeters: request.distanceMeters,
+    radiusMeters: request.radiusMeters,
+    remarks: data.employer_remarks?.trim() || null,
+    requestContext: requestAuditContext(req),
+  });
+  return res.json(snakeKeys(approved));
 }
 
 /** GET /employer/attendance */
@@ -749,13 +1257,13 @@ export async function employerIndex(req: Request, res: Response) {
 /** PATCH /employer/attendance/:record/status */
 export async function updateStatus(req: Request, res: Response) {
   const data = updateAttendanceSchema.parse(req.body);
-  const updated = await decideAttendance(req.params.record, req.user!.id, 'employer', data);
+  const updated = await decideAttendance(req.params.record, req.user!.id, 'employer', data, requestAuditContext(req));
   return res.json(snakeKeys(updated));
 }
 
 /** PATCH /admin/attendance/:record/status */
 export async function adminUpdateStatus(req: Request, res: Response) {
   const data = updateAttendanceSchema.parse(req.body);
-  const updated = await decideAttendance(req.params.record, req.user!.id, 'super_admin', data);
+  const updated = await decideAttendance(req.params.record, req.user!.id, 'super_admin', data, requestAuditContext(req));
   return res.json(snakeKeys(updated));
 }

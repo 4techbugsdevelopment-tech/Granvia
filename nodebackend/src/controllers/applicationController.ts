@@ -15,6 +15,37 @@ const applySchema = z.object({
   cover_note: z.string().nullish(),
 });
 
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
+
+async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string) {
+  const [application, offer] = await Promise.all([
+    prisma.jobApplication.findFirst({
+      where: {
+        guardUserId,
+        jobId: { not: jobId },
+        status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+      },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.jobOffer.findFirst({
+      where: {
+        guardUserId,
+        jobId: { not: null },
+        NOT: { jobId },
+        status: { in: ACTIVE_OFFER_STATUSES },
+      },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
+  const activeTitle = application?.job?.title ?? offer?.job?.title;
+  if (application || offer) {
+    throw new HttpError(422, `You already have an active job${activeTitle ? ` (${activeTitle})` : ''}. You are not eligible to apply for another job until the current assignment is closed.`);
+  }
+}
+
 /** POST /guard/jobs/:job/apply */
 export async function apply(req: Request, res: Response) {
   const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
@@ -38,6 +69,8 @@ export async function apply(req: Request, res: Response) {
   if (job.guardType !== associateType) {
     throw new HttpError(403, 'This job is for a different associate type.');
   }
+
+  await assertNoOtherActiveAssignment(req.user!.id, job.id);
 
   const existing = await prisma.jobApplication.findFirst({ where: { jobId: job.id, guardUserId: req.user!.id } });
   if (existing) throw new HttpError(409, 'You have already applied for this job.');
@@ -259,6 +292,9 @@ export async function updateStatus(req: Request, res: Response) {
 
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
+  if (ACTIVE_ASSIGNMENT_STATUSES.includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     await enforceJobCapacityForApplication(tx, application, data.status);
@@ -321,6 +357,9 @@ export async function adminUpdateStatus(req: Request, res: Response) {
   const application = await applicationWithScope(req.params.application, req.user!, true);
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
+  if (ACTIVE_ASSIGNMENT_STATUSES.includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
+  }
   const updated = await prisma.$transaction(async (tx) => {
     await enforceJobCapacityForApplication(tx, application, data.status);
     const next = await tx.jobApplication.update({ where: { id: application.id }, data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } });

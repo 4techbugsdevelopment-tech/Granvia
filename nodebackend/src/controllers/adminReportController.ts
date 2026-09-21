@@ -59,6 +59,35 @@ export async function attendance(req: Request, res: Response) {
       })
     : [];
   const paymentsByAttendance = new Map(payments.map((payment) => [payment.attendanceId, payment]));
+  const exceptionRequests = await prisma.attendanceExceptionRequest.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: { job: { select: { id: true, title: true, site: { select: { id: true, siteName: true, latitude: true, longitude: true } }, company: { select: { id: true, companyName: true } } } } },
+  });
+  const requestIds = exceptionRequests.map((request) => request.id);
+  const auditEvents = await prisma.attendanceAuditEvent.findMany({
+    where: {
+      OR: [
+        ...(recordIds.length ? [{ attendanceRecordId: { in: recordIds } }] : []),
+        ...(requestIds.length ? [{ exceptionRequestId: { in: requestIds } }] : []),
+      ],
+    },
+    orderBy: { eventAt: 'asc' },
+  });
+  const actorIds = [...new Set(auditEvents.map((event) => event.actorUserId).filter(Boolean) as string[])];
+  const actors = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true, role: true } })
+    : [];
+  const actorById = new Map(actors.map((actor) => [actor.id, actor]));
+  const auditsByRecord = new Map<string, Array<Record<string, unknown>>>();
+  const auditsByRequest = new Map<string, Array<Record<string, unknown>>>();
+  for (const event of auditEvents) {
+    const shaped = { ...snakeKeys(event), actor: event.actorUserId ? actorById.get(event.actorUserId) ?? null : null } as Record<string, unknown>;
+    if (event.attendanceRecordId) auditsByRecord.set(event.attendanceRecordId, [...(auditsByRecord.get(event.attendanceRecordId) ?? []), shaped]);
+    if (event.exceptionRequestId) auditsByRequest.set(event.exceptionRequestId, [...(auditsByRequest.get(event.exceptionRequestId) ?? []), shaped]);
+  }
+  const requestRows = snakeKeys(exceptionRequests) as Array<Record<string, unknown> & { guard_user_id?: string; id: string }>;
+  const enrichedRequests = await attachGuardProfiles(requestRows);
 
   return res.json({
     stats: {
@@ -69,9 +98,14 @@ export async function attendance(req: Request, res: Response) {
     },
     records: enriched.map((record) => ({
       ...record,
+      audit_events: auditsByRecord.get(record.id as string) ?? [],
       settlement: paymentsByAttendance.get(record.id as string)
         ? snakeKeys(paymentsByAttendance.get(record.id as string)!)
         : null,
+    })),
+    attendance_requests: enrichedRequests.map((request) => ({
+      ...request,
+      audit_events: auditsByRequest.get(request.id as string) ?? [],
     })),
   });
 }

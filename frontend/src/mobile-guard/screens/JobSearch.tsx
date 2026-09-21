@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Clock, CheckCircle, X, Briefcase, Map as MapIcon, List, AlertCircle } from 'lucide-react';
 import { listActiveJobs } from '../../services/jobService';
-import { applyForJob, listMyAppliedJobIds } from '../../services/applicationService';
+import { applyForJob, listMyAppliedJobIds, listMyApplications } from '../../services/applicationService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import JobRadiusMap from '../../components/map/JobRadiusMap';
 
@@ -20,14 +20,18 @@ export default function JobSearch() {
   const [applySuccess, setApplySuccess] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
+  const [activeAssignment, setActiveAssignment] = useState<any | null>(null);
+
+  const activeStatuses = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired']);
 
   useEffect(() => {
     let mounted = true;
-    const load = () => Promise.all([listActiveJobs(), listMyAppliedJobIds()])
-      .then(([jobData, appliedSet]) => {
+    const load = () => Promise.all([listActiveJobs(), listMyAppliedJobIds(), listMyApplications()])
+      .then(([jobData, appliedSet, applications]) => {
         if (!mounted) return;
         setJobs(jobData ?? []);
         setAppliedIds(appliedSet);
+        setActiveAssignment((applications ?? []).find((app: any) => activeStatuses.has(String(app.status ?? '').toLowerCase())) ?? null);
         setError(null);
       })
       .catch(e => { if (mounted) setError(e.message); })
@@ -71,6 +75,14 @@ export default function JobSearch() {
 
   const handleApply = async (job: any) => {
     if (appliedIds.has(job.id) || applyingId) return;
+    const activeJobId = activeAssignment?.job_id ?? activeAssignment?.job?.id;
+    if (activeJobId && activeJobId !== job.id) {
+      const activeTitle = activeAssignment?.job?.title ? ` (${activeAssignment.job.title})` : '';
+      const message = `You already have an active job${activeTitle}. You are not eligible to apply for another job until the current assignment is closed.`;
+      setApplyError(message);
+      window.alert(message);
+      return;
+    }
     setApplyingId(job.id);
     setApplyError(null);
     try {

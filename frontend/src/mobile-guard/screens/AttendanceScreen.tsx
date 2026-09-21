@@ -6,6 +6,7 @@ import {
   listMyAttendance,
   checkInAttendance,
   checkOutAttendance,
+  requestAttendanceException,
   saveHistoricalAttendance,
   updateMyAttendance,
   getAttendanceConfiguration,
@@ -13,6 +14,20 @@ import {
 import { listMyApplications } from '../../services/applicationService';
 import { getCurrentPosition, reverseGeocode } from '../../lib/geoUtils';
 import { getErrorMessage } from '../../services/apiErrors';
+
+type CapturedLocation = {
+  lat: number;
+  lng: number;
+  locationName: string;
+};
+
+type AttendanceRequestPrompt = {
+  type: 'in' | 'out';
+  position: CapturedLocation | null;
+  jobId?: string;
+  attendanceRecordId?: string;
+  reason: string;
+};
 
 function formatTime(value: string | null | undefined) {
   if (!value) return null;
@@ -135,6 +150,10 @@ export default function AttendanceScreen() {
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(now));
   const [locationRequired, setLocationRequired] = useState<boolean | null>(null);
+  const [requestPrompt, setRequestPrompt] = useState<AttendanceRequestPrompt | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [requestSaving, setRequestSaving] = useState(false);
 
   const showError = (cause: unknown, fallback = 'Unable to complete this action.') => {
     const message = getErrorMessage(cause, fallback);
@@ -142,7 +161,7 @@ export default function AttendanceScreen() {
     setFlashError(message);
   };
 
-  const captureDeviceLocation = async () => {
+  const captureDeviceLocation = async (): Promise<CapturedLocation | null> => {
     const position = await getCurrentPosition();
     if (!position) {
       return null;
@@ -183,9 +202,10 @@ export default function AttendanceScreen() {
     setMarking(true);
     setError(null);
     setFlashError(null);
+    let position: CapturedLocation | null = null;
     try {
       if (locationRequired === null) throw new Error('Attendance settings are still loading. Please try again.');
-      const position = await captureDeviceLocation();
+      position = await captureDeviceLocation();
       if (type === 'in') {
         const record = await checkInAttendance({
           latitude: position?.lat,
@@ -206,9 +226,55 @@ export default function AttendanceScreen() {
       setTimeout(() => setSuccessType(null), 2000);
     } catch (e: any) {
       showError(e, type === 'in' ? 'Could not check in.' : 'Could not check out.');
+      const locationError = e?.response?.data?.attendance_location_error;
+      if (locationError?.request_attendance_available) {
+        setRequestPrompt({
+          type,
+          position: locationError.device_latitude != null && locationError.device_longitude != null
+            ? {
+                lat: Number(locationError.device_latitude),
+                lng: Number(locationError.device_longitude),
+                locationName: position?.locationName ?? `Device GPS ${coordinateLabel(Number(locationError.device_latitude), Number(locationError.device_longitude))}`,
+              }
+            : position,
+          jobId: type === 'in' ? currentJobId : todayRecord?.job_id ?? todayRecord?.job_posts?.id,
+          attendanceRecordId: type === 'out' ? todayRecord?.id : undefined,
+          reason: locationError.reason ?? getErrorMessage(e),
+        });
+        setShowRequestModal(false);
+        setRequestMessage('');
+      }
     } finally {
       setMarking(false);
       setPulseActive(false);
+    }
+  };
+
+  const submitAttendanceRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!requestPrompt) return;
+    setRequestSaving(true);
+    setError(null);
+    setFlashError(null);
+    try {
+      await requestAttendanceException({
+        requestType: requestPrompt.type === 'in' ? 'check_in' : 'check_out',
+        message: requestMessage,
+        jobId: requestPrompt.jobId,
+        attendanceRecordId: requestPrompt.attendanceRecordId,
+        latitude: requestPrompt.position?.lat,
+        longitude: requestPrompt.position?.lng,
+        locationName: requestPrompt.position?.locationName,
+      });
+      setRequestPrompt(null);
+      setShowRequestModal(false);
+      setRequestMessage('');
+      setSuccessType('history');
+      setTimeout(() => setSuccessType(null), 2000);
+    } catch (e: any) {
+      showError(e, 'Could not submit attendance request.');
+    } finally {
+      setRequestSaving(false);
     }
   };
 
@@ -345,6 +411,18 @@ export default function AttendanceScreen() {
       {error && (
         <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs">
           <AlertCircle size={13} className="flex-shrink-0" />{error}
+        </div>
+      )}
+      {requestPrompt && (
+        <div className="mx-4 mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-semibold text-amber-800">{requestPrompt.reason}</p>
+          <button
+            type="button"
+            onClick={() => setShowRequestModal(true)}
+            className="mt-2 w-full rounded-xl bg-amber-700 px-3 py-2.5 text-sm font-bold text-white"
+          >
+            Request Attendance
+          </button>
         </div>
       )}
 
@@ -685,6 +763,34 @@ export default function AttendanceScreen() {
       </div>
 
       <AnimatePresence>
+        {requestPrompt && showRequestModal && (
+          <motion.div className="fixed inset-0 z-[95] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !requestSaving && setShowRequestModal(false)}>
+            <motion.form onSubmit={submitAttendanceRequest} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Request attendance</h3>
+                  <p className="mt-1 text-xs text-gray-500">{requestPrompt.type === 'in' ? 'Check-in' : 'Check-out'} could not be marked from your current location.</p>
+                </div>
+                <button type="button" onClick={() => setShowRequestModal(false)} className="p-2 rounded-lg bg-gray-50 text-gray-500"><X size={15} /></button>
+              </div>
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">{requestPrompt.reason}</p>
+              {requestPrompt.position && (
+                <p className="mt-2 text-[11px] text-gray-500">Device: {requestPrompt.position.locationName}</p>
+              )}
+              <label className="mt-3 block text-xs font-semibold text-gray-600">
+                Message to employer
+                <textarea
+                  value={requestMessage}
+                  onChange={event => setRequestMessage(event.target.value)}
+                  rows={4}
+                  placeholder="Explain why attendance should be approved for this location exception."
+                  className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+                />
+              </label>
+              <button type="submit" disabled={requestSaving || requestMessage.trim().length < 5} className="mt-4 w-full rounded-xl bg-[#0f1e3c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{requestSaving ? 'Submitting...' : 'Submit request'}</button>
+            </motion.form>
+          </motion.div>
+        )}
         {editingRecord && (
           <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !editSaving && setEditingRecord(null)}>
             <motion.form onSubmit={saveEdit} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>

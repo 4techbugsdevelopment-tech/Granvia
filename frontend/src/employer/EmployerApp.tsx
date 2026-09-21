@@ -18,7 +18,7 @@ import { listMyCompanies, createCompany, updateCompany, deleteCompany } from '..
 import { listCompanySites, createCompanySite, updateCompanySite, deleteCompanySite } from '../services/siteService';
 import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '../services/jobService';
 import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview } from '../services/applicationService';
-import { listEmployerAttendance, updateAttendanceStatus } from '../services/attendanceService';
+import { listEmployerAttendance, listEmployerAttendanceRequests, updateAttendanceRequestStatus, updateAttendanceStatus } from '../services/attendanceService';
 import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
 import { getEmployerWallet, listWalletTransactions, rechargeEmployerWallet } from '../services/walletService';
 import {
@@ -2561,12 +2561,21 @@ function AttendanceLocation({ lat, lng, name, site, fallback = '--' }: { lat: an
 
 function AttendancePage({ company, onChanged }: { company: any; onChanged: () => void }) {
   const [records, setRecords] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
+  const loadAttendanceReview = () => Promise.all([
+    listEmployerAttendance(company.id),
+    listEmployerAttendanceRequests(company.id),
+  ]).then(([attendanceRows, requestRows]) => {
+    setRecords(attendanceRows);
+    setRequests(requestRows);
+  });
+
   useEffect(() => {
-    listEmployerAttendance(company.id).then(setRecords).catch(console.error);
+    loadAttendanceReview().catch(console.error);
   }, [company.id]);
 
   const update = async (record: any, status: 'approved' | 'rejected') => {
@@ -2579,14 +2588,35 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     setNotice('');
     try {
       await updateAttendanceStatus(record.id, status, remarks);
-      const refreshed = await listEmployerAttendance(company.id);
-      setRecords(refreshed);
+      await loadAttendanceReview();
       const message = status === 'approved' ? 'Attendance approved successfully.' : 'Attendance rejected successfully.';
       setNotice(message);
       window.alert(message);
       onChanged();
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || 'Unable to update attendance.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const decideRequest = async (request: any, status: 'approved' | 'rejected') => {
+    const remarks = window.prompt(status === 'approved' ? 'Approval remarks for this attendance request:' : 'Enter rejection reason for this attendance request:');
+    if (remarks === null) return;
+    setBusyId(request.id);
+    setError('');
+    setNotice('');
+    try {
+      await updateAttendanceRequestStatus(request.id, status, remarks);
+      await loadAttendanceReview();
+      const message = status === 'approved'
+        ? 'Attendance request approved and wallet settlement started.'
+        : 'Attendance request rejected.';
+      setNotice(message);
+      window.alert(message);
+      onChanged();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err.message || 'Unable to update attendance request.');
     } finally {
       setBusyId(null);
     }
@@ -2600,6 +2630,47 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
           <p className="mt-1 text-sm text-gray-500">Review completed associate attendance and approve valid shifts for payment.</p>
           {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
           {notice && <div className="mt-2"><SuccessBanner message={notice} onClose={() => setNotice('')} /></div>}
+        </div>
+        <div className="mb-5 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Attendance Requests</h3>
+              <p className="text-xs text-amber-800">Location exception requests submitted by Associates.</p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-amber-800">{requests.filter((request: any) => request.status === 'pending').length} pending</span>
+          </div>
+          {requests.length === 0 ? (
+            <p className="rounded-xl bg-white/70 px-3 py-3 text-center text-xs text-amber-800">No attendance requests.</p>
+          ) : (
+            <div className="space-y-3">
+              {requests.map((request: any) => (
+                <div key={request.id} className="rounded-xl bg-white p-3 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900">{request.guard_profiles?.full_name ?? 'Associate'}</p>
+                      <p className="text-xs text-gray-500">{request.job?.title ?? 'Job'} · {String(request.request_type).replace('_', ' ')} · {new Date(request.created_at).toLocaleString('en-IN')}</p>
+                    </div>
+                    {statusBadge(request.status)}
+                  </div>
+                  <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">{request.message}</p>
+                  {request.failure_reason && <p className="mt-2 text-xs font-semibold text-red-700">{request.failure_reason}</p>}
+                  <div className="mt-2 grid gap-2 text-[11px] text-slate-500 md:grid-cols-2">
+                    <div>Device: <AttendanceGps lat={request.device_latitude} lng={request.device_longitude} fallback="Not captured" /></div>
+                    <div>Site: <AttendanceGps lat={request.site_latitude} lng={request.site_longitude} fallback="Not set" /></div>
+                    {request.device_location_name && <div className="md:col-span-2">{request.device_location_name}</div>}
+                    {request.distance_meters != null && <div>{Math.round(Number(request.distance_meters))} m from site, allowed {request.radius_meters ?? '--'} m</div>}
+                    {request.employer_remarks && <div className="md:col-span-2">Employer reason: {request.employer_remarks}</div>}
+                  </div>
+                  {request.status === 'pending' && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button disabled={busyId === request.id} onClick={() => decideRequest(request, 'approved')} className="table-action tone-green">Approve & Settle</button>
+                      <button disabled={busyId === request.id} onClick={() => decideRequest(request, 'rejected')} className="table-action tone-red">Reject</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in Location', 'Check-out Location', 'Hours', 'Status', 'Actions']}>
           {records.map((r: any) => {

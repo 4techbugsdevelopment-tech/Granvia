@@ -40,6 +40,29 @@ const guardUpdateSchema = z.object({
   remarks: z.string().nullish(),
 });
 
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
+
+async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string | null) {
+  if (!jobId) return;
+  const [application, offer] = await Promise.all([
+    prisma.jobApplication.findFirst({
+      where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.jobOffer.findFirst({
+      where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_OFFER_STATUSES } },
+      include: { job: { select: { title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
+  const activeTitle = application?.job?.title ?? offer?.job?.title;
+  if (application || offer) {
+    throw new HttpError(422, `You already have an active job${activeTitle ? ` (${activeTitle})` : ''}. You are not eligible to accept another job until the current assignment is closed.`);
+  }
+}
+
 function agreementNumber(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const bytes = crypto.randomBytes(8);
@@ -142,6 +165,9 @@ export async function guardUpdate(req: Request, res: Response) {
     },
     data.status
   );
+  if (plan.applicationStatus) {
+    await assertNoOtherActiveAssignment(row.guardUserId, row.jobId);
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     if (plan.applicationStatus && application) {

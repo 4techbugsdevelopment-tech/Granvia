@@ -41,11 +41,41 @@ export type AdminAttendanceRecord = {
   total_hours: number | null;
   status: string;
   settlement: { id: string; amount: number | string; payment_status: string; payment_date: string | null } | null;
+  audit_events: AdminAttendanceAuditEvent[];
+};
+
+export type AdminAttendanceAuditEvent = {
+  id: string;
+  event_type: string;
+  event_at: string;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  actor: { id: string; email: string; role: string } | null;
+  device_latitude: number | string | null;
+  device_longitude: number | string | null;
+  device_location_name: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  remarks: string | null;
+};
+
+export type AdminAttendanceRequest = {
+  id: string;
+  request_type: string;
+  status: string;
+  message: string;
+  employer_remarks: string | null;
+  created_at: string;
+  decided_at: string | null;
+  guard_profile: { full_name: string | null } | null;
+  job: { title: string | null; site: { site_name: string | null } | null } | null;
+  audit_events: AdminAttendanceAuditEvent[];
 };
 
 export type AdminAttendance = {
   stats: { checked_in_today: number; active: number; verified: number; pending: number };
   records: AdminAttendanceRecord[];
+  attendance_requests: AdminAttendanceRequest[];
 };
 
 export type AdminAttendanceFilters = Partial<{
