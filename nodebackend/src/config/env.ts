@@ -11,12 +11,12 @@ function required(name: string): string {
 }
 
 const port = Number(process.env.PORT ?? 8000);
-const appUrl = process.env.APP_URL ?? `http://127.0.0.1:${port}`;
+const liveApiUrl = 'https://aip.granvia.llc';
+const liveFrontendUrl = 'https://granvia.llc';
+const appUrl = process.env.APP_URL ?? liveApiUrl;
 const publicApiUrl = process.env.PUBLIC_API_URL
   ?? process.env.API_PUBLIC_URL
-  ?? (process.env.NODE_ENV === 'production' && /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|\/|$)/i.test(appUrl)
-    ? 'https://aip.granvia.llc'
-    : appUrl);
+  ?? appUrl;
 const enabled = (value: string | undefined, defaultValue = false) =>
   value == null ? defaultValue : /^(1|true|yes|on)$/i.test(value.trim());
 
@@ -26,7 +26,7 @@ export const env = {
   appUrl,
   publicApiUrl,
   fileSigningSecret: process.env.FILE_SIGNING_SECRET ?? 'granvia-dev-file-secret',
-  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  frontendUrl: process.env.FRONTEND_URL ?? liveFrontendUrl,
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((o) => o.trim())
@@ -58,8 +58,8 @@ export const env = {
     sandboxMode: /^(1|true|yes|on)$/i.test(process.env.ESIGN_SANDBOX_MODE ?? ''),
     agreementVersion: process.env.ESIGN_AGREEMENT_VERSION ?? 'AP-2026-V1',
     templateVersion: process.env.ESIGN_TEMPLATE_VERSION ?? 'AP-TEMPLATE-2026-V1',
-    callbackUrl: process.env.ESIGN_CALLBACK_URL ?? `${process.env.APP_URL ?? `http://127.0.0.1:${port}`}/api/esign/callback`,
-    returnUrl: process.env.ESIGN_RETURN_URL ?? `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/universal-app/associate?esign_return=1`,
+    callbackUrl: process.env.ESIGN_CALLBACK_URL ?? `${appUrl}/api/esign/callback`,
+    returnUrl: process.env.ESIGN_RETURN_URL ?? `${process.env.FRONTEND_URL ?? liveFrontendUrl}/universal-app/associate?esign_return=1`,
     requiredDocumentTypes: (process.env.ESIGN_REQUIRED_DOCUMENT_TYPES ?? 'id_proof,bank_proof')
       .split(',')
       .map((value) => value.trim())

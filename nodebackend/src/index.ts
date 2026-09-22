@@ -36,6 +36,6 @@ app.use(errorHandler);
 
 app.listen(env.port, () => {
   // eslint-disable-next-line no-console
-  console.log(`Granvia Node backend listening on http://127.0.0.1:${env.port}/api`);
+  console.log(`Granvia Node backend listening on ${env.appUrl}/api`);
   startAttendanceAutoCheckout();
 });
