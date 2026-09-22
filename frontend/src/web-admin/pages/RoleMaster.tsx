@@ -156,11 +156,11 @@ export default function RoleMaster() {
 
       {open && (
         <div
-          className={editing ? 'fixed inset-0 z-[70] flex items-center justify-center p-4' : 'fixed inset-0 z-[70] overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6 sm:py-8'}
+          className={editing ? 'fixed inset-0 z-[70] overflow-y-auto p-3 sm:p-4' : 'fixed inset-0 z-[70] overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6 sm:py-8'}
           style={editing ? { background: 'rgba(15,27,56,0.45)' } : undefined}
           onClick={editing ? () => setOpen(false) : undefined}
         >
-          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={editing ? 'w-full max-w-3xl rounded-2xl bg-white p-6' : 'mx-auto min-h-full w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={(e) => e.stopPropagation()}>
+          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={editing ? 'mx-auto my-3 max-h-[calc(100vh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 sm:my-4 sm:max-h-[calc(100vh-2rem)] sm:p-6' : 'mx-auto min-h-full w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={(e) => e.stopPropagation()}>
             {!editing && (
               <button type="button" onClick={() => setOpen(false)} className="mb-5 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <ArrowLeft size={18} /> Back to Roles

@@ -205,12 +205,6 @@ const updateStatusSchema = z.object({
 
 const schedulingSchema = z.object({ remarks: z.string().trim().min(1).max(4000) });
 
-function googleMapsLinkForCompany(company: { companyName: string; registeredAddress: string | null; billingAddress: string | null } | null) {
-  const address = company?.registeredAddress || company?.billingAddress || '';
-  const query = [company?.companyName, address].filter(Boolean).join(', ');
-  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : '';
-}
-
 function interviewNotificationMessage(application: {
   job: {
     title: string;
@@ -220,12 +214,10 @@ function interviewNotificationMessage(application: {
   const company = application.job.company;
   const companyName = company?.companyName || 'Employer';
   const address = company?.registeredAddress || company?.billingAddress || 'Address not available';
-  const mapLink = googleMapsLinkForCompany(company);
   return [
     `Your interview for ${application.job.title} has been scheduled.`,
     `Employer: ${companyName}`,
     `Address: ${address}`,
-    mapLink ? `Google Maps: ${mapLink}` : null,
     `Remarks: ${remarks}`,
   ].filter(Boolean).join('\n');
 }

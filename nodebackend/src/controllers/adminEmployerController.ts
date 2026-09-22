@@ -8,6 +8,7 @@ import { serializeUserRow } from '../serializers/userSerializer';
 import { env } from '../config/env';
 import { sendEmployerWelcome } from '../services/mailService';
 import { urlFor } from '../utils/fileStorage';
+import { requestBaseUrl } from '../utils/requestBaseUrl';
 import { assertActiveCityState } from './locationMasterController';
 import { generateStrongPassword, humanNameSchema, indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema, strongPasswordSchema } from '../utils/validation';
 
@@ -65,7 +66,8 @@ async function assertUnique(email?: string, mobile?: string, ignoreId?: string) 
 }
 
 /** GET /admin/employers */
-export async function index(_req: Request, res: Response) {
+export async function index(req: Request, res: Response) {
+  const baseUrl = requestBaseUrl(req);
   const employers = await prisma.user.findMany({
     where: { role: 'employer' },
     include: { employerProfile: true, employerWallet: true },
@@ -91,7 +93,7 @@ export async function index(_req: Request, res: Response) {
     documents: documents.map((document) => ({
       ...snakeKeys(document),
       // Admins receive a newly signed link instead of the expired upload-time URL.
-      download_url: urlFor('company-documents', document.filePath),
+      download_url: urlFor('company-documents', document.filePath, baseUrl),
     })),
     sites: serializeOut(sites, ['address']),
     jobs: snakeKeys(jobs),
@@ -299,7 +301,7 @@ export async function updateCompanyDocumentStatus(req: Request, res: Response) {
 
   return res.json({
     ...snakeKeys(updated),
-    download_url: urlFor('company-documents', updated.filePath),
+    download_url: urlFor('company-documents', updated.filePath, requestBaseUrl(req)),
   });
 }
 

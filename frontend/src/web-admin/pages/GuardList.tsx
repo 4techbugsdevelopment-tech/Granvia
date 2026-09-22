@@ -409,7 +409,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       <AnimatePresence>
         {selectedGuard && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4"
             style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -417,7 +417,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
             onClick={() => setSelectedGuard(null)}
           >
             <motion.div
-              className="w-full max-w-2xl rounded-2xl overflow-hidden"
+              className="mx-auto my-3 flex max-h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl sm:my-4 sm:max-h-[calc(100vh-2rem)]"
               style={{ background: 'white', boxShadow: '0 24px 60px rgba(0,0,0,0.2)' }}
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
@@ -426,7 +426,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
             >
               {/* Profile header */}
               <div
-                className="px-8 py-6 flex items-center gap-6"
+                className="flex shrink-0 items-center gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-6"
                 style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}
               >
                 <div
@@ -459,6 +459,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                 </button>
               </div>
 
+              <div className="flex-1 overflow-y-auto">
               {editingGuard && (
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-gray-100">
                   {([ 
@@ -492,7 +493,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                 </div>
               )}
 
-              <div className={`p-6 grid-cols-2 gap-6 max-h-96 overflow-y-auto ${editingGuard ? 'hidden' : 'grid'}`}>
+              <div className={`grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:gap-6 sm:p-6 ${editingGuard ? 'hidden' : 'grid'}`}>
                 {[
                   { label: 'Gender', value: selectedGuard.gender },
                   { label: 'Associate Type', value: selectedGuard.profileTypeLabel },
@@ -607,7 +608,8 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-100 px-5 py-4 sm:gap-3 sm:px-6">
                 <button
                   onClick={() => removeGuard()}
                   disabled={guardSaving}

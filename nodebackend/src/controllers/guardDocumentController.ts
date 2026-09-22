@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { storeFile, urlFor, IncomingFile } from '../utils/fileStorage';
 import { validateUploadFile } from '../utils/validation';
+import { requestBaseUrl } from '../utils/requestBaseUrl';
 
 // Port of the guard-facing methods of App\Http\Controllers\GuardDocumentController.
 
@@ -17,9 +18,9 @@ const storeSchema = z.object({
   document_type: z.enum(DOCUMENT_TYPES),
 });
 
-function withUrl(doc: Record<string, unknown>) {
+function withUrl(doc: Record<string, unknown>, baseUrl: string) {
   const out = snakeKeys(doc) as Record<string, unknown>;
-  out.download_url = urlFor('guard-documents', doc.filePath as string);
+  out.download_url = urlFor('guard-documents', doc.filePath as string, baseUrl);
   return out;
 }
 
@@ -30,7 +31,8 @@ export async function index(req: Request, res: Response) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return res.json(docs.map((d) => withUrl(d as unknown as Record<string, unknown>)));
+  const baseUrl = requestBaseUrl(req);
+  return res.json(docs.map((d) => withUrl(d as unknown as Record<string, unknown>, baseUrl)));
 }
 
 /** POST /guard/documents (multipart: document_type + file) */
@@ -67,7 +69,7 @@ export async function store(req: Request, res: Response) {
     });
   }
 
-  return res.status(201).json(withUrl(document as unknown as Record<string, unknown>));
+  return res.status(201).json(withUrl(document as unknown as Record<string, unknown>, requestBaseUrl(req)));
 }
 
 // --- admin ----------------------------------------------------------------
@@ -86,7 +88,8 @@ export async function adminIndex(req: Request, res: Response) {
     where: { guardUserId: guard.id },
     orderBy: { createdAt: 'desc' },
   });
-  return res.json(docs.map((d) => withUrl(d as unknown as Record<string, unknown>)));
+  const baseUrl = requestBaseUrl(req);
+  return res.json(docs.map((d) => withUrl(d as unknown as Record<string, unknown>, baseUrl)));
 }
 
 /** PATCH /admin/guard-documents/:document */
@@ -113,5 +116,5 @@ export async function adminUpdateStatus(req: Request, res: Response) {
     });
   }
 
-  return res.json(withUrl(updated as unknown as Record<string, unknown>));
+  return res.json(withUrl(updated as unknown as Record<string, unknown>, requestBaseUrl(req)));
 }

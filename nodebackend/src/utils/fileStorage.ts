@@ -38,14 +38,15 @@ export function verifySignature(storedPath: string, expires: number, signature: 
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export function urlFor(category: string, storedPath: string): string {
+export function urlFor(category: string, storedPath: string, baseUrl = env.appUrl): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
   if (isPrivate(category)) {
     const expires = Date.now() + 10 * 60 * 1000;
     const signature = sign(storedPath, expires);
     const query = `path=${encodeURIComponent(storedPath)}&expires=${expires}&signature=${signature}`;
-    return `${env.appUrl}/api/files/download?${query}`;
+    return `${normalizedBaseUrl}/api/files/download?${query}`;
   }
-  return `${env.appUrl}/storage/${storedPath}`;
+  return `${normalizedBaseUrl}/storage/${storedPath}`;
 }
 
 export function storeFile(category: string, ownerId: string, file: IncomingFile) {

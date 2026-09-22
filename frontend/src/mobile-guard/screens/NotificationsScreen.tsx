@@ -24,6 +24,7 @@ interface EmployerNotificationDetails {
   employer: string;
   address: string;
   mapLink: string;
+  remarks: string;
   message: string;
 }
 
@@ -59,21 +60,51 @@ function relativeTime(iso?: string): string {
   return d === 1 ? '1 day ago' : `${d} days ago`;
 }
 
-function lineValue(message: string, label: string): string {
-  const line = message.split(/\r?\n/).find((entry) => entry.toLowerCase().startsWith(`${label.toLowerCase()}:`));
-  return line ? line.slice(label.length + 1).trim() : '';
+function fieldValues(message: string, label: string): string[] {
+  const pattern = new RegExp(`${label}\\s*:\\s*(.*?)(?=\\s+(?:Employer|Address|Google Maps|Remarks)\\s*:|$)`, 'gi');
+  return [...message.matchAll(pattern)].map(match => match[1].trim()).filter(Boolean);
 }
 
 function employerDetailsFromNotification(n: any): EmployerNotificationDetails | null {
   const type = String(n.type ?? '');
   const message = String(n.message ?? n.body ?? '');
   if (!type.startsWith('interview_scheduled')) return null;
+  const employer = fieldValues(message, 'Employer')[0] || 'Employer';
+  const addresses = fieldValues(message, 'Address');
+  const address = addresses.reverse().find(value => value.toLowerCase() !== 'address not available') || addresses[0] || 'Address not available';
+  const remarks = fieldValues(message, 'Remarks').find(value => !/Address\s*:/i.test(value)) || '';
   return {
-    employer: lineValue(message, 'Employer') || 'Employer',
-    address: lineValue(message, 'Address') || 'Address not available',
-    mapLink: lineValue(message, 'Google Maps'),
+    employer,
+    address,
+    mapLink: fieldValues(message, 'Google Maps')[0] || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([employer, address].filter(Boolean).join(', '))}`,
+    remarks,
     message,
   };
+}
+
+function NotificationBody({ notification }: { notification: NotificationItem }) {
+  if (!notification.employerDetails) {
+    return <>{notification.body}</>;
+  }
+
+  const details = notification.employerDetails;
+  return (
+    <span className="leading-snug">
+      <span>{notification.body.split(/\s+(?:Employer|Address|Google Maps|Remarks)\s*:/i)[0].trim()}</span>
+      {'\n'}Employer: {details.employer}
+      {'\n'}Address:{' '}
+      <a
+        href={details.mapLink}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        className="font-semibold text-blue-700 underline underline-offset-2"
+      >
+        {details.address}
+      </a>
+      {details.remarks && <>{'\n'}Remarks: {details.remarks}</>}
+    </span>
+  );
 }
 
 function mapNotification(n: any): NotificationItem {
@@ -184,7 +215,7 @@ export default function NotificationsScreen() {
                 <p className="text-sm font-bold text-gray-900">{n.title}</p>
                 {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-snug"><NotificationBody notification={n} /></p>
               <p className="text-xs text-gray-400 mt-1">{n.time}</p>
               {n.employerDetails && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); setEmployerDetails(n.employerDetails); }} className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">View employer details</button>}
               {(n.type === 'associate_verification' || n.verificationRequired) && <button onClick={(event) => { event.stopPropagation(); void markRead(n.id); window.dispatchEvent(new CustomEvent('granvia:navigate-profile')); }} className="mt-3 rounded-xl bg-[#0f1e3c] px-3 py-2 text-xs font-semibold text-white">Complete verification</button>}
@@ -217,13 +248,8 @@ export default function NotificationsScreen() {
               </div>
               <div className="flex items-start justify-between gap-4 rounded-xl bg-gray-50 p-3">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Address</span>
-                <span className="text-right text-sm font-semibold text-gray-900">{employerDetails.address}</span>
+                <a href={employerDetails.mapLink} target="_blank" rel="noreferrer" className="text-right text-sm font-semibold text-blue-700 underline underline-offset-2">{employerDetails.address}</a>
               </div>
-              {employerDetails.mapLink && (
-                <a href={employerDetails.mapLink} target="_blank" rel="noreferrer" className="block rounded-xl bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700">
-                  Open Google Maps
-                </a>
-              )}
             </div>
             <button onClick={() => setEmployerDetails(null)} className="mt-5 w-full rounded-xl bg-[#0f1e3c] px-4 py-3 text-sm font-semibold text-white">Close</button>
           </motion.div>

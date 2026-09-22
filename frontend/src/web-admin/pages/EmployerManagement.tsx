@@ -365,9 +365,9 @@ export default function EmployerManagement() {
       {editing && <EditEmployerDialog employer={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await reload(); setNotice('Employer updated.'); }} />}
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setSelected(null)}>
-          <motion.div className="w-full max-w-4xl rounded-2xl bg-white overflow-hidden shadow-2xl" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-5 text-white flex items-start justify-between" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-3 sm:p-4" onClick={() => setSelected(null)}>
+          <motion.div className="mx-auto my-3 flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:my-4 sm:max-h-[calc(100vh-2rem)]" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()}>
+            <div className="flex shrink-0 items-start justify-between px-5 py-5 text-white sm:px-6" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
                   <Building2 size={26} />
@@ -379,7 +379,7 @@ export default function EmployerManagement() {
               </div>
               <button onClick={() => setSelected(null)} className="text-white/60 hover:text-white"><XCircle size={22} /></button>
             </div>
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-5 max-h-[70vh] overflow-y-auto">
+            <div className="grid flex-1 grid-cols-1 gap-5 overflow-y-auto p-5 sm:p-6 lg:grid-cols-2">
               <InfoBlock title="Company Details" rows={[
                 ['Created From', selected.createdFrom === 'super_admin' ? 'Super Admin' : 'App'],
                 ['Created By', selected.createdBy || 'Not applicable'],
@@ -414,7 +414,7 @@ export default function EmployerManagement() {
                 ['Total Debited', `Rs ${walletBreakdown[selected.id]?.debited || 0}`],
               ]} />
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-100 px-5 py-4 sm:gap-3 sm:px-6">
               <button onClick={() => { setEditing(selected); setSelected(null); }} className="px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Edit Employer</button>
               <button onClick={() => resetEmployerPassword(selected)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700">Reset Password</button>
               <button onClick={() => deleteEmployer(selected)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-50 text-red-700">Delete Employer</button>
@@ -652,16 +652,16 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <motion.div className="w-full max-w-5xl rounded-2xl bg-white overflow-hidden shadow-2xl" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
-        <div className="px-6 py-5 text-white flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-3 sm:p-4" onClick={onClose}>
+      <motion.div className="mx-auto my-3 flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:my-4 sm:max-h-[calc(100vh-2rem)]" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}>
+        <div className="flex shrink-0 items-center justify-between px-5 py-5 text-white sm:px-6" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
           <div>
             <h2 className="text-xl font-bold">Edit Employer / Company</h2>
             <p className="text-xs text-blue-200">{employer.id} · {employer.createdFrom === 'super_admin' ? 'Created by Super Admin' : 'Created from App'}</p>
           </div>
           <button onClick={onClose} className="text-white/60 hover:text-white"><XCircle size={22} /></button>
         </div>
-        <div className="p-6 max-h-[75vh] overflow-y-auto space-y-5">
+        <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
           <section>
             <h3 className="font-bold text-gray-900 mb-3">Company Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

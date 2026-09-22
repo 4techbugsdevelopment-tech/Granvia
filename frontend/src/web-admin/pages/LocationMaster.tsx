@@ -243,8 +243,8 @@ export default function LocationMaster() {
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-4" onClick={onClose}>
-      <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl rounded-2xl bg-white p-6" onClick={event => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 sm:p-4" onClick={onClose}>
+      <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mx-auto my-3 max-h-[calc(100vh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 sm:my-4 sm:max-h-[calc(100vh-2rem)] sm:p-6" onClick={event => event.stopPropagation()}>
         <h3 className="text-lg font-bold text-gray-900">{title}</h3>
         <div className="mt-4">{children}</div>
       </motion.div>

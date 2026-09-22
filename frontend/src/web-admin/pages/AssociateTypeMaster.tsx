@@ -132,8 +132,8 @@ export default function AssociateTypeMaster() {
       </Card>
 
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(15,27,56,0.45)' }} onClick={() => setOpen(false)}>
-          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-2xl rounded-2xl bg-white p-6" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-[70] overflow-y-auto p-3 sm:p-4" style={{ background: 'rgba(15,27,56,0.45)' }} onClick={() => setOpen(false)}>
+          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mx-auto my-3 max-h-[calc(100vh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 sm:my-4 sm:max-h-[calc(100vh-2rem)] sm:p-6" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900">{editing ? 'Edit Associate Type' : 'Add Associate Type'}</h3>
             <div className="mt-4 space-y-4">
               <label className="block">

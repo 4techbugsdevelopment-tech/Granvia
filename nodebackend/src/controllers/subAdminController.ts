@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { parseJsonField, snakeKeys, serializeOut, toPrismaData } from '../utils/serialize';
 import { urlFor } from '../utils/fileStorage';
 import { attachGuardProfiles } from '../utils/enrich';
+import { requestBaseUrl } from '../utils/requestBaseUrl';
 
 // Port of App\Http\Controllers\SubAdminController (role: sub_admin).
 
@@ -209,6 +210,7 @@ export async function destroyStaff(req: Request, res: Response) {
 
 /** GET /subadmin/verification */
 export async function verificationQueue(req: Request, res: Response) {
+  const baseUrl = requestBaseUrl(req);
   const guards = await prisma.guardProfile.findMany({
     where: { subAdminId: req.user!.id },
     include: { user: { select: { id: true, fullName: true, mobile: true } } },
@@ -242,7 +244,7 @@ export async function verificationQueue(req: Request, res: Response) {
         status: d.status,
         admin_remarks: d.adminRemarks,
         uploaded_at: d.createdAt.toISOString(),
-        download_url: urlFor('guard-documents', d.filePath),
+        download_url: urlFor('guard-documents', d.filePath, baseUrl),
       })),
     }))
   );

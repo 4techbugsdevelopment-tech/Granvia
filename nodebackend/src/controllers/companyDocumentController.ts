@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
 import { storeFile, urlFor, removePrivateFile, IncomingFile } from '../utils/fileStorage';
 import { textSchema, validateUploadFile } from '../utils/validation';
+import { requestBaseUrl } from '../utils/requestBaseUrl';
 
 // Port of App\Http\Controllers\DocumentController (company documents).
 
@@ -13,11 +14,11 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf'];
 const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf'];
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
-function withUrl(doc: Record<string, unknown>) {
+function withUrl(doc: Record<string, unknown>, baseUrl: string) {
   const out = snakeKeys(doc) as Record<string, unknown>;
   // Never return the signed URL stored at upload time: it expires after ten
   // minutes. Generate a fresh link every time documents are listed instead.
-  out.download_url = urlFor('company-documents', doc.filePath as string);
+  out.download_url = urlFor('company-documents', doc.filePath as string, baseUrl);
   return out;
 }
 
@@ -35,7 +36,8 @@ export async function index(req: Request, res: Response) {
     where: { companyId: req.params.company },
     orderBy: { createdAt: 'desc' },
   });
-  return res.json(docs.map((doc) => withUrl(doc as unknown as Record<string, unknown>)));
+  const baseUrl = requestBaseUrl(req);
+  return res.json(docs.map((doc) => withUrl(doc as unknown as Record<string, unknown>, baseUrl)));
 }
 
 /** POST /employer/companies/:company/documents */
@@ -64,7 +66,7 @@ export async function store(req: Request, res: Response) {
       verificationStatus: 'pending',
     },
   });
-  return res.status(201).json(withUrl(document as unknown as Record<string, unknown>));
+  return res.status(201).json(withUrl(document as unknown as Record<string, unknown>, requestBaseUrl(req)));
 }
 
 export async function update(req: Request, res: Response) {
@@ -73,7 +75,7 @@ export async function update(req: Request, res: Response) {
   if (!document) throw new HttpError(404, 'Document not found.');
   const { document_type } = storeSchema.parse(req.body);
   const updated = await prisma.companyDocument.update({ where: { id: document.id }, data: { documentType: document_type } });
-  return res.json(withUrl(updated as unknown as Record<string, unknown>));
+  return res.json(withUrl(updated as unknown as Record<string, unknown>, requestBaseUrl(req)));
 }
 
 export async function destroy(req: Request, res: Response) {
