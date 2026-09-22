@@ -7,6 +7,7 @@ import {
 } from '../../services/subadminService';
 import { Page, PageHeader, DataTable, Pill, SlideOver, GlassStat, TapButton, DataColumn } from '../ui';
 import { BROWN, NAVY, BURGUNDY } from '../theme';
+import { previewUrl } from '../../lib/fileUrls';
 
 const DOC_LABELS: Record<string, string> = {
   id_proof: 'Aadhaar / ID Proof',
@@ -153,7 +154,7 @@ export default function VerificationPage() {
                       </span>
                     </div>
 
-                    <a href={doc.download_url} target="_blank" rel="noreferrer"
+                    <a href={previewUrl(doc.download_url)} target="_blank" rel="noreferrer"
                       className="mt-3 rounded-xl h-24 flex items-center justify-center gap-2 text-xs font-medium hover:opacity-80"
                       style={{ background: 'repeating-linear-gradient(45deg, #faf8f6, #faf8f6 10px, #f3eee9 10px, #f3eee9 20px)', color: 'rgba(75,46,42,0.6)', border: '1px dashed #e0d6cf' }}>
                       <Download size={14} /> View {doc.file_name}

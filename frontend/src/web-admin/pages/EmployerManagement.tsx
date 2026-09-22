@@ -29,6 +29,7 @@ import {
   pincodeError,
   type ValidationMap,
 } from '../../lib/formValidation';
+import { previewUrl } from '../../lib/fileUrls';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],
@@ -446,7 +447,7 @@ function DocumentBlock({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {doc.downloadUrl ? (
-              <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
+              <a href={previewUrl(doc.downloadUrl)} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
                 <ExternalLink size={13} /> View
               </a>
             ) : <span className="text-xs text-gray-400">Unavailable</span>}

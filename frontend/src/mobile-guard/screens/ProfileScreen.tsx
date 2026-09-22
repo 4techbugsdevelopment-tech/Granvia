@@ -13,6 +13,7 @@ import {
 } from '../../services/guardVerificationService';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
 import CityStateSelect from '../../components/CityStateSelect';
+import { previewUrl } from '../../lib/fileUrls';
 
 const QUALIFICATION_OPTIONS = ['Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate'];
 
@@ -725,7 +726,7 @@ export default function ProfileScreen() {
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
                             {doc.download_url && (
-                              <a href={doc.download_url} target="_blank" rel="noreferrer" aria-label={`View ${doc.file_name}`} className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
+                              <a href={previewUrl(doc.download_url)} target="_blank" rel="noreferrer" aria-label={`View ${doc.file_name}`} className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
                                 <ExternalLink size={14} />
                               </a>
                             )}

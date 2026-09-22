@@ -38,6 +38,7 @@ import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
+import { previewUrl } from '../lib/fileUrls';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1137,7 +1138,7 @@ function validateJobForm(form: Record<string, string>): ValidationErrors {
 
 function DocumentViewLink({ url }: { url?: string }) {
   return url ? (
-    <a href={url} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
+    <a href={previewUrl(url)} target="_blank" rel="noreferrer" className="table-action tone-blue inline-flex items-center gap-1">
       <ExternalLink size={13} /> View
     </a>
   ) : <span className="text-xs text-gray-400">Unavailable</span>;

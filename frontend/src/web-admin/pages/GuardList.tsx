@@ -10,6 +10,7 @@ import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDo
 import { getErrorMessage } from '../../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { FeedbackBanner } from './_adminUi';
+import { previewUrl } from '../../lib/fileUrls';
 
 interface GuardListProps {
   onAddGuard: () => void;
@@ -546,7 +547,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     {docs.map(doc => (
                       <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: '#f8fafc' }}>
                         <div className="min-w-0">
-                          <a href={doc.download_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline truncate block">
+                          <a href={previewUrl(doc.download_url)} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline truncate block">
                             {GUARD_DOCUMENT_LABELS[doc.document_type as GuardDocumentType] ?? doc.document_type}
                           </a>
                           <span className="text-xs text-gray-400 truncate">{doc.file_name}</span>

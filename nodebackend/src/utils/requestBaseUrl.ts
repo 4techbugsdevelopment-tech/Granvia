@@ -7,7 +7,13 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
 export function requestBaseUrl(req: Request): string {
   const forwardedProto = firstHeaderValue(req.headers['x-forwarded-proto']);
   const forwardedHost = firstHeaderValue(req.headers['x-forwarded-host']);
+  const forwardedSsl = firstHeaderValue(req.headers['x-forwarded-ssl']);
+  const forwardedPort = firstHeaderValue(req.headers['x-forwarded-port']);
   const proto = forwardedProto || req.protocol;
+  const effectiveProto = forwardedSsl === 'on' ? 'https' : proto;
   const host = forwardedHost || req.get('host');
-  return `${proto}://${host}`;
+  if (host && forwardedPort && !host.includes(':') && !['80', '443'].includes(forwardedPort)) {
+    return `${effectiveProto}://${host}:${forwardedPort}`;
+  }
+  return `${effectiveProto}://${host}`;
 }
