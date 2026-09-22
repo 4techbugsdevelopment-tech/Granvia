@@ -8,6 +8,8 @@ import { startAttendanceAutoCheckout } from './services/attendanceAutoCheckout';
 
 const app = express();
 
+app.set('trust proxy', true);
+
 app.use(
   cors({
     origin: env.corsOrigins.length ? env.corsOrigins : true,

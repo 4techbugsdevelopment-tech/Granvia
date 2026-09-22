@@ -11,13 +11,20 @@ function required(name: string): string {
 }
 
 const port = Number(process.env.PORT ?? 8000);
+const appUrl = process.env.APP_URL ?? `http://127.0.0.1:${port}`;
+const publicApiUrl = process.env.PUBLIC_API_URL
+  ?? process.env.API_PUBLIC_URL
+  ?? (process.env.NODE_ENV === 'production' && /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|\/|$)/i.test(appUrl)
+    ? 'https://aip.granvia.llc'
+    : appUrl);
 const enabled = (value: string | undefined, defaultValue = false) =>
   value == null ? defaultValue : /^(1|true|yes|on)$/i.test(value.trim());
 
 export const env = {
   port,
   databaseUrl: required('DATABASE_URL'),
-  appUrl: process.env.APP_URL ?? `http://127.0.0.1:${port}`,
+  appUrl,
+  publicApiUrl,
   fileSigningSecret: process.env.FILE_SIGNING_SECRET ?? 'granvia-dev-file-secret',
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
