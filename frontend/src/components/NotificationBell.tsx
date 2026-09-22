@@ -70,7 +70,7 @@ export default function NotificationBell({ onCompleteVerification, dark = false 
               const documentType: HiringDocument | null = item.type?.startsWith('hiring_offer_letter:')
                 ? 'offer-letter'
                 : item.type?.startsWith('hiring_employment_agreement:') ? 'employment-agreement' : null;
-              const applicationId = item.type?.startsWith('hiring_offer_letter:') ? item.type.split(':')[1] : undefined;
+              const applicationId = documentType ? item.type.split(':')[1] : undefined;
               return <div key={item.id} onClick={() => void read(item)} className={`rounded-xl p-3 ${item.is_read ? '' : 'bg-blue-50'}`}>
                 <div className="flex gap-2">
                   {verification && <ShieldCheck size={16} className="mt-0.5 shrink-0 text-amber-700" />}

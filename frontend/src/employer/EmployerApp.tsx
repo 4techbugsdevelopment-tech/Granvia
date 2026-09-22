@@ -2284,7 +2284,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
 
   const updateStatus = async (appId: string, status: string) => {
     await updateApplicationStatus(appId, status);
-    listEmployerApplications(company.id).then(data => setApps(data ?? [])).catch(console.error);
+    listEmployerApplications(company.id, selectedJob?.id).then(data => setApps(data ?? [])).catch(console.error);
     onChanged();
   };
 
@@ -2351,7 +2351,9 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
           </div>
         </div>
         <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
-          {visibleApps.map((app: any) => (
+          {visibleApps.map((app: any) => {
+            const alreadyHired = Boolean(app.associate_already_hired);
+            return (
             <tr key={app.id} className="border-b border-gray-50">
               <Td>
                 <div className="flex items-start justify-between gap-3">
@@ -2359,6 +2361,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
                     <div className="flex flex-wrap items-center gap-2">
                       <b className="break-words">{app.guard_profiles?.full_name ?? 'Associate'}</b>
                       {associateVerificationBadge(app.guard_profiles)}
+                      {alreadyHired && statusBadge('Already hired')}
                     </div>
                     <div className="text-xs text-gray-400">{app.guard_profiles?.city ?? 'Location not set'}</div>
                   </div>
@@ -2373,8 +2376,12 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
                 <div className="text-xs">Aadhaar: {app.guard_profiles?.aadhaar_status ?? '--'}</div>
                 <div className="text-xs">Police: {app.guard_profiles?.police_verification_status ?? '--'}</div>
               </Td>
-              <Td>{statusBadge(app.status)}</Td>
+              <Td>{alreadyHired ? statusBadge('Already hired') : statusBadge(app.status)}</Td>
               <Td>
+                {alreadyHired ? (
+                  <span className="text-xs font-semibold text-gray-500">Associate already hired</span>
+                ) : (
+                  <>
                 <button onClick={() => updateStatus(app.id, 'shortlisted')} className="table-action tone-blue">Shortlist</button>
                 <button onClick={() => updateStatus(app.id, 'rejected')} className="table-action tone-red">Reject</button>
                 <button onClick={() => updateStatus(app.id, 'selected')} className="table-action tone-green">Select</button>
@@ -2385,9 +2392,12 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
                 <button onClick={() => updateStatus(app.id, 'hired')} className="table-action tone-green">Hired</button>
                 <button onClick={() => updateStatus(app.id, 'not_hired')} className="table-action tone-red">Not hired</button>
                 <button onClick={() => sendOffer(app)} className="table-action">Offer</button>
+                  </>
+                )}
               </Td>
             </tr>
-          ))}
+            );
+          })}
         </DataTable>
         {visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
       </Card>

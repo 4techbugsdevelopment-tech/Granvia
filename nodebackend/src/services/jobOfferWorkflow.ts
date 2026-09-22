@@ -19,7 +19,7 @@ export interface JobOfferSnapshot {
 
 export interface OfferAcceptancePlan {
   offerStatus: OfferDecision;
-  applicationStatus: 'accepted' | null;
+  applicationStatus: 'hired' | 'not_hired';
   agreement: {
     title: string;
     status: 'pending';
@@ -51,7 +51,7 @@ export function buildOfferDecisionPlan(offer: JobOfferSnapshot, decision: OfferD
 
   return {
     offerStatus: decision,
-    applicationStatus: accepted ? 'accepted' : null,
+    applicationStatus: accepted ? 'hired' : 'not_hired',
     agreement: accepted
       ? {
           title: offer.jobTitle ? `Job Agreement - ${offer.jobTitle}` : 'Job Agreement',
@@ -71,7 +71,7 @@ export function buildOfferDecisionPlan(offer: JobOfferSnapshot, decision: OfferD
     notification: {
       title: accepted ? 'Offer accepted' : 'Offer declined',
       message: accepted
-        ? `The Associate has accepted the offer for ${jobTitle}.`
+        ? `The Associate has accepted the hire proposal for ${jobTitle}.`
         : `The Associate has declined the offer for ${jobTitle}.`,
       type: 'job_offer',
     },

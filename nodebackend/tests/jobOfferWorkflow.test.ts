@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { buildEmploymentAgreementData } from '../src/services/employmentAgreementService';
 import { buildOfferDecisionPlan, canRespondToOffer, HIRED_APPLICATION_STATUSES } from '../src/services/jobOfferWorkflow';
 
 test('hired application statuses remain synchronized for downstream attendance and reports', () => {
-  assert.deepEqual(HIRED_APPLICATION_STATUSES, ['selected', 'offer_sent', 'accepted', 'joined']);
+  assert.deepEqual(HIRED_APPLICATION_STATUSES, ['selected', 'offer_sent', 'accepted', 'joined', 'hired']);
   assert.equal(HIRED_APPLICATION_STATUSES.includes('accepted'), true);
   assert.equal(HIRED_APPLICATION_STATUSES.includes('joined'), true);
+  assert.equal(HIRED_APPLICATION_STATUSES.includes('hired'), true);
 });
 
 test('offer can only be accepted while the status is sent', () => {
@@ -35,7 +37,7 @@ test('accepting an offer produces a synchronized offer, application, agreement, 
   );
 
   assert.equal(plan.offerStatus, 'accepted');
-  assert.equal(plan.applicationStatus, 'accepted');
+  assert.equal(plan.applicationStatus, 'hired');
   assert.equal(plan.agreement?.title, 'Job Agreement - Security Associate');
   assert.equal(plan.agreement?.status, 'pending');
   assert.equal(plan.agreement?.terms.salary, 25000);
@@ -64,8 +66,38 @@ test('declining an offer does not create an agreement plan', () => {
   );
 
   assert.equal(plan.offerStatus, 'declined');
-  assert.equal(plan.applicationStatus, null);
+  assert.equal(plan.applicationStatus, 'not_hired');
   assert.equal(plan.agreement, null);
   assert.equal(plan.notification.title, 'Offer declined');
   assert.match(plan.notification.message, /Night Guard/);
+});
+
+test('direct hire produces employer agreement data from the hired application', () => {
+  const data = buildEmploymentAgreementData({
+    jobId: 'job-1',
+    guardUserId: 'guard-1',
+    employerUserId: 'employer-1',
+    siteId: 'site-1',
+    job: {
+      title: 'Security Associate',
+      salaryAmount: 25000,
+      dutyHours: '8 hours',
+      shiftType: 'Day',
+      startDate: new Date('2026-08-31T00:00:00Z'),
+    },
+  });
+
+  assert.equal(data.jobId, 'job-1');
+  assert.equal(data.guardUserId, 'guard-1');
+  assert.equal(data.employerUserId, 'employer-1');
+  assert.equal(data.title, 'Job Agreement - Security Associate');
+  assert.equal(data.status, 'pending');
+  assert.equal(data.employerConfirmationStatus, 'pending');
+  assert.match(data.agreementNumber, /^AGR-[A-Z0-9]{8}$/);
+  assert.deepEqual(JSON.parse(data.terms), {
+    salary: 25000,
+    duty_hours: '8 hours',
+    shift_type: 'Day',
+    start_date: '2026-08-31T00:00:00.000Z',
+  });
 });

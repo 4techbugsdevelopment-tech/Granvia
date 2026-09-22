@@ -3,6 +3,7 @@ import path from 'path';
 import { Request, Response } from 'express';
 import { HttpError } from '../utils/http';
 import { latestOfferLetterForAssociate, offerLetterForAssociateApplication } from '../services/offerLetterService';
+import { assertEmployerHiredAgreementAccess } from '../services/employmentAgreementService';
 
 const DOCUMENTS_ROOT = path.resolve(__dirname, '../../../documents');
 const DOCUMENTS = {
@@ -25,11 +26,16 @@ export async function download(req: Request, res: Response) {
   if (!allowed) throw new HttpError(403, 'Forbidden.');
 
   const applicationId = typeof req.query.application_id === 'string' ? req.query.application_id.trim() : '';
-  const absolutePath = req.params.document === 'offer-letter'
-    ? applicationId
+  let absolutePath: string;
+  if (req.params.document === 'offer-letter') {
+    absolutePath = applicationId
       ? await offerLetterForAssociateApplication(req.user!.id, applicationId)
-      : await latestOfferLetterForAssociate(req.user!.id)
-    : path.join(DOCUMENTS_ROOT, document.filename);
+      : await latestOfferLetterForAssociate(req.user!.id);
+  } else {
+    if (!applicationId) throw new HttpError(422, 'application_id is required.');
+    await assertEmployerHiredAgreementAccess(req.user!.id, req.user!.role, applicationId);
+    absolutePath = path.join(DOCUMENTS_ROOT, document.filename);
+  }
   if (!fs.existsSync(absolutePath)) throw new HttpError(404, 'Document file not found.');
 
   res.setHeader('Content-Type', document.contentType);

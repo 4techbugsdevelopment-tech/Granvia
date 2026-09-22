@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
-import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
@@ -8,6 +7,8 @@ import { snakeKeys, toPrismaData } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { buildOfferDecisionPlan, canRespondToOffer } from '../services/jobOfferWorkflow';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
+import { deliverHiringDocumentsForApplication, notifyUnverifiedHiredApplication } from '../services/hiringDocumentDelivery';
+import { ensureEmploymentAgreementForApplication } from '../services/employmentAgreementService';
 
 // Port of App\Http\Controllers\JobOfferController.
 
@@ -61,14 +62,6 @@ async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string 
   if (application || offer) {
     throw new HttpError(422, `You already have an active job${activeTitle ? ` (${activeTitle})` : ''}. You are not eligible to accept another job until the current assignment is closed.`);
   }
-}
-
-function agreementNumber(): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const bytes = crypto.randomBytes(8);
-  let s = '';
-  for (let i = 0; i < 8; i++) s += alphabet[bytes[i] % alphabet.length];
-  return `AGR-${s}`;
 }
 
 /** GET /employer/job-offers */
@@ -146,7 +139,10 @@ export async function guardUpdate(req: Request, res: Response) {
   }
 
   const application = row.applicationId
-    ? await prisma.jobApplication.findUnique({ where: { id: row.applicationId } })
+    ? await prisma.jobApplication.findUnique({
+        where: { id: row.applicationId },
+        include: { job: { select: { title: true, salaryAmount: true, dutyHours: true, shiftType: true, startDate: true } } },
+      })
     : null;
   const plan = buildOfferDecisionPlan(
     {
@@ -165,7 +161,7 @@ export async function guardUpdate(req: Request, res: Response) {
     },
     data.status
   );
-  if (plan.applicationStatus) {
+  if (plan.applicationStatus === 'hired') {
     await assertNoOtherActiveAssignment(row.guardUserId, row.jobId);
   }
 
@@ -190,22 +186,9 @@ export async function guardUpdate(req: Request, res: Response) {
           reviewedBy: req.user!.id,
         },
       });
-      await tx.agreement.create({
-        data: {
-          offerId: row.id,
-          jobId: row.jobId,
-          guardUserId: row.guardUserId,
-          employerUserId: row.employerUserId,
-          siteId: row.siteId,
-          agreementNumber: agreementNumber(),
-          title: plan.agreement!.title,
-          terms: JSON.stringify(plan.agreement!.terms),
-          status: plan.agreement!.status,
-          employerConfirmationStatus: plan.agreement!.employerConfirmationStatus,
-          guardConfirmationStatus: plan.agreement!.guardConfirmationStatus,
-          platformConfirmationStatus: plan.agreement!.platformConfirmationStatus,
-        } as never,
-      });
+      if (plan.applicationStatus === 'hired') {
+        await ensureEmploymentAgreementForApplication(tx, application);
+      }
     }
 
     await tx.notification.create({
@@ -225,9 +208,13 @@ export async function guardUpdate(req: Request, res: Response) {
         changedBy: req.user!.id,
         oldStatus: application.status,
         newStatus: plan.applicationStatus,
-        remarks: data.remarks ?? 'Associate accepted the job offer.',
+        remarks: data.remarks ?? (plan.applicationStatus === 'hired' ? 'Associate accepted the hire proposal.' : 'Associate declined the hire proposal.'),
       },
     });
+    if (plan.applicationStatus === 'hired') {
+      await notifyUnverifiedHiredApplication(application.id);
+      await deliverHiringDocumentsForApplication(application.id);
+    }
   }
 
   return res.json(snakeKeys(updated));

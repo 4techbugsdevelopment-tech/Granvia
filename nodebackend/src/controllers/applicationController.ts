@@ -5,7 +5,6 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
-import { deliverHiringDocumentsForApplication, notifyUnverifiedHiredApplication } from '../services/hiringDocumentDelivery';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
 // Guard-facing application controller.
@@ -233,6 +232,10 @@ async function applicationWithScope(applicationId: string, user: NonNullable<Req
           status: true,
           guardsRequired: true,
           employerUserId: true,
+          salaryAmount: true,
+          dutyHours: true,
+          shiftType: true,
+          startDate: true,
           company: { select: { companyName: true, registeredAddress: true, billingAddress: true } },
         },
       },
@@ -246,6 +249,49 @@ async function applicationWithScope(applicationId: string, user: NonNullable<Req
 async function notifyApplicationParties(application: { guardUserId: string; employerUserId: string | null; job: { title: string } }, title: string, message: string, type = 'application') {
   const recipients = [...new Set([application.guardUserId, application.employerUserId].filter(Boolean) as string[])];
   if (recipients.length) await prisma.notification.createMany({ data: recipients.map(userId => ({ userId, title, message, type })) });
+}
+
+async function attachAlreadyHiredStatus<T extends { id?: string; guard_user_id?: string | null }>(rows: T[]): Promise<(T & { associate_already_hired: boolean; hired_application_id: string | null })[]> {
+  const guardIds = [...new Set(rows.map((row) => row.guard_user_id).filter(Boolean))] as string[];
+  const hiredRows = guardIds.length
+    ? await prisma.jobApplication.findMany({
+        where: { guardUserId: { in: guardIds }, status: 'hired' },
+        select: { id: true, guardUserId: true },
+      })
+    : [];
+  const hiredByGuard = new Map(hiredRows.map((row) => [row.guardUserId, row.id]));
+  return rows.map((row) => {
+    const hiredApplicationId = row.guard_user_id ? hiredByGuard.get(row.guard_user_id) ?? null : null;
+    return {
+      ...row,
+      associate_already_hired: Boolean(hiredApplicationId && hiredApplicationId !== row.id),
+      hired_application_id: hiredApplicationId,
+    };
+  });
+}
+
+async function ensureHireProposalForApplication(tx: Prisma.TransactionClient, application: Awaited<ReturnType<typeof applicationWithScope>>) {
+  const existing = await tx.jobOffer.findFirst({
+    where: { applicationId: application.id, status: 'sent' },
+    select: { id: true },
+  });
+  if (existing) return existing;
+  return tx.jobOffer.create({
+    data: {
+      applicationId: application.id,
+      jobId: application.jobId,
+      guardUserId: application.guardUserId,
+      employerUserId: application.employerUserId,
+      companyId: application.companyId,
+      siteId: application.siteId,
+      offeredSalary: application.job.salaryAmount,
+      dutyHours: application.job.dutyHours,
+      shiftType: application.job.shiftType,
+      startDate: application.job.startDate,
+      termsSummary: `Hire proposal for ${application.job.title}`,
+      status: 'sent',
+    } as never,
+  });
 }
 
 /** GET /employer/applications */
@@ -275,7 +321,7 @@ export async function employerIndex(req: Request, res: Response) {
   });
 
   const rows = snakeKeys(applications) as Array<Record<string, unknown> & { guard_user_id?: string }>;
-  return res.json(await attachGuardProfiles(rows));
+  return res.json(await attachGuardProfiles(await attachAlreadyHiredStatus(rows)));
 }
 
 /** PATCH /employer/applications/:application/status */
@@ -284,16 +330,17 @@ export async function updateStatus(req: Request, res: Response) {
 
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
-  if (ACTIVE_ASSIGNMENT_STATUSES.includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+  const nextStatus = data.status === 'hired' ? 'offer_sent' : data.status;
+  if (ACTIVE_ASSIGNMENT_STATUSES.includes(nextStatus) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
     await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    await enforceJobCapacityForApplication(tx, application, data.status);
+    await enforceJobCapacityForApplication(tx, application, nextStatus);
     const next = await tx.jobApplication.update({
       where: { id: application.id },
       data: {
-        status: data.status,
+        status: nextStatus,
         notes: data.remarks ?? application.notes,
         reviewedAt: new Date(),
         reviewedBy: req.user!.id,
@@ -304,10 +351,13 @@ export async function updateStatus(req: Request, res: Response) {
         applicationId: application.id,
         changedBy: req.user!.id,
         oldStatus,
-        newStatus: data.status,
+        newStatus: nextStatus,
         remarks: data.remarks ?? null,
       },
     });
+    if (data.status === 'hired') {
+      await ensureHireProposalForApplication(tx, application);
+    }
     return next;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
@@ -316,16 +366,12 @@ export async function updateStatus(req: Request, res: Response) {
     const name = profile?.fullName || 'Associate Partner';
     await notifyApplicationParties(
       application,
-      data.status === 'hired' ? 'Associate hired' : 'Interview outcome updated',
+      data.status === 'hired' ? 'Hire proposal sent' : 'Interview outcome updated',
       data.status === 'hired'
-        ? `${name} has been hired for ${application.job.title}. Verification status: ${profile?.verificationStatus ?? 'pending'}.`
+        ? `${name} has received a hire proposal for ${application.job.title}. The associate must accept it before final hiring. Verification status: ${profile?.verificationStatus ?? 'pending'}.`
         : `${name} was not selected for ${application.job.title}.`,
-      data.status === 'hired' ? 'hiring_verification' : 'application',
+      data.status === 'hired' ? 'job_offer' : 'application',
     );
-    if (data.status === 'hired') {
-      await notifyUnverifiedHiredApplication(application.id);
-      await deliverHiringDocumentsForApplication(application.id);
-    }
   } else if (data.status !== 'applied') {
     await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
   }
@@ -341,7 +387,7 @@ export async function adminJobApplications(req: Request, res: Response) {
     orderBy: { appliedAt: 'desc' },
   });
   const shaped = snakeKeys(rows) as Array<Record<string, unknown> & { guard_user_id?: string }>;
-  return res.json(await attachGuardProfiles(shaped));
+  return res.json(await attachGuardProfiles(await attachAlreadyHiredStatus(shaped)));
 }
 
 /** PATCH /admin/applications/:application/status */
@@ -349,23 +395,23 @@ export async function adminUpdateStatus(req: Request, res: Response) {
   const application = await applicationWithScope(req.params.application, req.user!, true);
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
-  if (ACTIVE_ASSIGNMENT_STATUSES.includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+  const nextStatus = data.status === 'hired' ? 'offer_sent' : data.status;
+  if (ACTIVE_ASSIGNMENT_STATUSES.includes(nextStatus) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
     await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
   }
   const updated = await prisma.$transaction(async (tx) => {
-    await enforceJobCapacityForApplication(tx, application, data.status);
-    const next = await tx.jobApplication.update({ where: { id: application.id }, data: { status: data.status, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } });
-    await tx.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus, newStatus: data.status, remarks: data.remarks ?? null } });
+    await enforceJobCapacityForApplication(tx, application, nextStatus);
+    const next = await tx.jobApplication.update({ where: { id: application.id }, data: { status: nextStatus, notes: data.remarks ?? application.notes, reviewedAt: new Date(), reviewedBy: req.user!.id } });
+    await tx.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus, newStatus: nextStatus, remarks: data.remarks ?? null } });
+    if (data.status === 'hired') {
+      await ensureHireProposalForApplication(tx, application);
+    }
     return next;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (data.status === 'hired' || data.status === 'not_hired') {
     const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId }, select: { fullName: true, verificationStatus: true } });
     const name = profile?.fullName || 'Associate Partner';
-    await notifyApplicationParties(application, data.status === 'hired' ? 'Associate hired' : 'Interview outcome updated', data.status === 'hired' ? `${name} has been hired for ${application.job.title}. Verification status: ${profile?.verificationStatus ?? 'pending'}.` : `${name} was not selected for ${application.job.title}.`, data.status === 'hired' ? 'hiring_verification' : 'application');
-    if (data.status === 'hired') {
-      await notifyUnverifiedHiredApplication(application.id);
-      await deliverHiringDocumentsForApplication(application.id);
-    }
+    await notifyApplicationParties(application, data.status === 'hired' ? 'Hire proposal sent' : 'Interview outcome updated', data.status === 'hired' ? `${name} has received a hire proposal for ${application.job.title}. The associate must accept it before final hiring. Verification status: ${profile?.verificationStatus ?? 'pending'}.` : `${name} was not selected for ${application.job.title}.`, data.status === 'hired' ? 'job_offer' : 'application');
   } else if (data.status !== 'applied') {
     await notifyApplicationParties(application, 'Application updated', `Your application for ${application.job.title} is now ${data.status.replaceAll('_', ' ')}.${data.remarks ? ` Remarks: ${data.remarks}` : ''}`);
   }

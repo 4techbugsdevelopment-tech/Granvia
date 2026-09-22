@@ -57,12 +57,8 @@ async function buildOfferLetterPdf(applicationId: string): Promise<{ buffer: Buf
   if (!application || application.status !== 'hired') throw new HttpError(404, 'Hired application not found.');
 
   const profile = await prisma.guardProfile.findUnique({ where: { userId: application.guardUserId } });
-  if (profile?.verificationStatus !== 'verified') {
-    throw new HttpError(403, 'Offer letter is available only after Associate verification.');
-  }
-
-  const associateName = lineValue(profile.fullName, 'Associate Partner');
-  const address = [profile.address, profile.city, profile.state, profile.pincode].filter(Boolean).join(', ');
+  const associateName = lineValue(profile?.fullName, 'Associate Partner');
+  const address = [profile?.address, profile?.city, profile?.state, profile?.pincode].filter(Boolean).join(', ');
   const assignment = application.job.title || application.job.category || application.job.guardType || 'Associate Partner';
   const site = application.job.site;
   const company = application.job.company;

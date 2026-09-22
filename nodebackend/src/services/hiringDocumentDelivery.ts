@@ -95,10 +95,8 @@ export async function deliverHiringDocumentsForApplication(applicationId: string
     where: { userId: application.guardUserId },
     select: { fullName: true, verificationStatus: true },
   });
-  if (guardProfile?.verificationStatus !== 'verified') return;
-
   const jobTitle = application.job.title;
-  const associateName = guardProfile.fullName?.trim() || 'Associate Partner';
+  const associateName = guardProfile?.fullName?.trim() || 'Associate Partner';
   await ensureOfferLetterForApplication(application.id);
   await createNotificationOnce({
     userId: application.guardUserId,
