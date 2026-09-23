@@ -26,6 +26,7 @@ router.post('/guard/jobs/:job/apply', asyncHandler(applications.apply));
 router.get('/guard/jobs', asyncHandler(jobs.activeForGuard));
 router.get('/guard/applications', asyncHandler(applications.mine));
 router.get('/guard/applications/job-ids', asyncHandler(applications.myAppliedJobIds));
+router.post('/guard/applications/:application/leave-request', asyncHandler(applications.requestLeave));
 router.get('/guard/job-offers', asyncHandler(offer.guardIndex));
 router.patch('/guard/job-offers/:jobOffer', asyncHandler(offer.guardUpdate));
 

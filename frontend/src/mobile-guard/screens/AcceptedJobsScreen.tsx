@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Briefcase, MapPin, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { listMyApplications } from '../../services/applicationService';
 
-const ACTIVE_STATUSES = new Set(['selected', 'offer_sent', 'accepted', 'joined']);
+const ACTIVE_STATUSES = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested']);
 
 const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
   selected: { label: 'Selected', bg: '#dbeafe', color: '#1d4ed8' },

@@ -53,6 +53,8 @@ router.delete('/employer/jobs/:job', asyncHandler(job.destroy));
 router.get('/employer/applications', asyncHandler(application.employerIndex));
 router.patch('/employer/applications/:application/status', asyncHandler(application.updateStatus));
 router.post('/employer/applications/:application/schedule-interview', asyncHandler(application.scheduleInterview));
+router.post('/employer/applications/:application/leave-decision', asyncHandler(application.decideLeaveRequest));
+router.post('/employer/applications/:application/release', asyncHandler(application.releaseAssociate));
 
 router.get('/employer/staff', asyncHandler(team.listStaff));
 router.post('/employer/staff', asyncHandler(team.storeStaff));

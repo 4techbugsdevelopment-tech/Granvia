@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, MapPin, Clock, CheckCircle, XCircle, Loader, AlertCircle, X, Map as MapIcon, ChevronRight } from 'lucide-react';
-import { listMyApplications, listMyJobOffers, updateMyJobOffer } from '../../services/applicationService';
+import { listMyApplications, listMyJobOffers, updateMyJobOffer, requestJobLeave } from '../../services/applicationService';
 import JobRadiusMap from '../../components/map/JobRadiusMap';
 
 const STATUS_CONFIG: Record<string, { icon: JSX.Element; color: string; bg: string; label: string }> = {
@@ -12,11 +12,13 @@ const STATUS_CONFIG: Record<string, { icon: JSX.Element; color: string; bg: stri
   selected: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Selected' },
   scheduled: { icon: <Loader size={14} />, color: '#075985', bg: '#e0f2fe', label: 'Interview Scheduled' },
   hired: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Hired' },
+  leave_requested: { icon: <Loader size={14} />, color: '#854d0e', bg: '#fef9c3', label: 'Leave Requested' },
+  completed: { icon: <CheckCircle size={14} />, color: '#475569', bg: '#f1f5f9', label: 'Completed' },
+  released: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Released' },
   not_hired: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Not Hired' },
   offer_sent: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Offer Sent' },
   accepted: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Accepted' },
   joined: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Joined' },
-  completed: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Completed' },
   declined: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Declined' },
   cancelled: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Cancelled' },
   rejected: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Rejected' },
@@ -31,6 +33,9 @@ export default function ApplicationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [leaveApp, setLeaveApp] = useState<any | null>(null);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [savingLeave, setSavingLeave] = useState(false);
 
   useEffect(() => {
     Promise.all([listMyApplications(), listMyJobOffers()])
@@ -55,6 +60,22 @@ export default function ApplicationsScreen() {
       await refresh();
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const submitLeaveRequest = async () => {
+    if (!leaveApp || !leaveReason.trim()) return;
+    setError(null);
+    setSavingLeave(true);
+    try {
+      await requestJobLeave(leaveApp.id, leaveReason.trim());
+      setLeaveApp(null);
+      setLeaveReason('');
+      await refresh();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message);
+    } finally {
+      setSavingLeave(false);
     }
   };
 
@@ -250,6 +271,14 @@ export default function ApplicationsScreen() {
                     View Details <ChevronRight size={13} />
                   </button>
                 </div>
+                {String(app.status ?? '').toLowerCase() === 'hired' && (
+                  <button
+                    onClick={event => { event.stopPropagation(); setLeaveApp(app); setLeaveReason(''); }}
+                    className="mt-2 w-full py-2 rounded-xl bg-red-50 text-red-700 text-xs font-semibold"
+                  >
+                    Request to Leave Job
+                  </button>
+                )}
               </motion.div>
             );
           })
@@ -368,6 +397,44 @@ export default function ApplicationsScreen() {
                     {selectedJob.police_verification_required && <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-700">Police verification required</span>}
                   </div>
                 </section>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {leaveApp && (
+          <motion.div
+            className="fixed inset-0 z-[90] grid place-items-center p-4"
+            style={{ background: 'rgba(0,0,0,0.4)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !savingLeave && setLeaveApp(null)}
+          >
+            <motion.div
+              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-gray-900">Request to leave</h3>
+                  <p className="mt-1 text-xs text-gray-500">{leaveApp.job?.title ?? 'Current job'}</p>
+                </div>
+                <button onClick={() => setLeaveApp(null)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button>
+              </div>
+              <textarea
+                value={leaveReason}
+                onChange={event => setLeaveReason(event.target.value)}
+                rows={4}
+                placeholder="Enter reason"
+                className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-red-300"
+              />
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setLeaveApp(null)} className="flex-1 rounded-xl border border-gray-200 py-2 text-sm font-semibold text-gray-600">Cancel</button>
+                <button onClick={() => void submitLeaveRequest()} disabled={savingLeave || !leaveReason.trim()} className="flex-1 rounded-xl bg-red-700 py-2 text-sm font-bold text-white disabled:opacity-50">
+                  {savingLeave ? 'Submitting...' : 'Submit'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

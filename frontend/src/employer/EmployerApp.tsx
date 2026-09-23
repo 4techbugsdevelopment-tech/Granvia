@@ -17,7 +17,7 @@ import { getMyEmployerProfile, updateMyEmployerProfile, updateMyProfile } from '
 import { listMyCompanies, createCompany, updateCompany, deleteCompany } from '../services/companyService';
 import { listCompanySites, createCompanySite, updateCompanySite, deleteCompanySite } from '../services/siteService';
 import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '../services/jobService';
-import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview } from '../services/applicationService';
+import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview, decideLeaveRequest, releaseHiredAssociate } from '../services/applicationService';
 import { listEmployerAttendance, listEmployerAttendanceRequests, updateAttendanceRequestStatus, updateAttendanceStatus } from '../services/attendanceService';
 import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
 import { getEmployerWallet, listWalletTransactions, rechargeEmployerWallet } from '../services/walletService';
@@ -103,6 +103,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
   const [employerProfile, setEmployerProfile] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const [editJobRequestId, setEditJobRequestId] = useState<string | null>(null);
 
   const reload = () => setRefresh(v => v + 1);
 
@@ -161,6 +162,11 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
     reload();
   };
 
+  const openJobForReinitiate = (jobId: string) => {
+    setEditJobRequestId(jobId);
+    setPage('jobs');
+  };
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':   return <EmployerDashboard employer={employer} company={activeCompany} companies={companies} key={refresh} onNavigate={setPage} />;
@@ -171,8 +177,8 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'documents':   return aadhaarVerified && activeCompany ? <CompanyDocumentsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'sites':       return aadhaarVerified && activeCompany ? <SitesPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'post-job':    return activeCompany ? <JobFormPage employer={employer} company={activeCompany} key={refresh} onSaved={handleJobCreated} onBack={() => setPage('jobs')} onDeposit={() => setPage('wallet')} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'jobs':        return activeCompany ? <JobsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} onCreate={() => setPage('post-job')} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'applicants':  return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'jobs':        return activeCompany ? <JobsPage employer={employer} company={activeCompany} key={`${refresh}-${editJobRequestId ?? 'jobs'}`} onChanged={reload} onCreate={() => setPage('post-job')} initialEditJobId={editJobRequestId} onEditOpened={() => setEditJobRequestId(null)} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'applicants':  return activeCompany ? <ApplicantsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} onReinitiateJob={openJobForReinitiate} /> : <CompanyRequired onNavigate={setPage} />;
       case 'interviews':  return activeCompany ? <InterviewsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'agreements':  return activeCompany ? <AgreementsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'attendance':  return activeCompany ? <AttendancePage company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
@@ -525,7 +531,7 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
   if (loading) return <LoadingState />;
 
   const activeJobs = jobs.filter(j => j.status === 'active');
-  const selectedApps = apps.filter(a => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status?.toLowerCase()));
+  const selectedApps = apps.filter(a => ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'].includes(a.status?.toLowerCase()));
   const pendingAttendance = attendance.filter(a => a.status === 'pending_verification');
   const pendingPayments = payments.filter(p => p.payment_status === 'pending');
 
@@ -1925,7 +1931,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
 
 // ── Manage jobs ───────────────────────────────────────────────────────────────
 
-function JobsPage({ employer: _employer, company, onChanged, onCreate }: { employer: EmployerInfo; company: any; onChanged: () => void; onCreate: () => void }) {
+function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEditJobId, onEditOpened }: { employer: EmployerInfo; company: any; onChanged: () => void; onCreate: () => void; initialEditJobId?: string | null; onEditOpened?: () => void }) {
   const [jobs, setJobs]           = useState<any[]>([]);
   const [sites, setSites]         = useState<any[]>([]);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
@@ -1955,6 +1961,15 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
     listActiveAssociateTypes().then(setAssociateTypes).catch(() => setAssociateTypes([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.id]);
+
+  useEffect(() => {
+    if (!initialEditJobId || jobs.length === 0) return;
+    const job = jobs.find((row: any) => row.id === initialEditJobId);
+    if (!job) return;
+    openEdit(job);
+    onEditOpened?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEditJobId, jobs]);
 
   const associateTypeLabel = (code: string | null | undefined) =>
     associateTypes.find(type => type.code === code)?.name ?? code ?? '--';
@@ -2005,6 +2020,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate }: { emplo
         guard_type:          editForm.guard_type,
         description:         editForm.description,
         required_skills:     editForm.required_skills.split(',').map((s: string) => s.trim()).filter(Boolean),
+        status:              'active',
       });
       setEditingJob(null);
       reload();
@@ -2262,7 +2278,7 @@ function associateVerificationBadge(profile: any) {
   );
 }
 
-function ApplicantsPage({ employer: _employer, company, onChanged }: { employer: EmployerInfo; company: any; onChanged: () => void }) {
+function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJob }: { employer: EmployerInfo; company: any; onChanged: () => void; onReinitiateJob: (jobId: string) => void }) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [apps, setApps] = useState<any[]>([]);
@@ -2272,6 +2288,9 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
   const [interviewApp, setInterviewApp] = useState<any | null>(null);
   const [interviewRemarks, setInterviewRemarks] = useState('');
   const [savingInterview, setSavingInterview] = useState(false);
+  const [decisionApp, setDecisionApp] = useState<{ app: any; action: 'leave_accept' | 'leave_reject' | 'release' } | null>(null);
+  const [decisionReason, setDecisionReason] = useState('');
+  const [savingDecision, setSavingDecision] = useState(false);
 
   useEffect(() => {
     listEmployerJobs(company.id).then(data => setJobs(data ?? [])).catch(console.error);
@@ -2329,12 +2348,42 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
     }
   };
 
+  const submitDecision = async () => {
+    if (!decisionApp || !decisionReason.trim()) return;
+    setSavingDecision(true);
+    try {
+      let result: any;
+      if (decisionApp.action === 'release') {
+        result = await releaseHiredAssociate(decisionApp.app.id, decisionReason.trim());
+      } else {
+        result = await decideLeaveRequest(
+          decisionApp.app.id,
+          decisionApp.action === 'leave_accept' ? 'accepted' : 'rejected',
+          decisionReason.trim(),
+        );
+      }
+      const shouldAsk = decisionApp.action === 'release' || decisionApp.action === 'leave_accept';
+      const jobId = result?.job_id ?? decisionApp.app.job_id;
+      setDecisionApp(null);
+      setDecisionReason('');
+      refresh();
+      onChanged();
+      if (shouldAsk && jobId && window.confirm('Do you want to reinitiate this job requirement?')) {
+        onReinitiateJob(jobId);
+      }
+    } catch (err) {
+      alert(getErrorMessage(err, 'Failed to update job release request.'));
+    } finally {
+      setSavingDecision(false);
+    }
+  };
+
   const visibleApps = filter === 'shortlisted'
     ? apps.filter((app: any) => app.status === 'shortlisted')
     : filter === 'scheduled'
       ? apps.filter((app: any) => app.status === 'scheduled')
     : filter === 'selected'
-      ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(app.status))
+      ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'].includes(app.status))
       : apps;
 
   if (!selectedJob) {
@@ -2353,6 +2402,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
         <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
           {visibleApps.map((app: any) => {
             const alreadyHired = Boolean(app.associate_already_hired);
+            const status = String(app.status ?? '').toLowerCase();
             return (
             <tr key={app.id} className="border-b border-gray-50">
               <Td>
@@ -2378,7 +2428,14 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
               </Td>
               <Td>{alreadyHired ? statusBadge('Already hired') : statusBadge(app.status)}</Td>
               <Td>
-                {alreadyHired ? (
+                {status === 'leave_requested' ? (
+                  <>
+                    <button onClick={() => { setDecisionApp({ app, action: 'leave_accept' }); setDecisionReason(''); }} className="table-action tone-green">Accept leave</button>
+                    <button onClick={() => { setDecisionApp({ app, action: 'leave_reject' }); setDecisionReason(''); }} className="table-action tone-red">Reject leave</button>
+                  </>
+                ) : status === 'hired' ? (
+                  <button onClick={() => { setDecisionApp({ app, action: 'release' }); setDecisionReason(''); }} className="table-action tone-red">Release</button>
+                ) : alreadyHired ? (
                   <span className="text-xs font-semibold text-gray-500">Associate already hired</span>
                 ) : (
                   <>
@@ -2405,6 +2462,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged }: { employer:
         {detailsApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsApp(null)}><motion.div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-gray-900">{detailsApp.guard_profiles?.full_name ?? 'Associate Partner'}</h3><p className="text-xs text-gray-500">{detailsApp.job_posts?.title ?? selectedJob.title} application details</p></div><button onClick={() => setDetailsApp(null)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={18} /></button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><ApplicantDetailItem label="Mobile" value={<button onClick={() => setPaidFeatureAlert(true)} className="text-sm font-bold text-blue-700 hover:underline">View</button>} /><ApplicantDetailItem label="City" value={profileValue(detailsApp.guard_profiles?.city)} /><ApplicantDetailItem label="State" value={profileValue(detailsApp.guard_profiles?.state)} /><ApplicantDetailItem label="Address" value={profileValue(detailsApp.guard_profiles?.address)} /><ApplicantDetailItem label="Pincode" value={profileValue(detailsApp.guard_profiles?.pincode)} /><ApplicantDetailItem label="Gender" value={profileValue(detailsApp.guard_profiles?.gender)} /><ApplicantDetailItem label="Date of birth" value={profileDate(detailsApp.guard_profiles?.dob)} /><ApplicantDetailItem label="Skills" value={profileList(detailsApp.guard_profiles?.skills)} /><ApplicantDetailItem label="Languages" value={profileList(detailsApp.guard_profiles?.languages)} /><ApplicantDetailItem label="Experience" value={profileValue(detailsApp.guard_profiles?.experience)} /><ApplicantDetailItem label="Qualification" value={profileValue(detailsApp.guard_profiles?.qualification)} /><ApplicantDetailItem label="Profile verification" value={statusBadge(detailsApp.guard_profiles?.verification_status ?? 'pending')} /><ApplicantDetailItem label="Aadhaar" value={statusBadge(detailsApp.guard_profiles?.aadhaar_status ?? 'pending')} /><ApplicantDetailItem label="Police verification" value={statusBadge(detailsApp.guard_profiles?.police_verification_status ?? 'pending')} /><ApplicantDetailItem label="Application status" value={statusBadge(detailsApp.status)} /><ApplicantDetailItem label="Applied on" value={profileDate(detailsApp.applied_at)} /><ApplicantDetailItem label="Notes" value={profileValue(detailsApp.notes)} /></div><div className="mt-5 flex justify-end"><button onClick={() => setDetailsApp(null)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">Close</button></div></motion.div></motion.div>}
         {paidFeatureAlert && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPaidFeatureAlert(false)}><motion.div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-gray-900">Paid feature</h3><p className="mt-2 text-sm text-gray-600">Wallet must have balance to view the mobile number.</p></div><button onClick={() => setPaidFeatureAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button></div><div className="mt-5 flex justify-end"><button onClick={() => setPaidFeatureAlert(false)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">OK</button></div></motion.div></motion.div>}
         {interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder={interviewMessageSample(company)} rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}
+        {decisionApp && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingDecision && setDecisionApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">{decisionApp.action === 'release' ? 'Release associate' : decisionApp.action === 'leave_accept' ? 'Accept leave request' : 'Reject leave request'}</h3><p className="text-xs text-gray-500">{decisionApp.app.guard_profiles?.full_name ?? 'Associate Partner'} · {decisionApp.app.job_posts?.title ?? selectedJob.title}</p></div><button onClick={() => setDecisionApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={decisionReason} onChange={event => setDecisionReason(event.target.value)} placeholder="Enter reason" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setDecisionApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void submitDecision()} disabled={savingDecision || !decisionReason.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingDecision ? 'Submitting...' : 'Submit'}</button></div></motion.div></motion.div>}
       </AnimatePresence>
     </div>
   );

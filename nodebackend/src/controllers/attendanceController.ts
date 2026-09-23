@@ -345,7 +345,7 @@ const editAttendanceSchema = z.object({
   guard_remarks: z.string().max(2000).nullish(),
 });
 
-const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
 const normalizedHiredStatuses = new Set(HIRED_STATUSES);
 const OFFER_ASSIGNMENT_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 const normalizedOfferAssignmentStatuses = new Set(OFFER_ASSIGNMENT_STATUSES);

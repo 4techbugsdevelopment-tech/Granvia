@@ -21,6 +21,11 @@ export async function updateMyJobOffer(jobOfferId: string, status: 'accepted' | 
   return data;
 }
 
+export async function requestJobLeave(applicationId: string, reason: string) {
+  const { data } = await apiClient.post(`/guard/applications/${applicationId}/leave-request`, { reason });
+  return data;
+}
+
 /** Returns only the job_ids the guard has already applied to — lightweight, no joins */
 export async function listMyAppliedJobIds(): Promise<Set<string>> {
   const { data } = await apiClient.get('/guard/applications/job-ids');
@@ -44,6 +49,16 @@ export async function updateApplicationStatus(applicationId: string, status: str
 
 export async function scheduleApplicationInterview(applicationId: string, remarks: string) {
   const { data } = await apiClient.post(`/employer/applications/${applicationId}/schedule-interview`, { remarks });
+  return data;
+}
+
+export async function decideLeaveRequest(applicationId: string, decision: 'accepted' | 'rejected', reason: string) {
+  const { data } = await apiClient.post(`/employer/applications/${applicationId}/leave-decision`, { decision, reason });
+  return data;
+}
+
+export async function releaseHiredAssociate(applicationId: string, reason: string) {
+  const { data } = await apiClient.post(`/employer/applications/${applicationId}/release`, { reason });
   return data;
 }
 

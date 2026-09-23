@@ -22,7 +22,7 @@ export default function JobSearch() {
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [activeAssignment, setActiveAssignment] = useState<any | null>(null);
 
-  const activeStatuses = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired']);
+  const activeStatuses = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested']);
 
   useEffect(() => {
     let mounted = true;

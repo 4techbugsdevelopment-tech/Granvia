@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { HttpError } from '../utils/http';
 
-export const FILLED_APPLICATION_STATUSES = ['hired', 'accepted', 'joined'] as const;
+export const FILLED_APPLICATION_STATUSES = ['hired', 'accepted', 'joined', 'leave_requested'] as const;
 
 type FilledStatus = typeof FILLED_APPLICATION_STATUSES[number];
 type JobCapacityTx = Prisma.TransactionClient;

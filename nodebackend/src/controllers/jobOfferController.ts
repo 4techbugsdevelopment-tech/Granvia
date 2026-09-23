@@ -41,7 +41,7 @@ const guardUpdateSchema = z.object({
   remarks: z.string().nullish(),
 });
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
 async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string | null) {

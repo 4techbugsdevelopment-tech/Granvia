@@ -88,7 +88,7 @@ function attendanceDateKey(value: string) {
   return value.slice(0, 10);
 }
 
-const CURRENT_JOB_STATUSES = ['joined', 'hired', 'accepted', 'offer_sent', 'selected'];
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested', 'accepted', 'offer_sent', 'selected'];
 const CURRENT_JOB_STATUS_PRIORITY = new Map(CURRENT_JOB_STATUSES.map((status, index) => [status, index]));
 
 function currentJobApplication(applications: any[]) {

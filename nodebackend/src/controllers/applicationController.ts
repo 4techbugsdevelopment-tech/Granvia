@@ -14,7 +14,7 @@ const applySchema = z.object({
   cover_note: z.string().nullish(),
 });
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
 async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string) {
@@ -201,6 +201,11 @@ const updateStatusSchema = z.object({
   status: z.enum(['applied', 'shortlisted', 'selected', 'scheduled', 'hired', 'not_hired', 'rejected', 'offer_sent', 'accepted', 'joined']),
   remarks: z.string().nullish(),
 });
+const reasonSchema = z.object({ reason: z.string().trim().min(1).max(4000) });
+const leaveDecisionSchema = z.object({
+  decision: z.enum(['accepted', 'rejected']),
+  reason: z.string().trim().min(1).max(4000),
+});
 
 const schedulingSchema = z.object({ remarks: z.string().trim().min(1).max(4000) });
 
@@ -249,6 +254,11 @@ async function applicationWithScope(applicationId: string, user: NonNullable<Req
 async function notifyApplicationParties(application: { guardUserId: string; employerUserId: string | null; job: { title: string } }, title: string, message: string, type = 'application') {
   const recipients = [...new Set([application.guardUserId, application.employerUserId].filter(Boolean) as string[])];
   if (recipients.length) await prisma.notification.createMany({ data: recipients.map(userId => ({ userId, title, message, type })) });
+}
+
+async function notifyUsers(userIds: Array<string | null | undefined>, title: string, message: string, type = 'application') {
+  const recipients = [...new Set(userIds.filter(Boolean) as string[])];
+  if (recipients.length) await prisma.notification.createMany({ data: recipients.map((userId) => ({ userId, title, message, type })) });
 }
 
 async function attachAlreadyHiredStatus<T extends { id?: string; guard_user_id?: string | null }>(rows: T[]): Promise<(T & { associate_already_hired: boolean; hired_application_id: string | null })[]> {
@@ -322,6 +332,114 @@ export async function employerIndex(req: Request, res: Response) {
 
   const rows = snakeKeys(applications) as Array<Record<string, unknown> & { guard_user_id?: string }>;
   return res.json(await attachGuardProfiles(await attachAlreadyHiredStatus(rows)));
+}
+
+async function hiredApplicationForGuard(applicationId: string, guardUserId: string) {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+    include: { job: { select: { id: true, title: true } } },
+  });
+  if (!application || application.guardUserId !== guardUserId) throw new HttpError(404, 'Hired application not found.');
+  if (application.status !== 'hired') throw new HttpError(422, 'Only a hired job can be left.');
+  return application;
+}
+
+/** POST /guard/applications/:application/leave-request */
+export async function requestLeave(req: Request, res: Response) {
+  const data = reasonSchema.parse(req.body);
+  const application = await hiredApplicationForGuard(req.params.application, req.user!.id);
+  const profile = await prisma.guardProfile.findUnique({ where: { userId: req.user!.id }, select: { fullName: true } });
+  const name = profile?.fullName || 'Associate Partner';
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.jobApplication.update({
+      where: { id: application.id },
+      data: { status: 'leave_requested', notes: data.reason, reviewedAt: new Date(), reviewedBy: req.user!.id },
+    });
+    await tx.applicationStatusLog.create({
+      data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'leave_requested', remarks: data.reason },
+    });
+    return next;
+  });
+
+  await notifyUsers(
+    [application.employerUserId],
+    'Associate leave request',
+    `${name} requested to leave ${application.job.title}. Reason: ${data.reason}`,
+    'job_leave_request',
+  );
+  return res.json(snakeKeys(updated));
+}
+
+/** POST /employer/applications/:application/leave-decision */
+export async function decideLeaveRequest(req: Request, res: Response) {
+  const application = await applicationWithScope(req.params.application, req.user!);
+  if (application.status !== 'leave_requested') throw new HttpError(422, 'This application does not have a pending leave request.');
+  const data = leaveDecisionSchema.parse(req.body);
+  const nextStatus = data.decision === 'accepted' ? 'completed' : 'hired';
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.jobApplication.update({
+      where: { id: application.id },
+      data: { status: nextStatus, notes: data.reason, reviewedAt: new Date(), reviewedBy: req.user!.id },
+    });
+    await tx.applicationStatusLog.create({
+      data: {
+        applicationId: application.id,
+        changedBy: req.user!.id,
+        oldStatus: application.status,
+        newStatus: nextStatus,
+        remarks: data.reason,
+      },
+    });
+    if (data.decision === 'accepted') {
+      await tx.jobOffer.updateMany({
+        where: { applicationId: application.id, status: { in: ACTIVE_OFFER_STATUSES } },
+        data: { status: 'completed' },
+      });
+    }
+    return next;
+  });
+
+  await notifyUsers(
+    [application.guardUserId],
+    data.decision === 'accepted' ? 'Leave request accepted' : 'Leave request rejected',
+    data.decision === 'accepted'
+      ? `Your request to leave ${application.job.title} was accepted. Reason: ${data.reason}`
+      : `Your request to leave ${application.job.title} was rejected. Reason: ${data.reason}`,
+    data.decision === 'accepted' ? 'job_leave_accepted' : 'job_leave_rejected',
+  );
+  return res.json({ ...snakeKeys(updated), reinitiate_available: data.decision === 'accepted', job_id: application.jobId });
+}
+
+/** POST /employer/applications/:application/release */
+export async function releaseAssociate(req: Request, res: Response) {
+  const application = await applicationWithScope(req.params.application, req.user!);
+  if (application.status !== 'hired') throw new HttpError(422, 'Only a hired associate can be released.');
+  const data = reasonSchema.parse(req.body);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.jobApplication.update({
+      where: { id: application.id },
+      data: { status: 'released', notes: data.reason, reviewedAt: new Date(), reviewedBy: req.user!.id },
+    });
+    await tx.applicationStatusLog.create({
+      data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'released', remarks: data.reason },
+    });
+    await tx.jobOffer.updateMany({
+      where: { applicationId: application.id, status: { in: ACTIVE_OFFER_STATUSES } },
+      data: { status: 'released' },
+    });
+    return next;
+  });
+
+  await notifyUsers(
+    [application.guardUserId],
+    'Released from job',
+    `You have been released from ${application.job.title}. Reason: ${data.reason}`,
+    'job_released',
+  );
+  return res.json({ ...snakeKeys(updated), reinitiate_available: true, job_id: application.jobId });
 }
 
 /** PATCH /employer/applications/:application/status */

@@ -7,7 +7,7 @@ import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'];
+const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
 async function assignments(userId: string) {

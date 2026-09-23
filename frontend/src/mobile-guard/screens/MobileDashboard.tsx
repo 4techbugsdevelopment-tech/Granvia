@@ -95,7 +95,7 @@ function formatTime(value: string | null | undefined) {
   return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
-const CURRENT_JOB_STATUSES = ['joined', 'hired', 'accepted', 'offer_sent', 'selected'];
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested', 'accepted', 'offer_sent', 'selected'];
 const CURRENT_JOB_STATUS_PRIORITY = new Map(CURRENT_JOB_STATUSES.map((status, index) => [status, index]));
 
 function currentJobApplication(applications: any[]) {
