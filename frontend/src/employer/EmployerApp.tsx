@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useState } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
@@ -9,6 +9,7 @@ import {
 import NotificationBell from '../components/NotificationBell';
 import GranviaLogo from '../components/GranviaLogo';
 import LocationPicker from '../components/map/LocationPicker';
+import { geocodeAddressWithGoogle } from '../components/map/google/googleGeocoding';
 import CityStateSelect from '../components/CityStateSelect';
 import MobileChrome from '../universal-mobile/MobileChrome';
 import { useAuth } from '../hooks/useAuth';
@@ -1206,24 +1207,77 @@ function SiteLocationSection({
   const [locSource, setLocSource]       = useState<'manual' | 'geocoded' | null>(
     form.latitude && form.longitude ? 'manual' : null,
   );
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState('');
+  const lastGeocodedQueryRef = useRef('');
 
   const mapValue = form.latitude && form.longitude
     ? { lat: Number(form.latitude), lng: Number(form.longitude) }
     : null;
 
+  useEffect(() => {
+    const query = [form.address, form.city, form.state, form.pincode, 'India']
+      .map(part => String(part ?? '').trim())
+      .filter(Boolean)
+      .join(', ');
+
+    if (!form.address.trim() || query.length < 8) {
+      setGeocodeMessage('');
+      return;
+    }
+
+    if (query === lastGeocodedQueryRef.current) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setGeocoding(true);
+      setGeocodeMessage('');
+      geocodeAddressWithGoogle(query)
+        .then(result => {
+          if (cancelled) return;
+          if (!result) {
+            setGeocodeMessage('Address not found on Google Maps. Click the map or enter coordinates.');
+            return;
+          }
+          lastGeocodedQueryRef.current = query;
+          setForm(current => ({
+            ...current,
+            latitude: result.lat.toFixed(6),
+            longitude: result.lng.toFixed(6),
+          }));
+          setLocSource('geocoded');
+          setGeocodeMessage('');
+        })
+        .catch(() => {
+          if (!cancelled) setGeocodeMessage('Google Maps could not locate this address. Click the map or enter coordinates.');
+        })
+        .finally(() => {
+          if (!cancelled) setGeocoding(false);
+        });
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [form.address, form.city, form.state, form.pincode, setForm]);
+
   const handleMapChange = async ({ lat, lng }: { lat: number; lng: number }) => {
     setForm(f => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }));
     setLocSource('manual');
+    setGeocodeMessage('');
   };
 
   const handleLatInput = (v: string) => {
     setForm(f => ({ ...f, latitude: v }));
     if (v && form.longitude) setLocSource('manual');
+    setGeocodeMessage('');
   };
 
   const handleLngInput = (v: string) => {
     setForm(f => ({ ...f, longitude: v }));
     if (form.latitude && v) setLocSource('manual');
+    setGeocodeMessage('');
   };
 
   const clearPin = () => {
@@ -1276,10 +1330,17 @@ function SiteLocationSection({
         {locSource === 'manual' && mapValue && (
           <span className="text-green-700">✅ Manually pinned · {mapValue.lat.toFixed(5)}, {mapValue.lng.toFixed(5)}</span>
         )}
+        {locSource === 'geocoded' && mapValue && (
+          <span className="text-green-700">Address located on Google Maps: {mapValue.lat.toFixed(5)}, {mapValue.lng.toFixed(5)}</span>
+        )}
+        {geocoding && (
+          <span className="text-blue-600">Locating address on Google Maps...</span>
+        )}
         {!locSource && (
           <span className="text-gray-400">Enter lat/lng or click the map to place a pin</span>
         )}
       </div>
+      {geocodeMessage && <p className="text-xs text-amber-700">{geocodeMessage}</p>}
 
       {/* Map */}
       <div style={{ height: 280, borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>

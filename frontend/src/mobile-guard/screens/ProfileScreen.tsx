@@ -179,7 +179,6 @@ export default function ProfileScreen() {
     try {
       const doc = await uploadMyDocument(docType, file);
       setDocuments(prev => [doc, ...prev]);
-      await refreshProfile();
       setDocumentFeedback({
         type: 'success',
         message: `${GUARD_DOCUMENT_LABELS[docType]} uploaded successfully. It is now pending verification.`,
@@ -189,6 +188,11 @@ export default function ProfileScreen() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const closeDocumentFeedback = () => {
+    setDocumentFeedback(null);
+    setDocsOpen(true);
   };
 
   const fullName = guardProfile?.full_name || profile?.full_name || 'Associate';
@@ -747,7 +751,7 @@ export default function ProfileScreen() {
           <motion.div
             className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-5"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setDocumentFeedback(null)}
+            onClick={closeDocumentFeedback}
           >
             <motion.div
               role="alertdialog"
@@ -771,7 +775,10 @@ export default function ProfileScreen() {
               </p>
               <button
                 type="button"
-                onClick={() => setDocumentFeedback(null)}
+                onClick={event => {
+                  event.stopPropagation();
+                  closeDocumentFeedback();
+                }}
                 className="mt-5 w-full rounded-xl py-3 text-sm font-bold text-white"
                 style={{ background: documentFeedback.type === 'success' ? '#166534' : '#991b1b' }}
               >

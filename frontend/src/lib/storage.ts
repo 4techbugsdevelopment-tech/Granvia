@@ -25,6 +25,7 @@ export type Guard = {
   experience: string;
   dailyRate: string;
   hourlyRate: string;
+  verificationStatus: VerificationStatus;
   aadhaarStatus: VerificationStatus;
   policeVerification: VerificationStatus;
   bankDetails: object | null;

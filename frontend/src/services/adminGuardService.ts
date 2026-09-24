@@ -30,6 +30,7 @@ export function toGuardView(user: any): Guard {
     experience: p.experience ?? '',
     dailyRate: p.daily_rate != null ? String(p.daily_rate) : '',
     hourlyRate: p.hourly_rate != null ? String(p.hourly_rate) : '',
+    verificationStatus: title(p.verification_status) as Guard['verificationStatus'],
     aadhaarStatus: title(p.aadhaar_status) as Guard['aadhaarStatus'],
     policeVerification: title(p.police_verification_status) as Guard['policeVerification'],
     bankDetails: p.bank_account_number ? { accountNumber: p.bank_account_number } : null,
@@ -86,6 +87,11 @@ export async function declareGuardAadhaar(userId: string, status: AadhaarDecl, r
 
 export async function updateGuard(userId: string, input: Partial<CreateGuardInput>) {
   const { data } = await apiClient.patch(`/admin/guards/${userId}`, input);
+  return toGuardView(data);
+}
+
+export async function updateGuardVerificationStatus(userId: string, status: 'verified' | 'pending' | 'rejected') {
+  const { data } = await apiClient.patch(`/admin/guards/${userId}`, { verification_status: status });
   return toGuardView(data);
 }
 

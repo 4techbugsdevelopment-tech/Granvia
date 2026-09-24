@@ -5,7 +5,7 @@ import {
   Phone, Mail, MapPin, XCircle, User, AlertCircle, Pencil, Trash2
 } from 'lucide-react';
 import { Guard } from '../../lib/storage';
-import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, deleteGuard, resetGuardPassword } from '../../services/adminGuardService';
+import { listGuards, setGuardAccountStatus, declareGuardAadhaar, getAdminGuardAgreement, fetchAdminGuardAgreementPdf, updateGuard, updateGuardVerificationStatus, deleteGuard, resetGuardPassword } from '../../services/adminGuardService';
 import { listGuardDocuments, reviewGuardDocument, GUARD_DOCUMENT_LABELS, GuardDocumentType } from '../../services/guardVerificationService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
@@ -178,6 +178,22 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
       setNotice(`Associate Aadhaar marked ${status}.`);
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const setProfileVerification = async (guard: Guard, status: 'verified' | 'pending' | 'rejected') => {
+    setError(null);
+    setNotice('');
+    setGuardSaving(true);
+    try {
+      const updated = await updateGuardVerificationStatus(guard.id, status);
+      setGuards(prev => prev.map(g => (g.id === guard.id ? updated : g)));
+      setSelectedGuard(updated);
+      setNotice(`Associate profile marked ${status}.`);
+    } catch (cause) {
+      setError(getErrorMessage(cause, `Failed to mark profile ${status}.`));
+    } finally {
+      setGuardSaving(false);
     }
   };
 
@@ -507,6 +523,7 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                   { label: 'Address', value: selectedGuard.address },
                   { label: 'Current Location', value: selectedGuard.currentLocation },
                   { label: 'GPS', value: `${selectedGuard.latitude}, ${selectedGuard.longitude}` },
+                  { label: 'Profile Verification', value: selectedGuard.verificationStatus },
                   { label: 'Aadhaar Status', value: selectedGuard.aadhaarStatus },
                   { label: 'Police Verification', value: selectedGuard.policeVerification },
                   { label: 'Bank Details', value: selectedGuard.bankDetails ? 'Added' : 'Not Added' },
@@ -531,6 +548,51 @@ export default function GuardList({ onAddGuard }: GuardListProps) {
                     {selectedGuard.languages.map(l => (
                       <span key={l} className="text-xs px-2 py-0.5 rounded-md bg-green-50 text-green-700">{l}</span>
                     ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Overall profile verification */}
+              <div className="px-6 pb-4 border-t border-gray-100 pt-4">
+                <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Overall Profile Verification</div>
+                <div className="flex flex-col gap-3 rounded-xl p-3 sm:flex-row sm:items-center sm:justify-between" style={{ background: '#f8fafc' }}>
+                  <div>
+                    <span className="text-sm font-semibold" style={{ color: verifyColor(selectedGuard.verificationStatus) }}>
+                      {selectedGuard.verificationStatus}
+                    </span>
+                    <p className="mt-1 text-xs text-gray-500">Use this after profile details, Aadhaar, required documents, police verification, and agreement review are complete.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedGuard.verificationStatus !== 'Verified' && (
+                      <button
+                        onClick={() => void setProfileVerification(selectedGuard, 'verified')}
+                        disabled={guardSaving}
+                        className="text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-60"
+                        style={{ background: '#dcfce7', color: '#166534' }}
+                      >
+                        Mark Profile Verified
+                      </button>
+                    )}
+                    {selectedGuard.verificationStatus !== 'Pending' && (
+                      <button
+                        onClick={() => void setProfileVerification(selectedGuard, 'pending')}
+                        disabled={guardSaving}
+                        className="text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-60"
+                        style={{ background: '#fef9c3', color: '#854d0e' }}
+                      >
+                        Set Pending
+                      </button>
+                    )}
+                    {selectedGuard.verificationStatus !== 'Rejected' && (
+                      <button
+                        onClick={() => void setProfileVerification(selectedGuard, 'rejected')}
+                        disabled={guardSaving}
+                        className="text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-60"
+                        style={{ background: '#fee2e2', color: '#7c2d12' }}
+                      >
+                        Reject Profile
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

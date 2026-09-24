@@ -12,7 +12,7 @@ import { getErrorMessage } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 import CityStateSelect from '../components/CityStateSelect';
-import { addError, emailError, humanNameError, indianMobileError, passwordError, pincodeError, type ValidationMap } from '../lib/formValidation';
+import { addError, emailError, humanNameError, indianMobileError, normalizeIndianMobile, passwordError, pincodeError, type ValidationMap } from '../lib/formValidation';
 
 interface UniversalLoginProps {
   onLogin: () => void;
@@ -175,6 +175,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [loading, setLoading] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
   const [shake, setShake] = useState(false);
   const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
   const [verifyEmail, setVerifyEmail] = useState<{ email: string; devOtp?: string } | null>(null);
@@ -260,9 +261,10 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
     setRegisterSuccess('');
 
     const emailValue = register.email.trim().toLowerCase();
+    const mobileValue = normalizeIndianMobile(register.mobile);
     const validationErrors: ValidationMap = {};
     addError(validationErrors, 'fullName', humanNameError(register.fullName, registerRole === 'employer' ? 'Contact person' : 'Full name'));
-    addError(validationErrors, 'mobile', indianMobileError(register.mobile));
+    addError(validationErrors, 'mobile', indianMobileError(mobileValue));
     addError(validationErrors, 'email', emailError(emailValue));
     addError(validationErrors, 'password', passwordError(register.password));
     if (register.password !== register.confirmPassword) {
@@ -290,7 +292,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       if (registerRole === 'employer') {
         await registerEmployer({
           contactPersonName: register.fullName.trim(),
-          mobile: register.mobile.trim(),
+          mobile: mobileValue,
           email: emailValue,
           password: register.password,
           city: register.city.trim(),
@@ -301,7 +303,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       } else {
         await registerGuard({
           fullName: register.fullName.trim(),
-          mobile: register.mobile.trim(),
+          mobile: mobileValue,
           email: emailValue,
           password: register.password,
           profileType: register.profileType,
@@ -319,6 +321,20 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
     } finally {
       setRegisterLoading(false);
     }
+  };
+
+  const finishRegistration = (verifiedEmail: string) => {
+    setRegisterOtp(null);
+    setRegisterSuccess('');
+    setRegisterError('');
+    setRegistrationComplete(true);
+    setTimeout(() => {
+      setRegistrationComplete(false);
+      setMode('login');
+      setEmail(verifiedEmail);
+      setSuccess(false);
+      setError('');
+    }, 1200);
   };
 
   return (
@@ -395,6 +411,24 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                 <CheckCircle size={60} style={{ color: '#22c55e' }} />
                 <p className="font-bold text-gray-800 text-lg">Login Successful!</p>
                 <p className="text-gray-400 text-sm">Loading your workspace...</p>
+              </motion.div>
+            ) : registrationComplete ? (
+              <motion.div
+                key="registration-success"
+                className="flex flex-col items-center justify-center py-10 gap-4"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  <CheckCircle size={60} style={{ color: '#22c55e' }} />
+                </motion.div>
+                <p className="font-bold text-gray-800 text-lg">Registration Successful!</p>
+                <p className="text-gray-400 text-sm">Redirecting to login...</p>
               </motion.div>
             ) : mode === 'login' ? (
               <motion.form
@@ -506,7 +540,15 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     icon={registerRole === 'employer' ? <UserCheck size={14} /> : <User size={14} />}
                     error={registerFieldErrors.fullName}
                   />
-                  <Input label="Mobile *" value={register.mobile} onChange={value => updateRegister('mobile', value)} icon={<UserCheck size={14} />} inputMode="numeric" maxLength={10} error={registerFieldErrors.mobile} />
+                  <Input
+                    label="Mobile *"
+                    value={register.mobile}
+                    onChange={value => updateRegister('mobile', normalizeIndianMobile(value).slice(0, 10))}
+                    icon={<UserCheck size={14} />}
+                    inputMode="numeric"
+                    maxLength={10}
+                    error={registerFieldErrors.mobile}
+                  />
                   <Input label="Email *" value={register.email} onChange={value => updateRegister('email', value)} type="email" icon={<Mail size={14} />} error={registerFieldErrors.email} />
                   <div className="sm:col-span-2">
                     <Input
@@ -627,13 +669,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       {registerOtp && (
         <VerifyEmailDialog
           email={registerOtp.email}
-          onVerified={() => {
-            setRegisterOtp(null);
-            setMode('login');
-            setEmail(registerOtp.email);
-            setSuccess(false);
-            setError('Email verified — please sign in.');
-          }}
+          onVerified={() => finishRegistration(registerOtp.email)}
           onClose={() => setRegisterOtp(null)}
         />
       )}

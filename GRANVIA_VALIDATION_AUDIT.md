@@ -340,6 +340,54 @@ Compatibility impact:
 
 None for the safe/actionable implementation scope. Remaining items above require business decisions before code should enforce them.
 
+## Success and Failure Confirmation Audit - 2026-09-24
+
+Source order followed for this pass: repository markdown first (`ROLE_WISE_COMPLETE_USER_FLOW.md`, `COMPLETE_END_TO_END_USER_PROCESS.md`, `COMPLETE_CROSS_ROLE_STORY_FLOW.md`, this audit), then targeted frontend code search for existing success, alert, modal, and animation patterns.
+
+### Completed in this pass
+
+| Event | Role/Surface | Status | Notes |
+|---|---|---|---|
+| Universal self-registration mobile field typing | Employer, Associate / universal mobile registration | COMPLETED | Mobile input now strips non-digits, caps to 10 digits, normalizes `+91` pasted values, validates the normalized value, and submits only the normalized number. |
+| Universal self-registration success after email verification | Employer, Associate / universal mobile registration | COMPLETED | After registration email OTP verification, the user now sees the same green check success animation style used by login, then redirects to the login form with email prefilled. |
+
+### Confirmation events requiring implementation or parity review
+
+| Flow Event | Role(s) | Current Confirmation Gap | Required Confirmation UX |
+|---|---|---|---|
+| Employer registration from dedicated Employer portal | Employer | Uses email verification dialog and inline message; does not yet use the same green-tick registration-complete redirect animation. | Show green-tick success after verification, then redirect to Employer login with identifier prefilled. |
+| Employer login from dedicated Employer portal | Employer | Directly calls `onLogin()` after successful credentials; no visible green-tick animation like other login screens. | Show login success animation before dashboard redirect. |
+| Employer profile save | Employer | Uses notice text for success and `alert()` for failure in some paths. | Replace failure alerts with visible in-screen error modal/banner; keep success confirmation visible. |
+| Employer profile/company document upload/update/delete | Employer | Some document paths set success notice, validation/failure still relies on alerts in places. | Standard success modal/banner for upload/update/delete; standard failure modal/banner with exact API/file validation message. |
+| Employer add/update/delete company | Employer | Some paths show both notice and `window.alert()`, which is inconsistent and blocking. | Use one consistent success modal/banner; use non-blocking error confirmation with retry context. |
+| Employer add/update/delete site | Employer | Has a `SuccessModal` pattern in `EmployerApp.tsx`; parity should be checked across add/edit/delete and inline site creation. | Reuse the existing modal for all site mutations and show matching failure feedback. |
+| Employer create/update/delete job | Employer | Some create/edit validation still uses alerts or inline notices depending on path. | Show success modal when submitted/updated/deleted; show clear failure modal for wallet, validation, approval, capacity, or site/company rule failures. |
+| Employer applicant action: shortlist/schedule/identity checked/hired proposal/not hired | Employer | Hiring workflow has backend notifications, but user-facing mutation confirmation is not consistently guaranteed for every action. | Each applicant status action must show success/failure confirmation and reflect proposal-vs-final-hired status. |
+| Associate job apply | Associate | Reported as no confirmation after Apply. | Show success animation/banner: application submitted; show failure confirmation for duplicate/closed/full/ineligible jobs. |
+| Associate job offer accept/decline | Associate | Reported as no confirmation; backend finalizes hire only after accept. | Show success confirmation for accepted/declined offer before refreshing applications; failure confirmation for full/closed/already-hired states. |
+| Associate got hired/final hire result | Associate, Employer | Notifications/documents are delivered, but visible action confirmation should be verified on both role screens. | Show final hired success state and document availability confirmation after offer acceptance. |
+| Associate profile save | Associate | Needs parity review. | Show visible success and failure confirmation after profile/bank/location/photo changes. |
+| Associate document upload | Associate | Current `ProfileScreen.tsx` already has document upload success/failure modal with green tick/red error. | Keep as accepted pattern; verify all document categories use it. |
+| Associate Aadhaar/manual verification actions | Associate, Employer/Admin depending path | Needs parity review. | Show success/failure confirmation for OTP sent, OTP verified, manual evidence uploaded, admin approve/reject. |
+| Associate attendance check-in/check-out/historical request | Associate | Attendance already has green-tick success states and flash errors from prior pass. | Preserve; verify mobile WebView/device behavior. |
+| Associate availability add/delete/toggle | Associate | Uses inline notice only. | Upgrade or standardize notice as success/failure confirmation. |
+| Wallet recharge/cash payment/transactions | Employer | Cash payment page has a modal success pattern; wallet recharge/filter paths need parity review. | Show success/failure confirmation for recharge request, cash payment proof, and transaction mutation paths. |
+| Withdrawal request | Associate | Needs parity review. | Show success confirmation when withdrawal is requested; failure confirmation for insufficient balance/bank validation/status guards. |
+| Withdrawal approve/reject/complete payout | Finance | `FinanceApp.tsx` sets inline notice for approve/reject/payout and alert-like prompt for reference. | Add modal/banner confirmation for success and failure; validate reference/reason inline. |
+| Company/job/document approval and rejection | Super Admin, Sub Admin | Needs parity review across verification queues. | Show success/failure confirmation after approve/reject with remarks; surface notification delivery result if relevant. |
+| Operations application status update | Operations | Needs parity review. | Show success/failure confirmation for status changes, especially full/closed/capacity rejections. |
+| Sales job/client/discount/OTP actions | Sales Executive | Needs parity review. | Show confirmation for client/job draft, OTP sent/confirmed, discount submitted/approved/rejected. |
+| Support ticket create/reply/status | All relevant roles | Needs parity review. | Show success/failure confirmation for ticket submission and status changes. |
+| Password reset / forgot password / email OTP | All roles | Dialogs exist; completion confirmation needs parity review. | Show clear success/failure confirmation for OTP sent, password changed, and resend failure. |
+
+### Implementation rule for remaining events
+
+- Prefer the existing green-tick modal/animation for completed operations that change workflow state.
+- Use a red error modal/banner for failed operations where the user must notice the result immediately.
+- Keep inline field errors for validation details, but do not rely on inline text alone after a submitted mutation.
+- Do not use blocking `window.alert()` for normal success confirmation; reserve browser alerts only until a page-specific modal/banner is wired.
+- Apply confirmations role-by-role without changing the backend workflow semantics.
+
 ## Final Audit Table
 
 | Original Audit Item | Final Status | Final Note |
