@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
@@ -30,6 +31,14 @@ const jobInclude = {
   },
 } as const;
 
+function isMissingMigrationError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && ['P2021', 'P2022'].includes(error.code);
+}
+
+function optionalDelegate<T>(delegate: T | undefined): T | null {
+  return delegate ?? null;
+}
+
 /** GET /admin/attendance */
 export async function attendance(req: Request, res: Response) {
   await autoCheckoutExpiredAttendance();
@@ -52,28 +61,60 @@ export async function attendance(req: Request, res: Response) {
   const rows = snakeKeys(records) as Array<Record<string, unknown> & { guard_user_id?: string }>;
   const enriched = await attachGuardProfiles(rows);
   const recordIds = records.map((record) => record.id);
-  const payments = recordIds.length
-    ? await prisma.payment.findMany({
+  const warnings: string[] = [];
+  let payments: Array<{ id: string; attendanceId: string | null; amount: Prisma.Decimal; paymentStatus: string; paymentDate: Date | null }> = [];
+  if (recordIds.length) {
+    try {
+      payments = await prisma.payment.findMany({
         where: { attendanceId: { in: recordIds } } as never,
         select: { id: true, attendanceId: true, amount: true, paymentStatus: true, paymentDate: true },
-      })
-    : [];
+      });
+    } catch (error) {
+      if (!isMissingMigrationError(error)) throw error;
+      console.warn('[admin/attendance] settlement data unavailable; payment migration is not applied', error);
+      warnings.push('Attendance settlement data is unavailable because the server database is missing the latest payment update.');
+    }
+  }
   const paymentsByAttendance = new Map(payments.map((payment) => [payment.attendanceId, payment]));
-  const exceptionRequests = await prisma.attendanceExceptionRequest.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-    include: { job: { select: { id: true, title: true, site: { select: { id: true, siteName: true, latitude: true, longitude: true } }, company: { select: { id: true, companyName: true } } } } },
-  });
+  const exceptionRequestDelegate = optionalDelegate((prisma as unknown as { attendanceExceptionRequest?: typeof prisma.attendanceExceptionRequest }).attendanceExceptionRequest);
+  let exceptionRequests: Awaited<ReturnType<typeof prisma.attendanceExceptionRequest.findMany>> = [];
+  if (!exceptionRequestDelegate) {
+    warnings.push('Attendance exception requests are unavailable because the server is missing the latest attendance exception update.');
+  } else {
+    try {
+      exceptionRequests = await exceptionRequestDelegate.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+        include: { job: { select: { id: true, title: true, site: { select: { id: true, siteName: true, latitude: true, longitude: true } }, company: { select: { id: true, companyName: true } } } } },
+      });
+    } catch (error) {
+      if (!isMissingMigrationError(error)) throw error;
+      console.warn('[admin/attendance] exception requests unavailable; attendance exception migration is not applied', error);
+      warnings.push('Attendance exception requests are unavailable because the server database is missing the latest attendance exception update.');
+    }
+  }
   const requestIds = exceptionRequests.map((request) => request.id);
-  const auditEvents = await prisma.attendanceAuditEvent.findMany({
-    where: {
-      OR: [
-        ...(recordIds.length ? [{ attendanceRecordId: { in: recordIds } }] : []),
-        ...(requestIds.length ? [{ exceptionRequestId: { in: requestIds } }] : []),
-      ],
-    },
-    orderBy: { eventAt: 'asc' },
-  });
+  const auditEventDelegate = optionalDelegate((prisma as unknown as { attendanceAuditEvent?: typeof prisma.attendanceAuditEvent }).attendanceAuditEvent);
+  let auditEvents: Awaited<ReturnType<typeof prisma.attendanceAuditEvent.findMany>> = [];
+  if (!auditEventDelegate) {
+    warnings.push('Attendance audit events are unavailable because the server is missing the latest attendance audit update.');
+  } else if (recordIds.length || requestIds.length) {
+    try {
+      auditEvents = await auditEventDelegate.findMany({
+        where: {
+          OR: [
+            ...(recordIds.length ? [{ attendanceRecordId: { in: recordIds } }] : []),
+            ...(requestIds.length ? [{ exceptionRequestId: { in: requestIds } }] : []),
+          ],
+        },
+        orderBy: { eventAt: 'asc' },
+      });
+    } catch (error) {
+      if (!isMissingMigrationError(error)) throw error;
+      console.warn('[admin/attendance] audit events unavailable; attendance audit migration is not applied', error);
+      warnings.push('Attendance audit events are unavailable because the server database is missing the latest attendance audit update.');
+    }
+  }
   const actorIds = [...new Set(auditEvents.map((event) => event.actorUserId).filter(Boolean) as string[])];
   const actors = actorIds.length
     ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true, role: true } })
@@ -96,6 +137,7 @@ export async function attendance(req: Request, res: Response) {
       verified,
       pending,
     },
+    warnings,
     records: enriched.map((record) => ({
       ...record,
       audit_events: auditsByRecord.get(record.id as string) ?? [],

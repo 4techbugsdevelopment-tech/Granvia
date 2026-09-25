@@ -56,7 +56,9 @@ const attendanceExceptionDecisionSchema = z.object({
   employer_remarks: z.string().trim().max(2000).nullish(),
 });
 
-type AttendanceAuditDb = Pick<typeof prisma, 'attendanceAuditEvent'>;
+type AttendanceAuditDelegate = NonNullable<typeof prisma.attendanceAuditEvent>;
+type AttendanceAuditDb = { attendanceAuditEvent?: AttendanceAuditDelegate };
+type AttendanceExceptionDelegate = NonNullable<typeof prisma.attendanceExceptionRequest>;
 
 type AttendanceAuditInput = {
   eventType: string;
@@ -91,7 +93,23 @@ function requestAuditContext(req: Request) {
   };
 }
 
+function attendanceExceptionRequestsDelegate(): AttendanceExceptionDelegate | null {
+  return (prisma as unknown as { attendanceExceptionRequest?: AttendanceExceptionDelegate }).attendanceExceptionRequest ?? null;
+}
+
+function attendanceExceptionRequestsUnavailable() {
+  return new HttpError(503, 'Attendance requests are unavailable because the server is missing the latest attendance exception update. Please contact support.');
+}
+
+function isMissingAttendanceSchemaError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && ['P2021', 'P2022'].includes(error.code);
+}
+
 async function writeAttendanceAudit(db: AttendanceAuditDb, input: AttendanceAuditInput) {
+  if (!db.attendanceAuditEvent) {
+    console.warn('[attendance] audit event skipped; Prisma client is missing attendanceAuditEvent');
+    return;
+  }
   const context = input.requestContext;
   await db.attendanceAuditEvent.create({
     data: {
@@ -639,6 +657,8 @@ export async function requestAttendanceException(req: Request, res: Response) {
   const data = attendanceExceptionRequestSchema.parse(req.body);
   const guardId = req.user!.id;
   const today = todayDateOnly();
+  const exceptionRequests = attendanceExceptionRequestsDelegate();
+  if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
 
   let jobId = data.job_id ?? null;
   let attendanceRecordId = data.attendance_record_id ?? null;
@@ -661,7 +681,7 @@ export async function requestAttendanceException(req: Request, res: Response) {
     throw new HttpError(422, 'You are within the assigned job location. Please mark normal attendance instead of requesting an exception.');
   }
 
-  const existing = await prisma.attendanceExceptionRequest.findFirst({
+  const existing = await exceptionRequests.findFirst({
     where: {
       guardUserId: guardId,
       jobId: assigned.id,
@@ -674,7 +694,7 @@ export async function requestAttendanceException(req: Request, res: Response) {
     throw new HttpError(409, 'A pending attendance request already exists for this job today.');
   }
 
-  const request = await prisma.attendanceExceptionRequest.create({
+  const request = await exceptionRequests.create({
     data: {
       guardUserId: guardId,
       employerUserId: assigned.employerUserId,
@@ -1064,7 +1084,9 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
 }
 
 async function materializeExceptionAttendance(requestId: string, actorId: string) {
-  const request = await prisma.attendanceExceptionRequest.findUnique({
+  const exceptionRequests = attendanceExceptionRequestsDelegate();
+  if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
+  const request = await exceptionRequests.findUnique({
     where: { id: requestId },
     include: { job: true },
   });
@@ -1137,20 +1159,34 @@ async function materializeExceptionAttendance(requestId: string, actorId: string
 /** GET /employer/attendance/exception-requests */
 export async function employerExceptionRequests(req: Request, res: Response) {
   const companyId = req.query.company_id as string | undefined;
-  const rows = await prisma.attendanceExceptionRequest.findMany({
-    where: { employerUserId: req.user!.id, ...(companyId ? { companyId } : {}) },
-    include: { job: { include: { company: true, site: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  });
-  const shaped = snakeKeys(rows) as Array<Record<string, unknown> & { guard_user_id?: string }>;
-  return res.json(await attachGuardProfiles(shaped));
+  const exceptionRequests = attendanceExceptionRequestsDelegate();
+  if (!exceptionRequests) {
+    res.setHeader('X-Granvia-Warning', 'Attendance requests are unavailable because the server is missing the latest attendance exception update.');
+    return res.json([]);
+  }
+  try {
+    const rows = await exceptionRequests.findMany({
+      where: { employerUserId: req.user!.id, ...(companyId ? { companyId } : {}) },
+      include: { job: { include: { company: true, site: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    const shaped = snakeKeys(rows) as Array<Record<string, unknown> & { guard_user_id?: string }>;
+    return res.json(await attachGuardProfiles(shaped));
+  } catch (error) {
+    if (!isMissingAttendanceSchemaError(error)) throw error;
+    console.warn('[employer/attendance/exception-requests] unavailable; attendance exception migration is not applied', error);
+    res.setHeader('X-Granvia-Warning', 'Attendance requests are unavailable because the server database is missing the latest attendance exception update.');
+    return res.json([]);
+  }
 }
 
 /** PATCH /employer/attendance/exception-requests/:request/status */
 export async function decideExceptionRequest(req: Request, res: Response) {
   const data = attendanceExceptionDecisionSchema.parse(req.body);
-  const request = await prisma.attendanceExceptionRequest.findUnique({ where: { id: req.params.request } });
+  const exceptionRequests = attendanceExceptionRequestsDelegate();
+  if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
+  const request = await exceptionRequests.findUnique({ where: { id: req.params.request } });
   if (!request) throw new HttpError(404, 'Attendance request not found.');
   if (request.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
   if (request.status !== 'pending') throw new HttpError(422, 'This attendance request has already been decided.');
@@ -1159,7 +1195,7 @@ export async function decideExceptionRequest(req: Request, res: Response) {
   }
 
   if (data.status === 'rejected') {
-    const rejected = await prisma.attendanceExceptionRequest.update({
+    const rejected = await exceptionRequests.update({
       where: { id: request.id },
       data: {
         status: 'rejected',
@@ -1205,7 +1241,7 @@ export async function decideExceptionRequest(req: Request, res: Response) {
     status: 'approved',
     employer_remarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
   }, requestAuditContext(req));
-  const approved = await prisma.attendanceExceptionRequest.update({
+  const approved = await exceptionRequests.update({
     where: { id: request.id },
     data: {
       status: 'approved',
