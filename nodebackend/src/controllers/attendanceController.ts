@@ -59,6 +59,7 @@ const attendanceExceptionDecisionSchema = z.object({
 type AttendanceAuditDelegate = NonNullable<typeof prisma.attendanceAuditEvent>;
 type AttendanceAuditDb = { attendanceAuditEvent?: AttendanceAuditDelegate };
 type AttendanceExceptionDelegate = NonNullable<typeof prisma.attendanceExceptionRequest>;
+type AttendanceExceptionRequestWithJob = Prisma.AttendanceExceptionRequestGetPayload<{ include: { job: true } }>;
 
 type AttendanceAuditInput = {
   eventType: string;
@@ -103,6 +104,18 @@ function attendanceExceptionRequestsUnavailable() {
 
 function isMissingAttendanceSchemaError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && ['P2021', 'P2022'].includes(error.code);
+}
+
+function mapAttendanceExceptionRequestError(error: unknown): HttpError | null {
+  if (isMissingAttendanceSchemaError(error)) {
+    return new HttpError(503, 'Attendance requests are unavailable because the server database is missing the latest attendance exception update. Please contact support.');
+  }
+
+  if (error instanceof TypeError && /Cannot read properties of undefined/.test(error.message)) {
+    return attendanceExceptionRequestsUnavailable();
+  }
+
+  return null;
 }
 
 async function writeAttendanceAudit(db: AttendanceAuditDb, input: AttendanceAuditInput) {
@@ -654,102 +667,108 @@ export async function checkOut(req: Request, res: Response) {
 
 /** POST /guard/attendance/exception-requests */
 export async function requestAttendanceException(req: Request, res: Response) {
-  const data = attendanceExceptionRequestSchema.parse(req.body);
-  const guardId = req.user!.id;
-  const today = todayDateOnly();
-  const exceptionRequests = attendanceExceptionRequestsDelegate();
-  if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
+  try {
+    const data = attendanceExceptionRequestSchema.parse(req.body);
+    const guardId = req.user!.id;
+    const today = todayDateOnly();
+    const exceptionRequests = attendanceExceptionRequestsDelegate();
+    if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
 
-  let jobId = data.job_id ?? null;
-  let attendanceRecordId = data.attendance_record_id ?? null;
-  let record: Awaited<ReturnType<typeof prisma.attendanceRecord.findUnique>> | null = null;
+    let jobId = data.job_id ?? null;
+    let attendanceRecordId = data.attendance_record_id ?? null;
+    let record: Awaited<ReturnType<typeof prisma.attendanceRecord.findUnique>> | null = null;
 
-  if (data.request_type === 'check_out') {
-    if (!attendanceRecordId) throw new HttpError(422, 'Attendance record is required for a check-out request.');
-    record = await prisma.attendanceRecord.findUnique({ where: { id: attendanceRecordId } });
-    if (!record || record.guardUserId !== guardId) throw new HttpError(404, 'Attendance record not found.');
-    if (record.outTime) throw new HttpError(422, 'This attendance is already checked out.');
-    if (!record.jobId) throw new HttpError(422, 'Attendance is not linked to a job.');
-    jobId = record.jobId;
-  }
+    if (data.request_type === 'check_out') {
+      if (!attendanceRecordId) throw new HttpError(422, 'Attendance record is required for a check-out request.');
+      record = await prisma.attendanceRecord.findUnique({ where: { id: attendanceRecordId } });
+      if (!record || record.guardUserId !== guardId) throw new HttpError(404, 'Attendance record not found.');
+      if (record.outTime) throw new HttpError(422, 'This attendance is already checked out.');
+      if (!record.jobId) throw new HttpError(422, 'Attendance is not linked to a job.');
+      jobId = record.jobId;
+    }
 
-  const assigned = await assignedJob(guardId, jobId, today);
-  const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: assigned.id }, include: { site: true, company: true } });
-  if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
-  const geo = geofenceDetails({ job: jobWithLocation, latitude: data.latitude, longitude: data.longitude });
-  if (geo.ok) {
-    throw new HttpError(422, 'You are within the assigned job location. Please mark normal attendance instead of requesting an exception.');
-  }
+    const assigned = await assignedJob(guardId, jobId, today);
+    const jobWithLocation = await prisma.jobPost.findUnique({ where: { id: assigned.id }, include: { site: true, company: true } });
+    if (!jobWithLocation) throw new HttpError(422, 'Assigned job was not found.');
+    const geo = geofenceDetails({ job: jobWithLocation, latitude: data.latitude, longitude: data.longitude });
+    if (geo.ok) {
+      throw new HttpError(422, 'You are within the assigned job location. Please mark normal attendance instead of requesting an exception.');
+    }
 
-  const existing = await exceptionRequests.findFirst({
-    where: {
-      guardUserId: guardId,
-      jobId: assigned.id,
-      requestType: data.request_type,
-      status: 'pending',
-      createdAt: { gte: today },
-    },
-  });
-  if (existing) {
-    throw new HttpError(409, 'A pending attendance request already exists for this job today.');
-  }
+    const existing = await exceptionRequests.findFirst({
+      where: {
+        guardUserId: guardId,
+        jobId: assigned.id,
+        requestType: data.request_type,
+        status: 'pending',
+        createdAt: { gte: today },
+      },
+    });
+    if (existing) {
+      throw new HttpError(409, 'A pending attendance request already exists for this job today.');
+    }
 
-  const request = await exceptionRequests.create({
-    data: {
+    const request = await exceptionRequests.create({
+      data: {
+        guardUserId: guardId,
+        employerUserId: assigned.employerUserId,
+        companyId: assigned.companyId,
+        jobId: assigned.id,
+        siteId: assigned.siteId,
+        attendanceRecordId,
+        requestType: data.request_type,
+        message: data.message,
+        deviceLatitude: data.latitude ?? null,
+        deviceLongitude: data.longitude ?? null,
+        deviceLocationName: data.location_name?.trim() || null,
+        siteLatitude: geo.siteLat,
+        siteLongitude: geo.siteLng,
+        distanceMeters: geo.distance == null ? null : new Prisma.Decimal(geo.distance.toFixed(2)),
+        radiusMeters: geo.radius,
+        failureReason: geo.reason,
+      },
+      include: { job: { include: { company: true, site: true } } },
+    });
+
+    await writeAttendanceAudit(prisma, {
+      eventType: 'request_attendance',
+      actorUserId: guardId,
+      actorRole: 'associate',
+      exceptionRequestId: request.id,
       guardUserId: guardId,
       employerUserId: assigned.employerUserId,
-      companyId: assigned.companyId,
       jobId: assigned.id,
       siteId: assigned.siteId,
-      attendanceRecordId,
-      requestType: data.request_type,
-      message: data.message,
-      deviceLatitude: data.latitude ?? null,
-      deviceLongitude: data.longitude ?? null,
+      attendanceDate: today,
+      deviceLatitude: data.latitude,
+      deviceLongitude: data.longitude,
       deviceLocationName: data.location_name?.trim() || null,
       siteLatitude: geo.siteLat,
       siteLongitude: geo.siteLng,
-      distanceMeters: geo.distance == null ? null : new Prisma.Decimal(geo.distance.toFixed(2)),
+      distanceMeters: geo.distance,
       radiusMeters: geo.radius,
-      failureReason: geo.reason,
-    },
-    include: { job: { include: { company: true, site: true } } },
-  });
-
-  await writeAttendanceAudit(prisma, {
-    eventType: 'request_attendance',
-    actorUserId: guardId,
-    actorRole: 'associate',
-    exceptionRequestId: request.id,
-    guardUserId: guardId,
-    employerUserId: assigned.employerUserId,
-    jobId: assigned.id,
-    siteId: assigned.siteId,
-    attendanceDate: today,
-    deviceLatitude: data.latitude,
-    deviceLongitude: data.longitude,
-    deviceLocationName: data.location_name?.trim() || null,
-    siteLatitude: geo.siteLat,
-    siteLongitude: geo.siteLng,
-    distanceMeters: geo.distance,
-    radiusMeters: geo.radius,
-    remarks: data.message,
-    metadata: { request_type: data.request_type, failure_reason: geo.reason },
-    requestContext: requestAuditContext(req),
-  });
-
-  if (assigned.employerUserId) {
-    await prisma.notification.create({
-      data: {
-        userId: assigned.employerUserId,
-        title: 'Attendance request',
-        message: `An Associate requested ${data.request_type === 'check_in' ? 'check-in' : 'check-out'} attendance for ${assigned.title}.`,
-        type: 'attendance_exception',
-      },
+      remarks: data.message,
+      metadata: { request_type: data.request_type, failure_reason: geo.reason },
+      requestContext: requestAuditContext(req),
     });
-  }
 
-  return res.status(201).json(snakeKeys(request));
+    if (assigned.employerUserId) {
+      await prisma.notification.create({
+        data: {
+          userId: assigned.employerUserId,
+          title: 'Attendance request',
+          message: `An Associate requested ${data.request_type === 'check_in' ? 'check-in' : 'check-out'} attendance for ${assigned.title}.`,
+          type: 'attendance_exception',
+        },
+      });
+    }
+
+    return res.status(201).json(snakeKeys(request));
+  } catch (error) {
+    const mapped = mapAttendanceExceptionRequestError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
 }
 
 /** POST /guard/attendance/history — create or correct an unapproved past record. */
@@ -1086,10 +1105,17 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
 async function materializeExceptionAttendance(requestId: string, actorId: string) {
   const exceptionRequests = attendanceExceptionRequestsDelegate();
   if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
-  const request = await exceptionRequests.findUnique({
-    where: { id: requestId },
-    include: { job: true },
-  });
+  let request: AttendanceExceptionRequestWithJob | null;
+  try {
+    request = await exceptionRequests.findUnique({
+      where: { id: requestId },
+      include: { job: true },
+    });
+  } catch (error) {
+    const mapped = mapAttendanceExceptionRequestError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
   if (!request) throw new HttpError(404, 'Attendance request not found.');
   if (!request.employerUserId || request.employerUserId !== actorId) throw new HttpError(403, 'Forbidden.');
   if (request.status !== 'pending') throw new HttpError(422, 'This attendance request has already been decided.');
@@ -1186,7 +1212,14 @@ export async function decideExceptionRequest(req: Request, res: Response) {
   const data = attendanceExceptionDecisionSchema.parse(req.body);
   const exceptionRequests = attendanceExceptionRequestsDelegate();
   if (!exceptionRequests) throw attendanceExceptionRequestsUnavailable();
-  const request = await exceptionRequests.findUnique({ where: { id: req.params.request } });
+  let request: Awaited<ReturnType<typeof exceptionRequests.findUnique>>;
+  try {
+    request = await exceptionRequests.findUnique({ where: { id: req.params.request } });
+  } catch (error) {
+    const mapped = mapAttendanceExceptionRequestError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
   if (!request) throw new HttpError(404, 'Attendance request not found.');
   if (request.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
   if (request.status !== 'pending') throw new HttpError(422, 'This attendance request has already been decided.');
@@ -1195,16 +1228,23 @@ export async function decideExceptionRequest(req: Request, res: Response) {
   }
 
   if (data.status === 'rejected') {
-    const rejected = await exceptionRequests.update({
-      where: { id: request.id },
-      data: {
-        status: 'rejected',
-        employerRemarks: data.employer_remarks!.trim(),
-        decidedAt: new Date(),
-        decidedBy: req.user!.id,
-      },
-      include: { job: { include: { company: true, site: true } } },
-    });
+    let rejected: Awaited<ReturnType<typeof exceptionRequests.update>>;
+    try {
+      rejected = await exceptionRequests.update({
+        where: { id: request.id },
+        data: {
+          status: 'rejected',
+          employerRemarks: data.employer_remarks!.trim(),
+          decidedAt: new Date(),
+          decidedBy: req.user!.id,
+        },
+        include: { job: { include: { company: true, site: true } } },
+      });
+    } catch (error) {
+      const mapped = mapAttendanceExceptionRequestError(error);
+      if (mapped) throw mapped;
+      throw error;
+    }
     await writeAttendanceAudit(prisma, {
       eventType: 'reject_exception_request',
       actorUserId: req.user!.id,
@@ -1241,17 +1281,24 @@ export async function decideExceptionRequest(req: Request, res: Response) {
     status: 'approved',
     employer_remarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
   }, requestAuditContext(req));
-  const approved = await exceptionRequests.update({
-    where: { id: request.id },
-    data: {
-      status: 'approved',
-      attendanceRecordId: recordId,
-      employerRemarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
-      decidedAt: new Date(),
-      decidedBy: req.user!.id,
-    },
-    include: { job: { include: { company: true, site: true } } },
-  });
+  let approved: Awaited<ReturnType<typeof exceptionRequests.update>>;
+  try {
+    approved = await exceptionRequests.update({
+      where: { id: request.id },
+      data: {
+        status: 'approved',
+        attendanceRecordId: recordId,
+        employerRemarks: data.employer_remarks?.trim() || 'Approved attendance exception request.',
+        decidedAt: new Date(),
+        decidedBy: req.user!.id,
+      },
+      include: { job: { include: { company: true, site: true } } },
+    });
+  } catch (error) {
+    const mapped = mapAttendanceExceptionRequestError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
   await writeAttendanceAudit(prisma, {
     eventType: 'approve_exception_request',
     actorUserId: req.user!.id,
