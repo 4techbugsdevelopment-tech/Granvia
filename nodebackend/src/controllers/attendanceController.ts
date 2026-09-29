@@ -551,7 +551,6 @@ export async function checkIn(req: Request, res: Response) {
         guardUserId: guardId,
         employerUserId: job.employerUserId,
         companyId: job.companyId,
-        jobId: job.id,
         siteId: job.siteId,
         attendanceDate: today,
         inTime,
@@ -562,6 +561,7 @@ export async function checkIn(req: Request, res: Response) {
         entryMode: env.locationCaptureEnabled ? 'live' : 'live_location_disabled',
         status: 'pending_verification',
         guardRemarks: data.guard_remarks ?? null,
+        job: { connect: { id: job.id } },
       },
       include: jobInclude,
     });
@@ -821,10 +821,11 @@ export async function saveHistorical(req: Request, res: Response) {
     guardRemarks: data.guard_remarks ?? null,
   } as const;
 
+  const { jobId: createJobId, ...createValues } = values;
   const record = existing
     ? await prisma.attendanceRecord.update({ where: { id: existing.id }, data: values, include: jobInclude })
     : await prisma.attendanceRecord.create({
-        data: { guardUserId: guardId, ...values },
+        data: { guardUserId: guardId, ...createValues, job: { connect: { id: createJobId } } },
         include: jobInclude,
       });
 
@@ -1176,9 +1177,10 @@ async function materializeExceptionAttendance(requestId: string, actorId: string
     status: 'pending_verification',
     guardRemarks: request.message,
   } as const;
+  const { jobId: createJobId, ...createValues } = values;
   const record = existing
     ? await prisma.attendanceRecord.update({ where: { id: existing.id }, data: values })
-    : await prisma.attendanceRecord.create({ data: { guardUserId: request.guardUserId, ...values } });
+    : await prisma.attendanceRecord.create({ data: { guardUserId: request.guardUserId, ...createValues, job: { connect: { id: createJobId } } } });
   return record.id;
 }
 
