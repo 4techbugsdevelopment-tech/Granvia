@@ -73,7 +73,7 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master
   { id: 'documents',   label: 'Manage Documents',         icon: <FileText size={18} />,      master: true },
   { id: 'sites',       label: 'Manage Sites',             icon: <MapPin size={18} />,        master: true },
   { id: 'jobs',        label: 'Manage Jobs',              icon: <Briefcase size={18} /> },
-  { id: 'applicants',  label: 'Manage Applicants',        icon: <ClipboardList size={18} /> },
+  { id: 'applicants',  label: 'Hired / Current Associates', icon: <ClipboardList size={18} />, master: true },
   { id: 'available-guards', label: 'Available Associates', icon: <Search size={18} />,        master: true },
   { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} />, master: true },
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
@@ -2343,7 +2343,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [apps, setApps] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'scheduled' | 'selected'>('all');
+  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'scheduled' | 'selected'>('selected');
   const [detailsApp, setDetailsApp] = useState<any | null>(null);
   const [paidFeatureAlert, setPaidFeatureAlert] = useState(false);
   const [interviewApp, setInterviewApp] = useState<any | null>(null);
@@ -2447,14 +2447,14 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
       ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'].includes(app.status))
       : apps;
   if (!selectedJob) {
-    return <div className="p-6"><Card className="p-5"><div className="mb-4"><h2 className="text-xl font-bold text-gray-900">Job Applicants</h2><p className="text-sm text-gray-500">Select a job to view all associate partners who applied.</p></div><div className="grid gap-3 md:grid-cols-2">{jobs.map(job => <button key={job.id} onClick={() => setSelectedJob(job)} className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm hover:border-blue-200"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{job.title}</p><p className="mt-1 text-xs text-gray-500">{job.company_sites?.site_name ?? job.company_sites?.city ?? 'Location not set'}</p></div>{statusBadge(job.status)}</div><p className="mt-3 text-xs text-gray-400">{job.guards_required ?? 0} openings · View applicants</p></button>)}{jobs.length === 0 && <EmptyState text="No jobs posted yet" />}</div></Card></div>;
+    return <div className="p-6"><Card className="p-5"><div className="mb-4"><h2 className="text-xl font-bold text-gray-900">Hired / Current Associates</h2><p className="text-sm text-gray-500">Select a job to view hired, selected, offered, and leave-requested associate partners.</p></div><div className="grid gap-3 md:grid-cols-2">{jobs.map(job => <button key={job.id} onClick={() => setSelectedJob(job)} className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm hover:border-blue-200"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{job.title}</p><p className="mt-1 text-xs text-gray-500">{job.company_sites?.site_name ?? job.company_sites?.city ?? 'Location not set'}</p></div>{statusBadge(job.status)}</div><p className="mt-3 text-xs text-gray-400">{job.guards_required ?? 0} openings · View current associates</p></button>)}{jobs.length === 0 && <EmptyState text="No jobs posted yet" />}</div></Card></div>;
   }
 
   return (
     <div className="p-6">
       <Card className="p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review every associate who applied for this job.</p></div>
+          <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review current associates and application history for this job.</p></div>
           <div className="flex flex-wrap gap-2">
             {(['all', 'shortlisted', 'scheduled', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value === 'scheduled' ? 'Interview scheduled' : value}</button>)}
           </div>
