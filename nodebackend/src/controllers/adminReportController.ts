@@ -1,3 +1,4 @@
+import { HIRED_APPLICATION_STATUSES } from '../services/jobOfferWorkflow';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -11,7 +12,7 @@ import { buildAdminAttendanceWhere } from '../utils/queryFilters';
 //   GET /admin/hiring                — recruitment funnel + recent hires
 //   GET /admin/reports/analytics     — area availability, language, commission
 
-const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined'];
+const HIRED_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const COMMISSION_RATE = 0.1;
 
 function todayDateOnly(): Date {

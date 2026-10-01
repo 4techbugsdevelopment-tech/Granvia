@@ -1,3 +1,4 @@
+import { HIRED_APPLICATION_STATUSES } from '../services/jobOfferWorkflow';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -376,7 +377,7 @@ const editAttendanceSchema = z.object({
   guard_remarks: z.string().max(2000).nullish(),
 });
 
-const HIRED_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
+const HIRED_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const normalizedHiredStatuses = new Set(HIRED_STATUSES);
 const OFFER_ASSIGNMENT_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 const normalizedOfferAssignmentStatuses = new Set(OFFER_ASSIGNMENT_STATUSES);

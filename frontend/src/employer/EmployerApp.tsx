@@ -1,3 +1,4 @@
+import { useHiringRefresh } from '../hooks/useHiringRefresh';
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -516,6 +517,12 @@ function EmployerDashboard({ employer, company, companies, onNavigate }: { emplo
       setShowDepositAlert(true);
     }
   }, [loading, wallet]);
+
+  useHiringRefresh(async () => {
+    const [nextApps, nextJobs] = await Promise.all([listEmployerApplications(company?.id), listEmployerJobs(company?.id)]);
+    setApps(nextApps ?? []);
+    setJobs(nextJobs ?? []);
+  });
 
   if (companies.length === 0) {
     return (
@@ -2362,10 +2369,16 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
     listEmployerApplications(company.id, selectedJob.id).then(data => setApps(data ?? [])).catch(console.error);
   }, [company.id, selectedJob]);
 
+  const [decisionFeedback, setDecisionFeedback] = useState<string | null>(null);
+  useHiringRefresh(async () => {
+    if (selectedJob) setApps((await listEmployerApplications(company.id, selectedJob.id)) ?? []);
+    setJobs((await listEmployerJobs(company.id)) ?? []);
+  });
+
   const updateStatus = async (appId: string, status: string) => {
     await updateApplicationStatus(appId, status);
     listEmployerApplications(company.id, selectedJob?.id).then(data => setApps(data ?? [])).catch(console.error);
-    onChanged();
+    setDecisionFeedback(status === 'hired' ? 'Hiring proposal sent. Awaiting the associate’s Yes or No decision.' : 'Application updated.');
   };
 
   const refresh = () => {
@@ -2452,6 +2465,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
 
   return (
     <div className="p-6">
+      {decisionFeedback && <div role="status" className="mb-3 rounded-xl bg-green-50 p-3 text-sm text-green-800">{decisionFeedback}</div>}
       <Card className="p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review current associates and application history for this job.</p></div>
@@ -2506,7 +2520,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
                   <button onClick={() => markAadhaar(app, 'verified')} className="table-action tone-green" title="Manually declare Aadhaar verified">Aadhaar ✓</button>
                 )}
                 <button onClick={() => { setInterviewApp(app); setInterviewRemarks(interviewMessageSample(company)); }} className="table-action">Schedule interview</button>
-                <button onClick={() => updateStatus(app.id, 'hired')} className="table-action tone-green">Hired</button>
+                <button onClick={() => updateStatus(app.id, 'hired')} className="table-action tone-green">Send hiring proposal</button>
                 <button onClick={() => updateStatus(app.id, 'not_hired')} className="table-action tone-red">Not hired</button>
                 <button onClick={() => sendOffer(app)} className="table-action">Offer</button>
                   </>
@@ -2857,7 +2871,7 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
 
   useEffect(() => {
     listEmployerApplications(company.id)
-      .then(data => setApps((data ?? []).filter((a: any) => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status))))
+      .then(data => setApps((data ?? []).filter((a: any) => ['hired', 'joined', 'leave_requested'].includes(a.status))))
       .catch(console.error);
     refreshPayments();
   }, [company.id]);
@@ -3125,10 +3139,10 @@ function ReportsPage({ employer: _employer, company, companies }: { employer: Em
       </div>
       <Card className="p-5">
         <h2 className="font-bold text-gray-900 mb-4">Hiring Report</h2>
-        <DataTable headers={['Job', 'Site', 'Applicants', 'Selected', 'Status']}>
+        <DataTable headers={['Job', 'Site', 'Applicants', 'Hired', 'Status']}>
           {jobs.map((job: any) => {
             const jobApps = apps.filter(a => a.job_id === job.id);
-            const selected = jobApps.filter(a => ['selected', 'offer_sent', 'accepted', 'joined'].includes(a.status)).length;
+            const selected = jobApps.filter(a => ['hired', 'joined', 'leave_requested'].includes(a.status)).length;
             return (
               <tr key={job.id} className="border-b border-gray-50">
                 <Td>{job.title}</Td>

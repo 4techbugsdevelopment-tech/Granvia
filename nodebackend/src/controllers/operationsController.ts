@@ -1,3 +1,4 @@
+import { HIRED_APPLICATION_STATUSES } from '../services/jobOfferWorkflow';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -7,7 +8,7 @@ import { snakeKeys } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
+const ACTIVE_ASSIGNMENT_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
 async function assignments(userId: string) {
@@ -86,6 +87,9 @@ export async function updateApplication(req: Request, res: Response) {
     ? await prisma.jobApplication.findFirst({ where: { id: req.params.application, OR } })
     : null;
   if (!application) throw new HttpError(404, 'Application not found in your Operations scope.');
+  if (['accepted', 'joined'].includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(application.status)) {
+    throw new HttpError(422, 'The associate must accept the hiring proposal before onboarding.');
+  }
   if (data.expected_updated_at && application.updatedAt.getTime() !== data.expected_updated_at.getTime()) {
     throw new HttpError(409, 'This application was updated by another user. Refresh before changing its status.');
   }

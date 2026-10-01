@@ -1,4 +1,4 @@
-export const HIRED_APPLICATION_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired'] as const;
+export const HIRED_APPLICATION_STATUSES = ['joined', 'hired', 'leave_requested'] as const;
 
 export type OfferDecision = 'accepted' | 'declined';
 

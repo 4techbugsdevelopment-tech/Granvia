@@ -1,3 +1,5 @@
+import { useHiringRefresh } from '../hooks/useHiringRefresh';
+import { listMyJobOffers } from '../services/applicationService';
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Search, Clock, User, MoreHorizontal, LogOut, ClipboardList, Wallet, CalendarDays, Bell, LifeBuoy, FileSignature, X } from 'lucide-react';
@@ -51,6 +53,13 @@ const MORE_ITEMS = [
 export default function MobileApp({ onLogout }: MobileAppProps) {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingProposals, setPendingProposals] = useState(0);
+  const loadProposals = async () => {
+    const offers = await listMyJobOffers();
+    setPendingProposals((offers ?? []).filter((offer: any) => offer.status === 'sent').length);
+  };
+  useEffect(() => { void loadProposals().catch(() => {}); }, []);
+  useHiringRefresh(loadProposals);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,6 +107,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
         className="flex-1 overflow-y-auto mobile-scroll"
         style={{ paddingBottom: 94 }}
       >
+        {pendingProposals > 0 && screen !== 'applications' && <button onClick={() => goTo('applications')} className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900"><b>{pendingProposals} hiring proposal{pendingProposals === 1 ? '' : 's'} awaiting your decision</b><span className="mt-1 block">An employer wants to hire you. Open My Applications to choose Yes or No.</span></button>}
         <AnimatePresence mode="wait">
           <motion.div
             key={screen}

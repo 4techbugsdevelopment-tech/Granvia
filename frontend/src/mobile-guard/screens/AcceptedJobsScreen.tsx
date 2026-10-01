@@ -1,15 +1,15 @@
+import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 // AcceptedJobsScreen — accepted / selected / joined job overview for the Associate app.
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, MapPin, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { listMyApplications } from '../../services/applicationService';
 
-const ACTIVE_STATUSES = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested']);
+const ACTIVE_STATUSES = new Set(['joined', 'hired', 'leave_requested']);
 
 const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
-  selected: { label: 'Selected', bg: '#dbeafe', color: '#1d4ed8' },
-  offer_sent: { label: 'Offer Sent', bg: '#dcfce7', color: '#166534' },
-  accepted: { label: 'Accepted', bg: '#dcfce7', color: '#166534' },
+  hired: { label: 'Hired', bg: '#dcfce7', color: '#166534' },
+  leave_requested: { label: 'Leave Requested', bg: '#fef9c3', color: '#854d0e' },
   joined: { label: 'Joined', bg: '#dcfce7', color: '#166534' },
 };
 
@@ -25,6 +25,11 @@ export default function AcceptedJobsScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  useHiringRefresh(async () => {
+    const data = await listMyApplications();
+    setJobs((data ?? []).filter((app: any) => ACTIVE_STATUSES.has(String(app.status ?? '').toLowerCase())));
+  });
+
   return (
     <div className="pb-6">
       <div
@@ -35,7 +40,7 @@ export default function AcceptedJobsScreen() {
         }}
       >
         <h1 className="text-white font-bold text-xl">Accepted Jobs</h1>
-        <p className="text-blue-200 text-xs mt-1">Your selected and active assignments</p>
+        <p className="text-blue-200 text-xs mt-1">Your confirmed hired assignments</p>
       </div>
 
       {error && (
@@ -60,7 +65,7 @@ export default function AcceptedJobsScreen() {
           jobs.map((job, index) => {
             const appJob = job.job ?? {};
             const status = String(job.status ?? '').toLowerCase();
-            const style = STATUS_STYLE[status] ?? STATUS_STYLE.accepted;
+            const style = STATUS_STYLE[status] ?? STATUS_STYLE.hired;
             return (
               <motion.div
                 key={job.id}

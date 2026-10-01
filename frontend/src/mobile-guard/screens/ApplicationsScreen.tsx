@@ -1,3 +1,4 @@
+import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 // ApplicationsScreen — guard's job applications backed by the API
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,7 +17,7 @@ const STATUS_CONFIG: Record<string, { icon: JSX.Element; color: string; bg: stri
   completed: { icon: <CheckCircle size={14} />, color: '#475569', bg: '#f1f5f9', label: 'Completed' },
   released: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Released' },
   not_hired: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Not Hired' },
-  offer_sent: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Offer Sent' },
+  offer_sent: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Awaiting Your Decision' },
   accepted: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Accepted' },
   joined: { icon: <CheckCircle size={14} />, color: '#166534', bg: '#dcfce7', label: 'Joined' },
   declined: { icon: <XCircle size={14} />, color: '#7c2d12', bg: '#fee2e2', label: 'Declined' },
@@ -36,6 +37,8 @@ export default function ApplicationsScreen() {
   const [leaveApp, setLeaveApp] = useState<any | null>(null);
   const [leaveReason, setLeaveReason] = useState('');
   const [savingLeave, setSavingLeave] = useState(false);
+  const [respondingOffer, setRespondingOffer] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([listMyApplications(), listMyJobOffers()])
@@ -53,14 +56,21 @@ export default function ApplicationsScreen() {
     setOffers(jobOffers ?? []);
   };
 
+  useHiringRefresh(refresh);
+
   const respondToOffer = async (offerId: string, status: 'accepted' | 'declined') => {
+    if (respondingOffer) return;
+    setRespondingOffer(offerId);
+    setSuccess(null);
     setError(null);
     try {
       await updateMyJobOffer(offerId, status);
       await refresh();
+      setSuccess(status === 'accepted' ? 'Hiring confirmed. Your hired job and attendance location are now updated.' : 'Hiring proposal declined. You have not been hired for this job.');
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message);
     }
+    finally { setRespondingOffer(null); }
   };
 
   const submitLeaveRequest = async () => {
@@ -127,14 +137,16 @@ export default function ApplicationsScreen() {
         </div>
       )}
 
+      {success && <div role="status" className="mx-4 mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-800">{success}</div>}
+
       <div className="px-4 mt-4 space-y-2.5">
         {!loading && offers.length > 0 && (
           <div className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-sm font-bold text-slate-700">Job Offers</h2>
+              <h2 className="text-sm font-bold text-slate-700">Hiring Proposals</h2>
               <span className="text-[11px] text-slate-400">{offers.length} offer{offers.length !== 1 ? 's' : ''}</span>
             </div>
-            {offers.map((offer, i) => {
+            {[...offers].sort((a, b) => Number(b.status === 'sent') - Number(a.status === 'sent')).map((offer, i) => {
               const job = offer.job ?? {};
               const company = job.company?.company_name ?? '—';
               const status = String(offer.status ?? '').toLowerCase();
@@ -159,7 +171,7 @@ export default function ApplicationsScreen() {
                       style={{ background: accepted ? '#dcfce7' : declined ? '#fee2e2' : '#fef9c3', color: accepted ? '#166534' : declined ? '#7c2d12' : '#854d0e' }}
                     >
                       {accepted ? <CheckCircle size={14} /> : declined ? <XCircle size={14} /> : <Loader size={14} />}
-                      {accepted ? 'Accepted' : declined ? 'Declined' : 'Offer Sent'}
+                      {accepted ? 'Hiring Accepted' : declined ? 'Declined' : status === 'sent' ? 'Awaiting Your Decision' : status.replace(/_/g, ' ')}
                     </span>
                   </div>
                   <div className="flex gap-3 text-xs text-gray-400 flex-wrap">
@@ -172,25 +184,28 @@ export default function ApplicationsScreen() {
                     )}
                   </div>
                   {offer.terms_summary && <p className="mt-3 text-xs text-gray-500 leading-relaxed">{offer.terms_summary}</p>}
+                  {status === 'sent' && <p className="mt-3 text-sm font-semibold text-slate-800">{company} has requested to hire you. Do you accept this hiring proposal?</p>}
                   <div className="mt-3 flex items-center gap-2">
-                    {!accepted && !declined ? (
+                    {status === 'sent' ? (
                       <>
                         <button
-                          onClick={() => respondToOffer(offer.id, 'accepted')}
+                          disabled={respondingOffer !== null}
+                           onClick={() => respondToOffer(offer.id, 'accepted')}
                           className="flex-1 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-semibold"
                         >
-                          Accept Offer
+                          {respondingOffer === offer.id ? 'Submitting…' : 'Yes, accept hiring'}
                         </button>
                         <button
-                          onClick={() => respondToOffer(offer.id, 'declined')}
+                          disabled={respondingOffer !== null}
+                           onClick={() => respondToOffer(offer.id, 'declined')}
                           className="flex-1 py-2 rounded-xl bg-red-50 text-red-700 text-xs font-semibold"
                         >
-                          Decline
+                          No, decline
                         </button>
                       </>
                     ) : (
                       <div className="flex-1 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold text-center">
-                        {accepted ? 'Offer accepted. Agreement will appear next.' : 'Offer declined.'}
+                        {accepted ? 'Hiring confirmed. Your agreement is available after acceptance.' : declined ? 'Hiring proposal declined.' : 'This proposal is no longer pending.'}
                       </div>
                     )}
                   </div>

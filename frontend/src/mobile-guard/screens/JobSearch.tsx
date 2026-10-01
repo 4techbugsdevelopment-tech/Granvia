@@ -1,3 +1,4 @@
+import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Clock, CheckCircle, X, Briefcase, Map as MapIcon, List, AlertCircle } from 'lucide-react';
@@ -22,7 +23,7 @@ export default function JobSearch() {
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [activeAssignment, setActiveAssignment] = useState<any | null>(null);
 
-  const activeStatuses = new Set(['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested']);
+  const activeStatuses = new Set(['joined', 'hired', 'leave_requested']);
 
   useEffect(() => {
     let mounted = true;
@@ -53,6 +54,11 @@ export default function JobSearch() {
   useEffect(() => {
     listActiveAssociateTypes().then(setAssociateTypes).catch(() => setAssociateTypes([]));
   }, []);
+
+  useHiringRefresh(async () => {
+    const applications = await listMyApplications();
+    setActiveAssignment((applications ?? []).find((app: any) => activeStatuses.has(String(app.status ?? '').toLowerCase())) ?? null);
+  });
 
   const associateTypeLabel = (code: string | null | undefined) =>
     associateTypes.find(type => type.code === code)?.name ?? code ?? 'Associate';

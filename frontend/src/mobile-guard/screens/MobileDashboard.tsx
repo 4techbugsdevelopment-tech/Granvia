@@ -1,3 +1,4 @@
+import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 // MobileDashboard — guard home screen backed by the API
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -95,7 +96,7 @@ function formatTime(value: string | null | undefined) {
   return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
-const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested', 'accepted', 'offer_sent', 'selected'];
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested'];
 const CURRENT_JOB_STATUS_PRIORITY = new Map(CURRENT_JOB_STATUSES.map((status, index) => [status, index]));
 
 function currentJobApplication(applications: any[]) {
@@ -132,6 +133,8 @@ export default function MobileDashboard({ onNavigate }: MobileDashboardProps) {
     listMyApplications().then(data => setApplications(data ?? [])).catch(() => {});
     listActiveJobs().then(data => setJobs(data ?? [])).catch(() => {});
   }, []);
+
+  useHiringRefresh(async () => { setApplications((await listMyApplications()) ?? []); });
 
   const fullName = guardProfile?.full_name || profile?.full_name || 'Associate';
   const city = guardProfile?.city || '—';

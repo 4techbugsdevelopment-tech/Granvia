@@ -4,8 +4,10 @@ import { buildEmploymentAgreementData } from '../src/services/employmentAgreemen
 import { buildOfferDecisionPlan, canRespondToOffer, HIRED_APPLICATION_STATUSES } from '../src/services/jobOfferWorkflow';
 
 test('hired application statuses remain synchronized for downstream attendance and reports', () => {
-  assert.deepEqual(HIRED_APPLICATION_STATUSES, ['selected', 'offer_sent', 'accepted', 'joined', 'hired']);
-  assert.equal(HIRED_APPLICATION_STATUSES.includes('accepted'), true);
+  assert.deepEqual(HIRED_APPLICATION_STATUSES, ['joined', 'hired', 'leave_requested']);
+  for (const pending of ['applied', 'selected', 'offer_sent', 'accepted']) {
+    assert.equal((HIRED_APPLICATION_STATUSES as readonly string[]).includes(pending), false, pending + ' must not be a hired assignment');
+  }
   assert.equal(HIRED_APPLICATION_STATUSES.includes('joined'), true);
   assert.equal(HIRED_APPLICATION_STATUSES.includes('hired'), true);
 });

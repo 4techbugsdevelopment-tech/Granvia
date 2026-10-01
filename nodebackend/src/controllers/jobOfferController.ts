@@ -1,3 +1,4 @@
+import { HIRED_APPLICATION_STATUSES } from '../services/jobOfferWorkflow';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -41,18 +42,18 @@ const guardUpdateSchema = z.object({
   remarks: z.string().nullish(),
 });
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
+const ACTIVE_ASSIGNMENT_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
-async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string | null) {
+async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string | null, db: Prisma.TransactionClient = prisma) {
   if (!jobId) return;
   const [application, offer] = await Promise.all([
-    prisma.jobApplication.findFirst({
+    db.jobApplication.findFirst({
       where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
       include: { job: { select: { title: true } } },
       orderBy: { updatedAt: 'desc' },
     }),
-    prisma.jobOffer.findFirst({
+    db.jobOffer.findFirst({
       where: { guardUserId, jobId: { not: jobId }, status: { in: ACTIVE_OFFER_STATUSES } },
       include: { job: { select: { title: true } } },
       orderBy: { updatedAt: 'desc' },
@@ -94,6 +95,9 @@ export async function update(req: Request, res: Response) {
   if (row.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = updateSchema.parse(req.body);
+  if (data.status && ACTIVE_OFFER_STATUSES.includes(data.status) && !ACTIVE_OFFER_STATUSES.includes(row.status)) {
+    throw new HttpError(422, 'Only the associate can accept the hiring proposal.');
+  }
   const updated = await prisma.jobOffer.update({
     where: { id: row.id },
     data: toPrismaData(data) as never,
@@ -144,6 +148,12 @@ export async function guardUpdate(req: Request, res: Response) {
         include: { job: { select: { title: true, salaryAmount: true, dutyHours: true, shiftType: true, startDate: true } } },
       })
     : null;
+  if (!application || application.guardUserId !== row.guardUserId || application.jobId !== row.jobId) {
+    throw new HttpError(422, 'This proposal has no matching job application.');
+  }
+  if (application.status !== 'offer_sent') {
+    throw new HttpError(422, 'This application no longer has a pending hiring proposal.');
+  }
   const plan = buildOfferDecisionPlan(
     {
       id: row.id,
@@ -161,11 +171,15 @@ export async function guardUpdate(req: Request, res: Response) {
     },
     data.status
   );
-  if (plan.applicationStatus === 'hired') {
-    await assertNoOtherActiveAssignment(row.guardUserId, row.jobId);
-  }
-
   const updated = await prisma.$transaction(async (tx) => {
+    const currentOffer = await tx.jobOffer.findUnique({ where: { id: row.id } });
+    const currentApplication = await tx.jobApplication.findUnique({ where: { id: application.id } });
+    if (!currentOffer || currentOffer.status !== 'sent' || currentApplication?.status !== 'offer_sent') {
+      throw new HttpError(409, 'This hiring proposal changed. Refresh before responding.');
+    }
+    if (plan.applicationStatus === 'hired') {
+      await assertNoOtherActiveAssignment(row.guardUserId, row.jobId, tx);
+    }
     if (plan.applicationStatus && application) {
       await enforceJobCapacityForApplication(tx, application, plan.applicationStatus);
     }
@@ -191,6 +205,9 @@ export async function guardUpdate(req: Request, res: Response) {
       }
     }
 
+    await tx.applicationStatusLog.create({
+      data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: plan.applicationStatus, remarks: data.remarks ?? (plan.applicationStatus === 'hired' ? 'Associate accepted the hire proposal.' : 'Associate declined the hire proposal.') },
+    });
     await tx.notification.create({
       data: {
         userId: row.employerUserId ?? req.user!.id,
@@ -202,15 +219,6 @@ export async function guardUpdate(req: Request, res: Response) {
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (plan.applicationStatus && application) {
-    await prisma.applicationStatusLog.create({
-      data: {
-        applicationId: application.id,
-        changedBy: req.user!.id,
-        oldStatus: application.status,
-        newStatus: plan.applicationStatus,
-        remarks: data.remarks ?? (plan.applicationStatus === 'hired' ? 'Associate accepted the hire proposal.' : 'Associate declined the hire proposal.'),
-      },
-    });
     if (plan.applicationStatus === 'hired') {
       await notifyUnverifiedHiredApplication(application.id);
       await deliverHiringDocumentsForApplication(application.id);

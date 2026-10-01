@@ -3,6 +3,7 @@ import { apiClient } from '../lib/apiClient';
 export async function applyForJob(jobId: string, coverNote?: string) {
   // Keep an explicit JSON body when the apply form has no optional note.
   const { data } = await apiClient.post(`/guard/jobs/${jobId}/apply`, { cover_note: coverNote ?? '' });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
@@ -18,11 +19,13 @@ export async function listMyJobOffers() {
 
 export async function updateMyJobOffer(jobOfferId: string, status: 'accepted' | 'declined', remarks?: string) {
   const { data } = await apiClient.patch(`/guard/job-offers/${jobOfferId}`, { status, remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 export async function requestJobLeave(applicationId: string, reason: string) {
   const { data } = await apiClient.post(`/guard/applications/${applicationId}/leave-request`, { reason });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
@@ -44,21 +47,25 @@ export async function listEmployerApplications(companyId?: string, jobId?: strin
 
 export async function updateApplicationStatus(applicationId: string, status: string, remarks?: string) {
   const { data } = await apiClient.patch(`/employer/applications/${applicationId}/status`, { status, remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 export async function scheduleApplicationInterview(applicationId: string, remarks: string) {
   const { data } = await apiClient.post(`/employer/applications/${applicationId}/schedule-interview`, { remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 export async function decideLeaveRequest(applicationId: string, decision: 'accepted' | 'rejected', reason: string) {
   const { data } = await apiClient.post(`/employer/applications/${applicationId}/leave-decision`, { decision, reason });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 export async function releaseHiredAssociate(applicationId: string, reason: string) {
   const { data } = await apiClient.post(`/employer/applications/${applicationId}/release`, { reason });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
@@ -72,16 +79,19 @@ export async function listAdminJobApplications(jobId: string) {
 
 export async function updateAdminApplicationStatus(applicationId: string, status: string, remarks?: string) {
   const { data } = await apiClient.patch(`/admin/applications/${applicationId}/status`, { status, remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 export async function scheduleAdminApplicationInterview(applicationId: string, remarks: string) {
   const { data } = await apiClient.post(`/admin/applications/${applicationId}/schedule-interview`, { remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }
 
 /** Employer manually declares an associate's Aadhaar (must be in their pipeline). */
 export async function declareAssociateAadhaar(guardUserId: string, status: 'verified' | 'rejected' | 'pending', remarks?: string) {
   const { data } = await apiClient.patch(`/employer/associates/${guardUserId}/aadhaar`, { status, remarks });
+  window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }

@@ -1,3 +1,4 @@
+import { HIRED_APPLICATION_STATUSES } from '../services/jobOfferWorkflow';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -14,7 +15,7 @@ const applySchema = z.object({
   cover_note: z.string().nullish(),
 });
 
-const ACTIVE_ASSIGNMENT_STATUSES = ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'];
+const ACTIVE_ASSIGNMENT_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
 
 async function assertNoOtherActiveAssignment(guardUserId: string, jobId: string) {
@@ -448,6 +449,12 @@ export async function updateStatus(req: Request, res: Response) {
 
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
+  if (['accepted', 'joined'].includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    throw new HttpError(422, 'The associate must accept the hiring proposal before onboarding.');
+  }
+  if (data.status === 'hired' && ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    throw new HttpError(422, 'This associate is already hired.');
+  }
   const nextStatus = data.status === 'hired' ? 'offer_sent' : data.status;
   if (ACTIVE_ASSIGNMENT_STATUSES.includes(nextStatus) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
     await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);
@@ -513,6 +520,12 @@ export async function adminUpdateStatus(req: Request, res: Response) {
   const application = await applicationWithScope(req.params.application, req.user!, true);
   const data = updateStatusSchema.parse(req.body);
   const oldStatus = application.status;
+  if (['accepted', 'joined'].includes(data.status) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    throw new HttpError(422, 'The associate must accept the hiring proposal before onboarding.');
+  }
+  if (data.status === 'hired' && ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
+    throw new HttpError(422, 'This associate is already hired.');
+  }
   const nextStatus = data.status === 'hired' ? 'offer_sent' : data.status;
   if (ACTIVE_ASSIGNMENT_STATUSES.includes(nextStatus) && !ACTIVE_ASSIGNMENT_STATUSES.includes(oldStatus)) {
     await assertNoOtherActiveAssignment(application.guardUserId, application.jobId);

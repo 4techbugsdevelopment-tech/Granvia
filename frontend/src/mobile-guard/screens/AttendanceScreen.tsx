@@ -1,3 +1,4 @@
+import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 // AttendanceScreen — guard check-in/check-out backed by the API
 import { useEffect, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -88,7 +89,7 @@ function attendanceDateKey(value: string) {
   return value.slice(0, 10);
 }
 
-const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested', 'accepted', 'offer_sent', 'selected'];
+const CURRENT_JOB_STATUSES = ['joined', 'hired', 'leave_requested'];
 const CURRENT_JOB_STATUS_PRIORITY = new Map(CURRENT_JOB_STATUSES.map((status, index) => [status, index]));
 
 function currentJobApplication(applications: any[]) {
@@ -193,8 +194,10 @@ export default function AttendanceScreen() {
     return () => window.clearTimeout(timer);
   }, [flashError]);
 
+  useHiringRefresh(async () => { setApplications((await listMyApplications()) ?? []); });
+
   const todayRecord = records.find(r => isToday(r.attendance_date));
-  const canMarkIn = !loading && locationRequired !== null && !todayRecord;
+  const canMarkIn = !loading && locationRequired !== null && Boolean(currentJobApplication(applications)) && !todayRecord;
   const canMarkOut = Boolean(locationRequired !== null && todayRecord && !todayRecord.out_time);
 
   const handleMark = async (type: 'in' | 'out') => {
