@@ -1,3 +1,4 @@
+import ReleaseAttachments from '../../components/ReleaseAttachments';
 import { useHiringRefresh } from '../../hooks/useHiringRefresh';
 // ApplicationsScreen — guard's job applications backed by the API
 import { useEffect, useState } from 'react';
@@ -342,6 +343,7 @@ export default function ApplicationsScreen() {
                   </span>
                 </div>
 
+                {selectedApp.release_attachments?.length > 0 && <div className="mb-4 rounded-xl bg-blue-50 p-3"><h3 className="mb-2 text-sm font-bold">Release / termination documents</h3>{selectedApp.notes && <p className="mb-2 text-sm text-gray-600">{selectedApp.notes}</p>}<ReleaseAttachments application={selectedApp} role="associate" /></div>}
                 <div className="grid grid-cols-2 gap-2.5 mb-4">
                   {[
                     { label: 'Salary', value: selectedJob.salary_amount ? `₹${selectedJob.salary_amount}/${selectedJob.payment_type === 'Monthly' ? 'mo' : 'day'}` : '—' },

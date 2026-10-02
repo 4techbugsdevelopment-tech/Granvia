@@ -63,8 +63,11 @@ export async function decideLeaveRequest(applicationId: string, decision: 'accep
   return data;
 }
 
-export async function releaseHiredAssociate(applicationId: string, reason: string) {
-  const { data } = await apiClient.post(`/employer/applications/${applicationId}/release`, { reason });
+export async function releaseHiredAssociate(applicationId: string, reason: string, files: File[] = []) {
+  const body = new FormData();
+  body.append('reason', reason);
+  files.forEach(file => body.append('files', file));
+  const { data } = await apiClient.post(`/employer/applications/${applicationId}/release`, body);
   window.dispatchEvent(new Event('granvia:hiring-changed'));
   return data;
 }

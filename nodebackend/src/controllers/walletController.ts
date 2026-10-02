@@ -54,13 +54,45 @@ export async function debitEmployerWalletForPayment(
     guardUserId?: string | null;
     purpose: string;
     metadata?: Record<string, unknown>;
+    minimumRemainingBalance?: number;
   },
 ) {
   const wallet = await ensureEmployerWallet(db, input.employerUserId);
   const amount = input.amount;
   const balance = Number(wallet.balance);
-  if (balance < amount) {
-    throw new HttpError(422, 'Insufficient employer wallet balance. Please recharge the wallet or request Super Admin credit.');
+  const minimumRemainingBalance = input.minimumRemainingBalance ?? 0;
+  const balancePaise = Math.round(balance * 100);
+  const amountPaise = Math.round(amount * 100);
+  const minimumPaise = Math.round(minimumRemainingBalance * 100);
+  const requiredPaise = amountPaise + minimumPaise;
+  if (balancePaise < requiredPaise) {
+    const remainingBalance = (balancePaise - amountPaise) / 100;
+    const requiredBalance = requiredPaise / 100;
+    const shortfall = (requiredPaise - balancePaise) / 100;
+    const formatInr = (value: number) => new Intl.NumberFormat('en-IN', {
+      style: 'currency', currency: 'INR', minimumFractionDigits: 2,
+    }).format(value);
+    const message = minimumPaise > 0
+      ? 'Insufficient employer wallet balance. Current balance: ' + formatInr(balance)
+        + '. Attendance payment: ' + formatInr(amount)
+        + '. Balance after approval would be ' + formatInr(remainingBalance)
+        + '; at least ' + formatInr(minimumRemainingBalance) + ' must remain.'
+        + ' You need ' + formatInr(requiredBalance) + ' before approval. Please add '
+        + formatInr(shortfall) + ' to your wallet.'
+      : 'Insufficient employer wallet balance. Current balance: ' + formatInr(balance)
+        + '. Payment required: ' + formatInr(amount) + '. Please add ' + formatInr(shortfall)
+        + ' to your wallet or request Super Admin credit.';
+    throw new HttpError(422, message, {
+      wallet_balance_details: {
+        currency: 'INR',
+        current_balance: balance,
+        payment_amount: amount,
+        projected_remaining_balance: remainingBalance,
+        minimum_remaining_balance: minimumRemainingBalance,
+        required_balance: requiredBalance,
+        recharge_shortfall: shortfall,
+      },
+    });
   }
 
   const depositBefore = Number((wallet as never as { depositBalance: Prisma.Decimal }).depositBalance ?? 0);

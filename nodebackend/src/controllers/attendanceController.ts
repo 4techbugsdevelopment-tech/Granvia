@@ -820,6 +820,7 @@ export async function saveHistorical(req: Request, res: Response) {
     checkoutMethod: 'historical_manual',
     status: 'pending_verification',
     guardRemarks: data.guard_remarks ?? null,
+    employerRemarks: null,
   } as const;
 
   const { jobId: createJobId, ...createValues } = values;
@@ -1022,6 +1023,7 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
     await debitEmployerWalletForPayment(tx, {
       employerUserId: record.employerUserId,
       amount,
+      minimumRemainingBalance: 10_000,
       paymentId: payment.id,
       jobId: record.jobId,
       guardUserId: record.guardUserId,

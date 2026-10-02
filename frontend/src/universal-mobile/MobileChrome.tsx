@@ -97,7 +97,7 @@ export default function MobileChrome({
       </header>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden mobile-scroll" style={{ paddingBottom: primaryItems.length ? 94 : 12 }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden mobile-scroll" style={{ paddingBottom: primaryItems.length ? 116 : 12 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeId}
@@ -126,8 +126,11 @@ export default function MobileChrome({
               <motion.button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
+                aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
+                title={item.label}
                 whileTap={{ scale: 0.9 }}
-                className="mobile-touch-interactive flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
+                className="group relative mobile-touch-interactive flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 <span
                   className="grid h-8 w-8 place-items-center rounded-xl"
@@ -135,7 +138,8 @@ export default function MobileChrome({
                 >
                   {item.icon}
                 </span>
-                <span className="max-w-full truncate text-[9px] font-bold" style={{ color: active ? '#0f1e3c' : '#94a3b8' }}>{item.label}</span>
+                <span className="max-w-full whitespace-normal break-words text-center text-[9px] font-bold leading-tight" style={{ color: active ? '#0f1e3c' : '#94a3b8' }}>{item.label}</span>
+                <span aria-hidden="true" className="pointer-events-none absolute bottom-full mb-2 hidden w-max max-w-[min(10rem,calc(100vw-2rem))] whitespace-normal rounded-lg bg-slate-900 px-2 py-1.5 text-center text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">{item.label}</span>
               </motion.button>
             );
           })}
@@ -186,7 +190,7 @@ export default function MobileChrome({
                       style={{ borderColor: active ? `${accent}55` : '#eef2f7' }}
                     >
                       <span className="grid h-11 w-11 place-items-center rounded-2xl" style={{ background: active ? `${accent}14` : '#f1f5f9', color: active ? accent : '#475569' }}>{item.icon}</span>
-                      <span className="line-clamp-2 text-[11px] font-bold leading-tight text-slate-700">{item.label}</span>
+                      <span className="whitespace-normal break-words text-[11px] font-bold leading-tight text-slate-700">{item.label}</span>
                     </motion.button>
                   );
                 })}

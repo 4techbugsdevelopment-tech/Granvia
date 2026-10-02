@@ -6,6 +6,9 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, parseJsonField } from '../utils/serialize';
 import { attachGuardProfiles } from '../utils/enrich';
+import { storeFile, urlFor, removePrivateFile, IncomingFile } from '../utils/fileStorage';
+import { validateUploadFile } from '../utils/validation';
+import { requestBaseUrl } from '../utils/requestBaseUrl';
 import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 
 // Guard-facing application controller.
@@ -14,6 +17,15 @@ import { enforceJobCapacityForApplication } from '../services/jobCapacity';
 const applySchema = z.object({
   cover_note: z.string().nullish(),
 });
+
+function releaseFilesForResponse(row: Record<string, any>, req: Request) {
+  const attachments = parseJsonField(row.release_attachments);
+  row.release_attachments = Array.isArray(attachments) ? attachments.map(file => ({
+    name: file.name, type: file.type, size: file.size,
+    download_url: urlFor('application-releases', file.path, requestBaseUrl(req)),
+  })) : [];
+  return row;
+}
 
 const ACTIVE_ASSIGNMENT_STATUSES: string[] = [...HIRED_APPLICATION_STATUSES];
 const ACTIVE_OFFER_STATUSES = ['accepted', 'joined', 'hired', 'confirmed'];
@@ -179,6 +191,7 @@ export async function mine(req: Request, res: Response) {
 
   const rows = snakeKeys(applications) as Array<Record<string, any>>;
   for (const application of rows) {
+    releaseFilesForResponse(application, req);
     if (!application.job) continue;
     application.job.required_skills = parseJsonField(application.job.required_skills);
     application.job.language_requirements = parseJsonField(application.job.language_requirements);
@@ -332,6 +345,7 @@ export async function employerIndex(req: Request, res: Response) {
   });
 
   const rows = snakeKeys(applications) as Array<Record<string, unknown> & { guard_user_id?: string }>;
+  rows.forEach(row => releaseFilesForResponse(row, req));
   return res.json(await attachGuardProfiles(await attachAlreadyHiredStatus(rows)));
 }
 
@@ -419,28 +433,48 @@ export async function releaseAssociate(req: Request, res: Response) {
   if (application.status !== 'hired') throw new HttpError(422, 'Only a hired associate can be released.');
   const data = reasonSchema.parse(req.body);
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const next = await tx.jobApplication.update({
-      where: { id: application.id },
-      data: { status: 'released', notes: data.reason, reviewedAt: new Date(), reviewedBy: req.user!.id },
+  const files = (req.files as IncomingFile[] | undefined) ?? [];
+  for (const file of files) {
+    const errors = validateUploadFile(file, {
+      allowedMime: ['application/pdf', file.mimetype.startsWith('image/') ? file.mimetype : 'application/pdf'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'jfif', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif', 'svg', 'ico'],
+      maxBytes: 10 * 1024 * 1024,
     });
-    await tx.applicationStatusLog.create({
-      data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'released', remarks: data.reason },
+    if (errors.length) throw new HttpError(422, errors[0]);
+  }
+  const attachments: Array<{ path: string; name: string; type: string; size: number }> = [];
+  let updated;
+  try {
+    for (const file of files) {
+      const stored = storeFile('application-releases', application.id, file);
+      attachments.push({ path: stored.path, name: file.originalname, type: file.mimetype, size: file.size });
+    }
+    updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.jobApplication.update({
+        where: { id: application.id },
+        data: { status: 'released', releaseAttachments: JSON.stringify(attachments), notes: data.reason, reviewedAt: new Date(), reviewedBy: req.user!.id },
+      });
+      await tx.applicationStatusLog.create({
+        data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'released', remarks: data.reason },
+      });
+      await tx.jobOffer.updateMany({
+        where: { applicationId: application.id, status: { in: ACTIVE_OFFER_STATUSES } },
+        data: { status: 'released' },
+      });
+      return next;
     });
-    await tx.jobOffer.updateMany({
-      where: { applicationId: application.id, status: { in: ACTIVE_OFFER_STATUSES } },
-      data: { status: 'released' },
-    });
-    return next;
-  });
+  } catch (error) {
+    for (const file of attachments) removePrivateFile(file.path);
+    throw error;
+  }
 
   await notifyUsers(
     [application.guardUserId],
     'Released from job',
-    `You have been released from ${application.job.title}. Reason: ${data.reason}`,
+    `You have been released from ${application.job.title}. Reason: ${data.reason}${attachments.length ? ' Documents are available in My Applications.' : ''}`,
     'job_released',
   );
-  return res.json({ ...snakeKeys(updated), reinitiate_available: true, job_id: application.jobId });
+  return res.json({ ...releaseFilesForResponse(snakeKeys(updated) as Record<string, any>, req), reinitiate_available: true, job_id: application.jobId });
 }
 
 /** PATCH /employer/applications/:application/status */

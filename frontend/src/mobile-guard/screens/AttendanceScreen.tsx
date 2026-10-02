@@ -85,6 +85,26 @@ function reverseLocationName(result: Awaited<ReturnType<typeof reverseGeocode>> 
   return name || `Device GPS ${coordinateLabel(lat, lng)}`;
 }
 
+function attendanceStatus(record: any) {
+  if (record.status === 'rejected') return { label: 'Rejected', color: '#b91c1c', background: '#fee2e2' };
+  if (['approved', 'verified'].includes(record.status)) return { label: 'Approved', color: '#166534', background: '#dcfce7' };
+  return { label: 'Pending', color: '#854d0e', background: '#fef9c3' };
+}
+
+function isAttendancePending(record: any) {
+  return !['approved', 'verified', 'rejected'].includes(record.status);
+}
+
+function EmployerDecision({ record }: { record: any }) {
+  if (!['approved', 'verified', 'rejected'].includes(record.status) || !record.employer_remarks) return null;
+  return (
+    <p className="mt-2 text-xs whitespace-pre-wrap break-words" style={{ color: attendanceStatus(record).color }}>
+      <span className="font-semibold">{record.status === 'rejected' ? 'Rejection reason: ' : 'Employer remarks: '}</span>
+      {record.employer_remarks}
+    </p>
+  );
+}
+
 function attendanceDateKey(value: string) {
   return value.slice(0, 10);
 }
@@ -185,7 +205,14 @@ export default function AttendanceScreen() {
       .finally(() => setLoading(false));
     void load();
     const timer = window.setInterval(load, 60_000);
-    return () => window.clearInterval(timer);
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    window.addEventListener('focus', load);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', load);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -356,7 +383,7 @@ export default function AttendanceScreen() {
   const monthRecords = records.filter(record => attendanceDateKey(record.attendance_date).startsWith(monthPrefix));
   const monthDays = new Set(monthRecords.map(record => attendanceDateKey(record.attendance_date))).size;
   const monthHours = monthRecords.reduce((sum, record) => sum + Number(record.total_hours ?? 0), 0);
-  const monthPending = monthRecords.filter(record => !['verified', 'approved'].includes(record.status)).length;
+  const monthPending = monthRecords.filter(isAttendancePending).length;
   const monthIncomplete = monthRecords.filter(record => !record.out_time).length;
   const selectedRecords = recordsByDate[selectedDate] ?? [];
   const isCurrentCalendarMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
@@ -476,8 +503,10 @@ export default function AttendanceScreen() {
             ) : (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <p className="text-sm font-semibold text-gray-500 mb-4">
-                  {loading ? 'Loading…' : todayRecord?.out_time ? 'Shift Complete' : todayRecord ? 'Currently Active' : 'Not Checked In'}
+                  {loading ? 'Loading…' : todayRecord && !isAttendancePending(todayRecord) ? attendanceStatus(todayRecord).label : todayRecord?.out_time ? 'Pending employer approval' : todayRecord ? 'Currently Active' : 'Not Checked In'}
                 </p>
+
+                {todayRecord && <EmployerDecision record={todayRecord} />}
 
                 {/* In/Out times */}
                 <div className="flex justify-around bg-gray-50 rounded-2xl p-4 mb-5">
@@ -574,8 +603,9 @@ export default function AttendanceScreen() {
               const key = localDateValue(date);
               const dayRecords = recordsByDate[key] ?? [];
               const hasIncomplete = dayRecords.some(record => !record.out_time);
-              const hasPending = dayRecords.some(record => !['verified', 'approved'].includes(record.status));
-              const statusColor = hasIncomplete ? '#dc2626' : hasPending ? '#d97706' : dayRecords.length ? '#16a34a' : null;
+              const hasRejected = dayRecords.some(record => record.status === 'rejected');
+              const hasPending = dayRecords.some(isAttendancePending);
+              const statusColor = hasRejected ? '#b91c1c' : hasIncomplete ? '#dc2626' : hasPending ? '#d97706' : dayRecords.length ? '#16a34a' : null;
               const selected = selectedDate === key;
               const today = key === localDateValue(now);
               return (
@@ -593,9 +623,9 @@ export default function AttendanceScreen() {
           </div>
 
           <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t border-gray-100 text-[10px] text-gray-500">
-            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-green-600" />Verified</span>
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-green-600" />Approved</span>
             <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-amber-600" />Pending</span>
-            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-red-600" />Incomplete</span>
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-red-600" />Rejected / Incomplete</span>
           </div>
 
           {selectedRecords.length > 0 && (
@@ -604,16 +634,18 @@ export default function AttendanceScreen() {
               <div className="space-y-2">
                 {selectedRecords.map(record => {
                   const editable = !['approved', 'verified'].includes(record.status);
+                  const status = attendanceStatus(record);
                   return (
                   <div key={record.id} className="rounded-xl bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{record.job_posts?.title ?? 'Attendance'}</p>
                       {editable && <button onClick={() => openEditRecord(record)} className="mt-1 text-[10px] font-semibold text-blue-700">Edit attendance</button>}
                       <p className="text-[11px] text-gray-500">{formatTime(record.in_time) ?? '--'} – {formatTime(record.out_time) ?? 'Not checked out'}</p>
+                      <EmployerDecision record={record} />
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs font-bold text-blue-900">{formatHours(record.total_hours) ?? '--'}</p>
-                      <p className={`text-[10px] ${['verified', 'approved'].includes(record.status) ? 'text-green-700' : 'text-amber-700'}`}>{['verified', 'approved'].includes(record.status) ? 'Verified' : 'Pending'}</p>
+                      <p className="text-[10px]" style={{ color: status.color }}>{status.label}</p>
                     </div>
                   </div>
                   );
@@ -707,6 +739,7 @@ export default function AttendanceScreen() {
             {recentDays.map((rec, i) => {
               const verified = rec.status === 'verified' || rec.status === 'approved';
               const editable = !verified;
+              const status = attendanceStatus(rec);
               return (
                 <motion.div
                   key={rec.id}
@@ -716,14 +749,14 @@ export default function AttendanceScreen() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: verified ? '#dcfce7' : '#fef9c3' }}
+                      className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center"
+                      style={{ background: status.background }}
                     >
-                      <Clock size={16} style={{ color: verified ? '#166534' : '#854d0e' }} />
+                      <Clock size={16} style={{ color: status.color }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-800">
                         {new Date(rec.attendance_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
                       </p>
@@ -744,18 +777,19 @@ export default function AttendanceScreen() {
                         {rec.checkout_method === 'automatic' && <span className="text-[10px] text-purple-600">Auto checkout</span>}
                         {rec.entry_mode === 'historical_manual' && <span className="text-[10px] text-amber-600">Manual past entry</span>}
                       </div>
+                      <EmployerDecision record={rec} />
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0 ml-2">
                     <div className="text-sm font-bold" style={{ color: '#0f1e3c' }}>{formatHours(rec.total_hours) || '--'}</div>
                     <div
                       className="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5"
                       style={{
-                        background: verified ? '#dcfce7' : '#fef9c3',
-                        color: verified ? '#166534' : '#854d0e',
+                        background: status.background,
+                        color: status.color,
                       }}
                     >
-                      {verified ? 'Verified' : 'Pending'}
+                      {status.label}
                     </div>
                   </div>
                 </motion.div>

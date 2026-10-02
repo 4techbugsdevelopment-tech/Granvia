@@ -5,7 +5,12 @@ import { HttpError } from '../utils/http';
 import { latestOfferLetterForAssociate, offerLetterForAssociateApplication } from '../services/offerLetterService';
 import { assertEmployerHiredAgreementAccess } from '../services/employmentAgreementService';
 
-const DOCUMENTS_ROOT = path.resolve(__dirname, '../../../documents');
+// Resolve from the build first so backend-only deployments include the template.
+const AGREEMENT_PATHS = [
+  path.resolve(__dirname, '../documents/Employment Agreement.docx'),
+  path.resolve(__dirname, '../../documents/Employment Agreement.docx'),
+  path.resolve(__dirname, '../../../documents/Employment Agreement.docx'),
+];
 const DOCUMENTS = {
   'offer-letter': {
     role: 'guard',
@@ -34,7 +39,12 @@ export async function download(req: Request, res: Response) {
   } else {
     if (!applicationId) throw new HttpError(422, 'application_id is required.');
     await assertEmployerHiredAgreementAccess(req.user!.id, req.user!.role, applicationId);
-    absolutePath = path.join(DOCUMENTS_ROOT, document.filename);
+    const agreementPath = AGREEMENT_PATHS.find((candidate) => fs.existsSync(candidate));
+    if (!agreementPath) {
+      console.error('Employment agreement template missing. Checked:', AGREEMENT_PATHS);
+      throw new HttpError(503, 'Employment agreement template is unavailable. Please contact support.');
+    }
+    absolutePath = agreementPath;
   }
   if (!fs.existsSync(absolutePath)) throw new HttpError(404, 'Document file not found.');
 

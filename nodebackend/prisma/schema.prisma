@@ -345,6 +345,7 @@ model JobPost {
 }
 
 model JobApplication {
+  releaseAttachments String? @map("release_attachments") @db.NVarChar(Max)
   id             String    @id @default(uuid()) @db.NVarChar(36)
   jobId          String    @map("job_id") @db.NVarChar(36)
   guardUserId    String    @map("guard_user_id") @db.NVarChar(36)

@@ -420,3 +420,62 @@ Source order followed for this pass: repository markdown first (`ROLE_WISE_COMPL
 | Notifications/support/free text | COMPLETED | Support text validation added. |
 | API sensitive responses/logs | COMPLETED | Password hashes are stripped in inspected staff/admin paths; admin temp password responses remain intentional. |
 | UI validation UX | COMPLETED | Touched entry forms use field-level validation/loading patterns; no redesign. |
+
+## 2026-10-02 — Release / termination supporting documents
+
+- Completed: optional multi-file upload in the employer Release / terminate modal, file selection/removal, five-file limit, 10 MB per file, and disabled controls during submission.
+- Completed: scoped multipart release API, PDF/image validation, private attachment persistence, and deletion of stored files on transaction failure. Existing reason/status/offer workflow remains in use.
+- Completed: document viewing in employer applicant details and Associate My Applications → View Details. Click-time application refresh provides fresh signed URLs on the production document host. Release notification directs the Associate to My Applications when documents are attached.
+- Verified: Prisma Client generation, backend TypeScript compilation and document asset copy, frontend Vite build, and four mocked controller regression tests covering Associate visibility, invalid files/ownership, rollback cleanup, and no-file release. Test command after the backend build: `node --test tests/releaseAttachments.test.cjs`.
+- Pending deployment verification: apply the new nullable `release_attachments` SQL Server column using the supplied migration, restart the deployed backend, deploy frontend assets, and verify actual employer upload plus Associate preview on browser/WebView. No live migration, real upload, or device end-to-end verification was performed here.
+
+## 2026-10-02 — Closed job hired-associate visibility
+
+- Confirmed against the connected `granviadb`: offer `30e969e1-2c43-4066-9d2e-60f5ddbf192b` is accepted; application `23e96932-12ec-48cc-a31c-cc9c73943f81` is hired; job `8aaa9687-5c9f-4c77-bd78-d7a6c2ccc40c` is closed. Application employer/company match the job. Closure did not remove the application.
+- Reproduced the actual employer query failure: SQL Server returned `Invalid column name 'release_attachments'.` The preceding attachment implementation added a Prisma field but its database migration had not been applied. ApplicantsPage caught the API failure only in the console and displayed an empty list.
+- Completed: applied the nullable column to the connected database, then executed `applicationController.employerIndex` with the matching employer/company/job scope. It returned that hired application with its Associate profile and `associate_already_hired: false`. No offer/application/job statuses were changed. The migration is idempotent for databases where the column was already added.
+- Completed: applicant loading/error states and Retry; failures no longer render the empty-state message. Request sequence checks prevent an older job request from replacing the selected job's results.
+- Verification: real database/controller response confirmed; frontend Vite build and git diff whitespace check passed. Browser click-through and deployed frontend refresh remain unverified.
+
+## 2026-10-02 — Hired Associate list flicker
+
+- Removed the shared hiring hook's five-second polling interval. Hiring screens now refresh on local hiring actions, browser focus, and visibility changes instead of repeatedly querying while idle.
+- Applicant loading placeholders now apply only when opening a job. Action/focus refreshes preserve the existing rows, including when a refresh fails; the error and Retry remain visible.
+- Impact: acceptance in another simultaneously open session is seen when returning to/focusing the screen or reloading, rather than through periodic polling.
+
+## 2026-10-02 — Manual refresh for Hired / Current Associates
+
+- Added a labelled Refresh icon to both the job list heading and the selected job's associates toolbar. The icon spins and disables repeated clicks while fetching. Existing rows remain visible during manual refresh.
+- Removed ApplicantsPage's shared hiring refresh subscription, including focus, visibility, and hiring-event refresh triggers. This screen loads on opening/selecting a job, on the Refresh icon, and after its own actions.
+
+## 2026-10-02 — Associate attendance employer decision display
+
+- COMPLETED: Traced employer attendance status PATCH through `decideAttendance`, persisted `status`/`employerRemarks`, Associate GET serialization, service mapping, and `AttendanceScreen`. The API already returns the saved decision and employer remarks.
+- COMPLETED: Associate today panel, selected-date details, and recent history display Approved/Rejected and the submitted employer remarks or rejection reason. Rejected records no longer count as Pending; calendar marks them red. Existing edit/resubmit behavior is preserved.
+- COMPLETED: Attendance refreshes on window focus and return to a visible app, alongside the existing 60-second refresh.
+- VERIFIED: Frontend production build and `git diff --check` passed. Focused checks passed for approved, legacy verified, rejected, pending_verification, and checked_in status mappings.
+- NOT VERIFIED: Authenticated employer-to-Associate browser/device flow and deployed frontend.
+
+## 2026-10-02 — Employer visibility of Associate attendance resubmissions
+
+- COMPLETED: Verified Associate edit and past-date submission routes persist `guardRemarks` and return the attendance record to `pending_verification`; employer attendance GET returns those records and remarks under the employer/company scope.
+- COMPLETED: Employer attendance table now displays an Associate submission reason column, edited/resubmitted and past-date submission labels, and separately labelled employer remarks. Existing submissions without a reason show No reason provided.
+- COMPLETED: Employer attendance review refreshes every 60 seconds and on window focus / return to visible app. Load failures display contextual feedback.
+- COMPLETED: Past-date correction clears stale employer remarks when replacing a rejected decision with a pending submission; immutable audit history is preserved.
+- VERIFIED: Frontend production build and backend TypeScript no-emit check passed.
+- NOT VERIFIED: Authenticated employer/Associate browser or device flow and production deployment.
+
+## 2026-10-02 — Employer attendance approval error flash
+
+- COMPLETED: Employer attendance review now displays API failures in a fixed, dismissible red `role="alert"` banner for eight seconds and retains the contextual inline error. Shared `getErrorMessage` preserves the backend wallet-balance error message.
+- COMPLETED: Applied to attendance approval/rejection, exception-request decisions, and review-load failures. Repeated failures restart the flash duration; a new decision clears the old flash.
+- VERIFIED: Frontend production build passed.
+- NOT VERIFIED: Authenticated insufficient-wallet approval in the browser/device and production deployment.
+
+## 2026-10-02 — Attendance approval minimum remaining wallet balance
+
+- CONFIRMED RULE: Attendance approval must leave at least INR 10,000 in the Employer wallet after payment deduction. This applies to total available wallet balance; the existing deposit-only job-posting rule remains separate.
+- COMPLETED: Attendance settlement passes a INR 10,000 minimum remaining balance into the wallet debit guard, inside the existing serializable transaction. Insufficient funding rejects the approval before wallet/ledger writes.
+- COMPLETED: Error message and `wallet_balance_details` return current balance, payment amount, projected remaining balance, minimum reserve, required pre-approval balance, and exact recharge shortfall. The existing Employer error flash and inline feedback display the detailed API message. Money comparisons use integer paise.
+- VERIFIED: Backend TypeScript compilation and all five tests in `nodebackend/tests/attendanceWalletReserve.test.cjs` passed, including exact reserve, one-paise shortfall, no wallet writes on rejection, and other payments retaining their existing rules.
+- NOT VERIFIED: Live SQL Server rollback, authenticated API/browser flow, and backend deployment/restart.

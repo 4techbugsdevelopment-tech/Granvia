@@ -10,7 +10,7 @@ import { env } from '../config/env';
 // Private files require a signed link; public ones are served statically at /storage.
 export const PRIVATE_ROOT = path.resolve(process.cwd(), 'storage', 'app');
 export const PUBLIC_ROOT = path.resolve(process.cwd(), 'storage', 'public');
-const PRIVATE_CATEGORIES = ['company-documents', 'guard-documents', 'invoices', 'agreements'];
+const PRIVATE_CATEGORIES = ['application-releases', 'company-documents', 'guard-documents', 'invoices', 'agreements'];
 
 export interface IncomingFile {
   originalname: string;

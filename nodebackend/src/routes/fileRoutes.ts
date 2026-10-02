@@ -32,6 +32,9 @@ router.get('/files/download', (req: Request, res: Response) => {
   // control from the preview.
   res.setHeader('Content-Disposition', `inline; filename="${pathModule.basename(abs).replace(/"/g, '')}"`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (path.startsWith('application-releases/')) {
+    res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+  }
   return res.sendFile(abs);
 });
 

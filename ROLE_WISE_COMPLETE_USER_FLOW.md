@@ -494,9 +494,9 @@ Only approved attendance moves to payment.
 6. Payment and attendance become `completed`/`paid` only after every ledger entry succeeds.
 7. Employer, Operations, and Associate receive the appropriate receipt or notification.
 8. If the available Employer balance is insufficient for the shift, settlement becomes `funding_required`; no partial or negative wallet entry is allowed, and Employer is directed to **Add Funds**.
-9. If settlement leaves the Employer wallet below ₹10,000, the existing job remains visible, but the low-balance warning appears and submission of any new job is blocked until recharge.
+9. Attendance approval requires enough wallet balance to pay the attendance amount and leave at least ₹10,000 afterwards. If this would leave less, approval is blocked and the error shows the current balance, attendance payment, projected remaining balance, required balance, and exact recharge shortfall.
 
-The ₹10,000 rule is a job-posting minimum-balance control. It must not cause a completed shift to be debited twice or cause a second Employer debit when the Associate later withdraws the already credited earnings.
+The job-posting ₹10,000 deposited-balance minimum and the attendance-approval ₹10,000 remaining-wallet-balance requirement are separate controls. Approval debits the attendance payment once; Associate withdrawal does not trigger a second Employer debit.
 
 ### 13.3 Employer records cash payment
 

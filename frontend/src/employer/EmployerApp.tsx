@@ -1,3 +1,4 @@
+import ReleaseAttachments from '../components/ReleaseAttachments';
 import { useHiringRefresh } from '../hooks/useHiringRefresh';
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -5,7 +6,7 @@ import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
   Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle, ExternalLink,
-  UsersRound, ArrowLeft,
+  UsersRound, ArrowLeft, RefreshCw,
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import GranviaLogo from '../components/GranviaLogo';
@@ -68,18 +69,18 @@ type EmployerPage =
 // drawer on mobile. The non-master items (core daily views) form the bottom nav.
 const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master?: boolean }[] = [
   { id: 'dashboard',   label: 'Dashboard',                icon: <LayoutDashboard size={18} /> },
-  { id: 'profile',     label: 'Profile',                  icon: <UserCheck size={18} /> },
+  { id: 'profile',     label: 'Profile',                  icon: <UserCheck size={18} />, master: true },
   { id: 'team',        label: 'Manage Team',              icon: <UsersRound size={18} />,    master: true },
   { id: 'companies',   label: 'Manage Companies',         icon: <Building2 size={18} />,     master: true },
   { id: 'documents',   label: 'Manage Documents',         icon: <FileText size={18} />,      master: true },
   { id: 'sites',       label: 'Manage Sites',             icon: <MapPin size={18} />,        master: true },
   { id: 'jobs',        label: 'Manage Jobs',              icon: <Briefcase size={18} /> },
-  { id: 'applicants',  label: 'Hired / Current Associates', icon: <ClipboardList size={18} />, master: true },
+  { id: 'applicants',  label: 'Hired / Current Associates', icon: <ClipboardList size={18} /> },
   { id: 'available-guards', label: 'Available Associates', icon: <Search size={18} />,        master: true },
   { id: 'interviews',  label: 'Call / Interview Requests',icon: <MessageSquare size={18} />, master: true },
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
-  { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} /> },
+  { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} />, master: true },
   { id: 'wallet',      label: 'Wallet',                   icon: <Wallet size={18} /> },
   { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} />,      master: true },
   { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} />,     master: true },
@@ -2350,7 +2351,25 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [apps, setApps] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'scheduled' | 'selected'>('selected');
+  const [appsLoading, setAppsLoading] = useState(false);
+  const [appsError, setAppsError] = useState<string | null>(null);
+  const appsRequest = useRef(0);
+  const loadApplicants = async (jobId: string, initialLoad = false) => {
+    const request = ++appsRequest.current;
+    if (initialLoad) setAppsLoading(true);
+    setAppsError(null);
+    try {
+      const data = await listEmployerApplications(company.id, jobId);
+      if (request === appsRequest.current) setApps(data ?? []);
+    } catch (error) {
+      if (request === appsRequest.current) {
+        setAppsError(getErrorMessage(error, 'Unable to load associates for this job.'));
+      }
+    } finally {
+      if (request === appsRequest.current) setAppsLoading(false);
+    }
+  };
+  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'scheduled' | 'selected'>('all');
   const [detailsApp, setDetailsApp] = useState<any | null>(null);
   const [paidFeatureAlert, setPaidFeatureAlert] = useState(false);
   const [interviewApp, setInterviewApp] = useState<any | null>(null);
@@ -2358,6 +2377,8 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
   const [savingInterview, setSavingInterview] = useState(false);
   const [decisionApp, setDecisionApp] = useState<{ app: any; action: 'leave_accept' | 'leave_reject' | 'release' } | null>(null);
   const [decisionReason, setDecisionReason] = useState('');
+  const [decisionFiles, setDecisionFiles] = useState<File[]>([]);
+  useEffect(() => { setDecisionFiles([]); }, [decisionApp]);
   const [savingDecision, setSavingDecision] = useState(false);
 
   useEffect(() => {
@@ -2365,24 +2386,43 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
   }, [company.id]);
 
   useEffect(() => {
-    if (!selectedJob) return;
-    listEmployerApplications(company.id, selectedJob.id).then(data => setApps(data ?? [])).catch(console.error);
-  }, [company.id, selectedJob]);
+    setApps([]);
+    setAppsError(null);
+    if (selectedJob) void loadApplicants(selectedJob.id, true);
+    else setAppsLoading(false);
+    return () => { appsRequest.current += 1; };
+  }, [company.id, selectedJob?.id]);
 
   const [decisionFeedback, setDecisionFeedback] = useState<string | null>(null);
-  useHiringRefresh(async () => {
-    if (selectedJob) setApps((await listEmployerApplications(company.id, selectedJob.id)) ?? []);
-    setJobs((await listEmployerJobs(company.id)) ?? []);
-  });
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const manualRefreshBusy = useRef(false);
+  const manualRefresh = async () => {
+    if (manualRefreshBusy.current) return;
+    manualRefreshBusy.current = true;
+    setManualRefreshing(true);
+    try {
+      const [nextJobs] = await Promise.all([
+        listEmployerJobs(company.id),
+        selectedJob ? loadApplicants(selectedJob.id) : Promise.resolve(),
+      ]);
+      setJobs(nextJobs ?? []);
+    } catch (error) {
+      setAppsError(getErrorMessage(error, 'Unable to refresh jobs.'));
+    } finally {
+      manualRefreshBusy.current = false;
+      setManualRefreshing(false);
+    }
+  };
+  const refreshButton = <button type="button" onClick={() => void manualRefresh()} disabled={manualRefreshing || appsLoading} aria-label="Refresh jobs and associates" title="Refresh" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"><RefreshCw size={17} className={manualRefreshing ? 'animate-spin' : ''} /></button>;
 
   const updateStatus = async (appId: string, status: string) => {
     await updateApplicationStatus(appId, status);
-    listEmployerApplications(company.id, selectedJob?.id).then(data => setApps(data ?? [])).catch(console.error);
+    if (selectedJob) await loadApplicants(selectedJob.id);
     setDecisionFeedback(status === 'hired' ? 'Hiring proposal sent. Awaiting the associate’s Yes or No decision.' : 'Application updated.');
   };
 
   const refresh = () => {
-    if (selectedJob) listEmployerApplications(company.id, selectedJob.id).then(data => setApps(data ?? [])).catch(console.error);
+    if (selectedJob) void loadApplicants(selectedJob.id);
   };
 
   const markAadhaar = async (app: any, status: 'verified' | 'rejected') => {
@@ -2428,7 +2468,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
     try {
       let result: any;
       if (decisionApp.action === 'release') {
-        result = await releaseHiredAssociate(decisionApp.app.id, decisionReason.trim());
+        result = await releaseHiredAssociate(decisionApp.app.id, decisionReason.trim(), decisionFiles);
       } else {
         result = await decideLeaveRequest(
           decisionApp.app.id,
@@ -2440,6 +2480,8 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
       const jobId = result?.job_id ?? decisionApp.app.job_id;
       setDecisionApp(null);
       setDecisionReason('');
+      setDecisionFiles([]);
+      alert('Decision submitted successfully.');
       refresh();
       onChanged();
       if (shouldAsk && jobId && window.confirm('Do you want to reinitiate this job requirement?')) {
@@ -2460,7 +2502,7 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
       ? apps.filter((app: any) => ['selected', 'offer_sent', 'accepted', 'joined', 'hired', 'leave_requested'].includes(app.status))
       : apps;
   if (!selectedJob) {
-    return <div className="p-6"><Card className="p-5"><div className="mb-4"><h2 className="text-xl font-bold text-gray-900">Hired / Current Associates</h2><p className="text-sm text-gray-500">Select a job to view hired, selected, offered, and leave-requested associate partners.</p></div><div className="grid gap-3 md:grid-cols-2">{jobs.map(job => <button key={job.id} onClick={() => setSelectedJob(job)} className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm hover:border-blue-200"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{job.title}</p><p className="mt-1 text-xs text-gray-500">{job.company_sites?.site_name ?? job.company_sites?.city ?? 'Location not set'}</p></div>{statusBadge(job.status)}</div><p className="mt-3 text-xs text-gray-400">{job.guards_required ?? 0} openings · View current associates</p></button>)}{jobs.length === 0 && <EmptyState text="No jobs posted yet" />}</div></Card></div>;
+    return <div className="p-6"><Card className="p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="text-xl font-bold text-gray-900">Hired / Current Associates</h2><p className="text-sm text-gray-500">Select a job to view hired, selected, offered, and leave-requested associate partners.</p></div>{refreshButton}</div>{appsError && <p role="alert" className="mb-3 text-sm text-red-700">{appsError}</p>}<div className="grid gap-3 md:grid-cols-2">{jobs.map(job => <button key={job.id} onClick={() => { setFilter('all'); setSelectedJob(job); }} className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm hover:border-blue-200"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-gray-900">{job.title}</p><p className="mt-1 text-xs text-gray-500">{job.company_sites?.site_name ?? job.company_sites?.city ?? 'Location not set'}</p></div>{statusBadge(job.status)}</div><p className="mt-3 text-xs text-gray-400">{job.guards_required ?? 0} openings · View current associates</p></button>)}{jobs.length === 0 && <EmptyState text="No jobs posted yet" />}</div></Card></div>;
   }
 
   return (
@@ -2469,11 +2511,14 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
       <Card className="p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><button onClick={() => setSelectedJob(null)} className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-700"><ArrowLeft size={13} /> All jobs</button><h2 className="text-xl font-bold text-gray-900">{selectedJob.title}</h2><p className="text-sm text-gray-500">Review current associates and application history for this job.</p></div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {refreshButton}
             {(['all', 'shortlisted', 'scheduled', 'selected'] as const).map(value => <button key={value} onClick={() => setFilter(value)} className="rounded-xl px-3 py-2 text-xs font-semibold capitalize" style={{ background: filter === value ? '#0f1e3c' : '#f1f5f9', color: filter === value ? 'white' : '#64748b' }}>{value === 'all' ? 'All' : value === 'scheduled' ? 'Interview scheduled' : value}</button>)}
           </div>
         </div>
-        <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
+        {appsLoading && <p role="status" className="py-6 text-center text-sm text-gray-500">Loading associates...</p>}
+        {appsError && <div role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700"><p>{appsError}</p><button onClick={() => void loadApplicants(selectedJob.id)} className="mt-2 font-semibold underline">Retry</button></div>}
+        {!appsLoading && <DataTable headers={['Associate', 'Job', 'Experience', 'Verification', 'Status', 'Actions']}>
           {visibleApps.map((app: any) => {
             const alreadyHired = Boolean(app.associate_already_hired);
             const status = String(app.status ?? '').toLowerCase();
@@ -2529,14 +2574,14 @@ function ApplicantsPage({ employer: _employer, company, onChanged, onReinitiateJ
             </tr>
             );
           })}
-        </DataTable>
-        {visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
+        </DataTable>}
+        {!appsLoading && !appsError && visibleApps.length === 0 && <EmptyState text="No applicants in this view" />}
       </Card>
       <AnimatePresence>
-        {detailsApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsApp(null)}><motion.div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-gray-900">{detailsApp.guard_profiles?.full_name ?? 'Associate Partner'}</h3><p className="text-xs text-gray-500">{detailsApp.job_posts?.title ?? selectedJob.title} application details</p></div><button onClick={() => setDetailsApp(null)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={18} /></button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><ApplicantDetailItem label="Mobile" value={<button onClick={() => setPaidFeatureAlert(true)} className="text-sm font-bold text-blue-700 hover:underline">View</button>} /><ApplicantDetailItem label="City" value={profileValue(detailsApp.guard_profiles?.city)} /><ApplicantDetailItem label="State" value={profileValue(detailsApp.guard_profiles?.state)} /><ApplicantDetailItem label="Address" value={profileValue(detailsApp.guard_profiles?.address)} /><ApplicantDetailItem label="Pincode" value={profileValue(detailsApp.guard_profiles?.pincode)} /><ApplicantDetailItem label="Gender" value={profileValue(detailsApp.guard_profiles?.gender)} /><ApplicantDetailItem label="Date of birth" value={profileDate(detailsApp.guard_profiles?.dob)} /><ApplicantDetailItem label="Skills" value={profileList(detailsApp.guard_profiles?.skills)} /><ApplicantDetailItem label="Languages" value={profileList(detailsApp.guard_profiles?.languages)} /><ApplicantDetailItem label="Experience" value={profileValue(detailsApp.guard_profiles?.experience)} /><ApplicantDetailItem label="Qualification" value={profileValue(detailsApp.guard_profiles?.qualification)} /><ApplicantDetailItem label="Profile verification" value={statusBadge(detailsApp.guard_profiles?.verification_status ?? 'pending')} /><ApplicantDetailItem label="Aadhaar" value={statusBadge(detailsApp.guard_profiles?.aadhaar_status ?? 'pending')} /><ApplicantDetailItem label="Police verification" value={statusBadge(detailsApp.guard_profiles?.police_verification_status ?? 'pending')} /><ApplicantDetailItem label="Application status" value={statusBadge(detailsApp.status)} /><ApplicantDetailItem label="Applied on" value={profileDate(detailsApp.applied_at)} /><ApplicantDetailItem label="Notes" value={profileValue(detailsApp.notes)} /></div><div className="mt-5 flex justify-end"><button onClick={() => setDetailsApp(null)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">Close</button></div></motion.div></motion.div>}
+        {detailsApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDetailsApp(null)}><motion.div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-gray-900">{detailsApp.guard_profiles?.full_name ?? 'Associate Partner'}</h3><p className="text-xs text-gray-500">{detailsApp.job_posts?.title ?? selectedJob.title} application details</p></div><button onClick={() => setDetailsApp(null)} className="grid h-9 w-9 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={18} /></button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><ApplicantDetailItem label="Mobile" value={<button onClick={() => setPaidFeatureAlert(true)} className="text-sm font-bold text-blue-700 hover:underline">View</button>} /><ApplicantDetailItem label="City" value={profileValue(detailsApp.guard_profiles?.city)} /><ApplicantDetailItem label="State" value={profileValue(detailsApp.guard_profiles?.state)} /><ApplicantDetailItem label="Address" value={profileValue(detailsApp.guard_profiles?.address)} /><ApplicantDetailItem label="Pincode" value={profileValue(detailsApp.guard_profiles?.pincode)} /><ApplicantDetailItem label="Gender" value={profileValue(detailsApp.guard_profiles?.gender)} /><ApplicantDetailItem label="Date of birth" value={profileDate(detailsApp.guard_profiles?.dob)} /><ApplicantDetailItem label="Skills" value={profileList(detailsApp.guard_profiles?.skills)} /><ApplicantDetailItem label="Languages" value={profileList(detailsApp.guard_profiles?.languages)} /><ApplicantDetailItem label="Experience" value={profileValue(detailsApp.guard_profiles?.experience)} /><ApplicantDetailItem label="Qualification" value={profileValue(detailsApp.guard_profiles?.qualification)} /><ApplicantDetailItem label="Profile verification" value={statusBadge(detailsApp.guard_profiles?.verification_status ?? 'pending')} /><ApplicantDetailItem label="Aadhaar" value={statusBadge(detailsApp.guard_profiles?.aadhaar_status ?? 'pending')} /><ApplicantDetailItem label="Police verification" value={statusBadge(detailsApp.guard_profiles?.police_verification_status ?? 'pending')} /><ApplicantDetailItem label="Application status" value={statusBadge(detailsApp.status)} /><ApplicantDetailItem label="Applied on" value={profileDate(detailsApp.applied_at)} /><ApplicantDetailItem label="Notes" value={profileValue(detailsApp.notes)} /><ApplicantDetailItem label="Release documents" value={<ReleaseAttachments application={detailsApp} role="employer" />} /></div><div className="mt-5 flex justify-end"><button onClick={() => setDetailsApp(null)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">Close</button></div></motion.div></motion.div>}
         {paidFeatureAlert && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPaidFeatureAlert(false)}><motion.div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-gray-900">Paid feature</h3><p className="mt-2 text-sm text-gray-600">Wallet must have balance to view the mobile number.</p></div><button onClick={() => setPaidFeatureAlert(false)} className="grid h-8 w-8 place-items-center rounded-full bg-gray-100 text-gray-500"><X size={16} /></button></div><div className="mt-5 flex justify-end"><button onClick={() => setPaidFeatureAlert(false)} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white">OK</button></div></motion.div></motion.div>}
         {interviewApp && <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingInterview && setInterviewApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">Schedule interview</h3><p className="text-xs text-gray-500">{interviewApp.guard_profiles?.full_name ?? 'Associate Partner'}</p></div><button onClick={() => setInterviewApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={interviewRemarks} onChange={event => setInterviewRemarks(event.target.value)} placeholder={interviewMessageSample(company)} rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setInterviewApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void scheduleInterview()} disabled={savingInterview || !interviewRemarks.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingInterview ? 'Saving...' : 'Schedule interview'}</button></div></motion.div></motion.div>}
-        {decisionApp && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingDecision && setDecisionApp(null)}><motion.div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">{decisionApp.action === 'release' ? 'Release / terminate associate' : decisionApp.action === 'leave_accept' ? 'Accept leave request' : 'Reject leave request'}</h3><p className="text-xs text-gray-500">{decisionApp.app.guard_profiles?.full_name ?? 'Associate Partner'} · {decisionApp.app.job_posts?.title ?? selectedJob.title}</p></div><button onClick={() => setDecisionApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea value={decisionReason} onChange={event => setDecisionReason(event.target.value)} placeholder="Enter reason" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end gap-2"><button onClick={() => setDecisionApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void submitDecision()} disabled={savingDecision || !decisionReason.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingDecision ? 'Submitting...' : 'Submit'}</button></div></motion.div></motion.div>}
+        {decisionApp && <motion.div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingDecision && setDecisionApp(null)}><motion.div className="max-h-[90dvh] overflow-y-auto w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" initial={{ scale: .96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-900">{decisionApp.action === 'release' ? 'Release / terminate associate' : decisionApp.action === 'leave_accept' ? 'Accept leave request' : 'Reject leave request'}</h3><p className="text-xs text-gray-500">{decisionApp.app.guard_profiles?.full_name ?? 'Associate Partner'} · {decisionApp.app.job_posts?.title ?? selectedJob.title}</p></div><button disabled={savingDecision} onClick={() => setDecisionApp(null)}><X size={18} className="text-gray-400" /></button></div><textarea disabled={savingDecision} value={decisionReason} onChange={event => setDecisionReason(event.target.value)} placeholder="Enter reason" rows={5} className="mt-4 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-400" />{decisionApp.action === 'release' && <div className="mt-3"><label className="block text-sm font-semibold text-gray-700">Supporting documents (optional)<input type="file" multiple accept="application/pdf,image/*" disabled={savingDecision} className="mt-2 block w-full text-sm" onChange={event => { const files = Array.from(event.target.files ?? []); if (files.length > 5 || files.some(file => file.size > 10 * 1024 * 1024)) { alert('Select up to 5 files, maximum 10 MB each.'); event.target.value = ''; setDecisionFiles([]); return; } setDecisionFiles(files); }} /></label><p className="mt-1 text-xs text-gray-500">PDF or image files · Up to 5 files · 10 MB each. Shared with the Associate.</p>{decisionFiles.map((file, index) => <div key={index} className="mt-1 flex items-center justify-between gap-2 text-xs"><span className="truncate">{file.name}</span><button type="button" disabled={savingDecision} onClick={() => setDecisionFiles(files => files.filter((_, i) => i !== index))} className="text-red-600">Remove</button></div>)}</div>}<div className="mt-4 flex justify-end gap-2"><button disabled={savingDecision} onClick={() => setDecisionApp(null)} className="rounded-xl px-4 py-2 text-sm text-gray-600">Cancel</button><button onClick={() => void submitDecision()} disabled={savingDecision || !decisionReason.trim()} className="rounded-xl bg-[#0f1e3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingDecision ? 'Submitting...' : 'Submit'}</button></div></motion.div></motion.div>}
       </AnimatePresence>
     </div>
   );
@@ -2667,6 +2712,11 @@ function AgreementsPage({ employer: _employer, company, onChanged }: { employer:
 
 // ── Attendance ────────────────────────────────────────────────────────────────
 
+function attendanceDateLabel(value: string | null | undefined) {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+  return match ? match[3] + '/' + match[2] + '/' + match[1] : '--';
+}
+
 function AttendanceGps({ lat, lng, fallback = '--' }: { lat: any; lng: any; fallback?: string }) {
   if (lat == null || lng == null) return <span className="text-xs text-gray-400">{fallback}</span>;
   const latitude = Number(lat);
@@ -2708,6 +2758,19 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [flashError, setFlashError] = useState<{ message: string } | null>(null);
+
+  const showAttendanceError = (cause: unknown, fallback: string) => {
+    const message = getErrorMessage(cause, fallback);
+    setError(message);
+    setFlashError({ message });
+  };
+
+  useEffect(() => {
+    if (!flashError) return;
+    const timer = window.setTimeout(() => setFlashError(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [flashError]);
 
   const loadAttendanceReview = () => Promise.all([
     listEmployerAttendance(company.id),
@@ -2718,7 +2781,19 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
   });
 
   useEffect(() => {
-    loadAttendanceReview().catch(console.error);
+    const load = () => loadAttendanceReview().catch(err => {
+      showAttendanceError(err, 'Unable to load attendance.');
+    });
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    window.addEventListener('focus', load);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', load);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [company.id]);
 
   const update = async (record: any, status: 'approved' | 'rejected') => {
@@ -2728,6 +2803,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     if (remarks === null) return;
     setBusyId(record.id);
     setError('');
+    setFlashError(null);
     setNotice('');
     try {
       await updateAttendanceStatus(record.id, status, remarks);
@@ -2737,7 +2813,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
       window.alert(message);
       onChanged();
     } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || 'Unable to update attendance.');
+      showAttendanceError(err, 'Unable to update attendance.');
     } finally {
       setBusyId(null);
     }
@@ -2748,6 +2824,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
     if (remarks === null) return;
     setBusyId(request.id);
     setError('');
+    setFlashError(null);
     setNotice('');
     try {
       await updateAttendanceRequestStatus(request.id, status, remarks);
@@ -2759,7 +2836,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
       window.alert(message);
       onChanged();
     } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || 'Unable to update attendance request.');
+      showAttendanceError(err, 'Unable to update attendance request.');
     } finally {
       setBusyId(null);
     }
@@ -2767,6 +2844,26 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
 
   return (
     <div className="p-6">
+      <AnimatePresence>
+        {flashError && (
+          <motion.div
+            role="alert"
+            className="fixed top-4 left-4 right-4 z-[120] mx-auto flex max-w-xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-xl"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <XCircle size={22} className="mt-0.5 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">Attendance action failed</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm">{flashError.message}</p>
+            </div>
+            <button type="button" aria-label="Dismiss attendance error" onClick={() => setFlashError(null)} className="rounded-lg p-1 text-red-700 hover:bg-red-100">
+              <X size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <Card className="p-5">
         <div className="mb-4">
           <h2 className="font-bold text-gray-900">Attendance Verification</h2>
@@ -2815,7 +2912,7 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
             </div>
           )}
         </div>
-        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in Location', 'Check-out Location', 'Hours', 'Status', 'Actions']}>
+        <DataTable headers={['Associate', 'Job', 'Date', 'In / Out', 'Check-in Location', 'Check-out Location', 'Hours', 'Associate submission reason', 'Status', 'Actions']}>
           {records.map((r: any) => {
             const hasValidHours = r.in_time && r.out_time && Number(r.total_hours ?? 0) > 0;
             const decided = ['approved', 'verified', 'rejected'].includes(String(r.status ?? '').toLowerCase());
@@ -2824,16 +2921,22 @@ function AttendancePage({ company, onChanged }: { company: any; onChanged: () =>
             <tr key={r.id} className="border-b border-gray-50">
               <Td>{r.guard_profiles?.full_name ?? 'Associate'}</Td>
               <Td>{r.job_posts?.title}</Td>
-              <Td>{r.attendance_date}</Td>
+              <Td>{attendanceDateLabel(r.attendance_date)}</Td>
               <Td>{r.in_time ? new Date(r.in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'} / {r.out_time ? new Date(r.out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '--'}</Td>
               <Td><AttendanceLocation lat={r.check_in_latitude} lng={r.check_in_longitude} name={r.check_in_location_name} site={r.job_posts?.site} /></Td>
               <Td><AttendanceLocation lat={r.check_out_latitude} lng={r.check_out_longitude} name={r.check_out_location_name} site={r.job_posts?.site} fallback={r.checkout_method === 'automatic' ? 'Auto checkout - unavailable' : '--'} /></Td>
               <Td>{r.total_hours ?? '--'}</Td>
               <Td>
+                <div className="min-w-40 max-w-72 whitespace-pre-wrap break-words text-xs text-slate-700">
+                  {r.guard_remarks?.trim() || 'No reason provided'}
+                </div>
+              </Td>
+              <Td>
                 {statusBadge(r.status)}
                 {r.checkout_method === 'automatic' && <div className="text-[10px] text-purple-600 mt-1">Auto checkout</div>}
-                {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Historical correction</div>}
-                {r.employer_remarks && <div className="mt-1 max-w-48 text-[10px] text-gray-500">{r.employer_remarks}</div>}
+                {r.entry_mode === 'historical_manual' && <div className="text-[10px] text-amber-600 mt-1">Past-date submission / correction</div>}
+                {r.entry_mode === 'associate_edited' && <div className="text-[10px] text-blue-600 mt-1">Edited / resubmitted by Associate</div>}
+                {r.employer_remarks && <div className="mt-1 max-w-48 whitespace-pre-wrap break-words text-[10px] text-gray-500">Employer remarks: {r.employer_remarks}</div>}
               </Td>
               <Td>
                 {actionable ? (
