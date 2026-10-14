@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createAdminReportRouter } from './adminReportRoutes';
+import { prisma } from '../prisma';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
@@ -23,6 +25,7 @@ const router = Router();
 
 // mirrors routes/api/admin.php — all under auth:sanctum + role:super_admin
 router.use('/admin', requireAuth, requireRole('super_admin'));
+router.use('/admin/reports', createAdminReportRouter(prisma));
 
 router.get('/admin/guards', asyncHandler(adminGuard.index));
 router.post('/admin/guards', asyncHandler(adminGuard.store));

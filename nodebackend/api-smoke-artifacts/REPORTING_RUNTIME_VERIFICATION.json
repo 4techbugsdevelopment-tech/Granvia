@@ -1,0 +1,237 @@
+{
+  "client_date": "2026-10-12",
+  "status": "queries_verified",
+  "verification": "Read-only schema and report service checks; not browser, bearer-token API or deployment acceptance",
+  "checks": [
+    {
+      "name": "schema:users",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:employer_profiles",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:guard_profiles",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:employer_companies",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:company_sites",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:job_posts",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:job_applications",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:company_documents",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:guard_documents",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:attendance_records",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:attendance_exception_requests",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:attendance_audit_events",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:associate_partner_agreements",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:employer_wallets",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:wallet_transactions",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:payments",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:associate_wallets",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "schema:associate_wallet_transactions",
+      "status": "present",
+      "warnings": []
+    },
+    {
+      "name": "admin:platform-summary",
+      "status": "query_passed",
+      "records": 21,
+      "warnings": []
+    },
+    {
+      "name": "admin:employer-verification",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "admin:company-verification",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "admin:company-documents",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "admin:associate-verification",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "admin:associate-documents",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "name": "admin:job-hiring",
+      "status": "query_passed",
+      "records": 10,
+      "warnings": []
+    },
+    {
+      "name": "admin:applications",
+      "status": "query_passed",
+      "records": 7,
+      "warnings": []
+    },
+    {
+      "name": "admin:attendance",
+      "status": "query_passed",
+      "records": 10,
+      "warnings": []
+    },
+    {
+      "name": "admin:attendance-exceptions",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "admin:attendance-audit",
+      "status": "query_passed",
+      "records": 25,
+      "warnings": []
+    },
+    {
+      "name": "admin:wallets",
+      "status": "query_passed",
+      "records": 6,
+      "warnings": []
+    },
+    {
+      "name": "admin:wallet-movements",
+      "status": "query_passed_with_warnings",
+      "records": 8,
+      "warnings": [
+        "mock_recharge"
+      ]
+    },
+    {
+      "name": "admin:settlements",
+      "status": "query_passed",
+      "records": 7,
+      "warnings": []
+    },
+    {
+      "name": "employer:job-hiring",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "name": "employer:applications",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "name": "employer:interviews",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "employer:offers",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "name": "employer:agreements",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "name": "employer:attendance",
+      "status": "query_passed",
+      "records": 4,
+      "warnings": []
+    },
+    {
+      "name": "employer:attendance-exceptions",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "name": "employer:payments",
+      "status": "query_passed",
+      "records": 3,
+      "warnings": []
+    },
+    {
+      "name": "employer:wallet-statement",
+      "status": "query_passed",
+      "records": 3,
+      "warnings": []
+    }
+  ]
+}

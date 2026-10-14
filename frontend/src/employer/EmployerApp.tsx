@@ -1,4 +1,5 @@
 import ReleaseAttachments from '../components/ReleaseAttachments';
+import EmployerReportingHub from './EmployerReportingHub';
 import { useHiringRefresh } from '../hooks/useHiringRefresh';
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -188,7 +189,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'payments':    return activeCompany ? <PaymentsPage employer={employer} company={activeCompany} key={refresh} /> : <CompanyRequired onNavigate={setPage} />;
       case 'wallet':      return <WalletPage key={refresh} />;
       case 'invoices':    return activeCompany ? <InvoicesPage company={activeCompany} /> : <CompanyRequired onNavigate={setPage} />;
-      case 'reports':     return activeCompany ? <ReportsPage employer={employer} company={activeCompany} companies={companies} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'reports':     return <EmployerReportingHub company={activeCompany} key={activeCompany?.id ?? 'account'} onSelectCompany={() => setPage('companies')} />;
       case 'available-guards': return <AvailableGuardsPage />;
       case 'feedback':    return <FeedbackPage />;
       default:            return <StaticInfoPage title={pageTitles[page]} />;
@@ -3212,55 +3213,3 @@ function InvoicesPage({ company }: { company: any }) {
 }
 
 // ── Reports ───────────────────────────────────────────────────────────────────
-
-function ReportsPage({ employer: _employer, company, companies }: { employer: EmployerInfo; company: any; companies: any[] }) {
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [apps, setApps] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
-  const [sites, setSites] = useState<any[]>([]);
-
-  useEffect(() => {
-    Promise.all([
-      listEmployerJobs(company.id).catch(() => []),
-      listEmployerApplications(company.id).catch(() => []),
-      listEmployerPayments(company.id).catch(() => []),
-      listCompanySites(company.id).catch(() => []),
-    ]).then(([j, a, p, s]) => {
-      setJobs(j ?? []);
-      setApps(a ?? []);
-      setPayments(p ?? []);
-      setSites(s ?? []);
-    });
-  }, [company.id]);
-
-  return (
-    <div className="p-6 space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard label="Total Companies" value={companies.length} icon={<Building2 size={20} />} color="#0f1e3c" />
-        <MetricCard label="Site Deployments" value={sites.length} icon={<MapPin size={20} />} color="#0f766e" />
-        <MetricCard label="Payment Total" value={`Rs ${payments.reduce((s, p) => s + (p.amount ?? 0), 0)}`} icon={<CreditCard size={20} />} color="#065f46" />
-      </div>
-      <Card className="p-5">
-        <h2 className="font-bold text-gray-900 mb-4">Hiring Report</h2>
-        <DataTable headers={['Job', 'Site', 'Applicants', 'Hired', 'Status']}>
-          {jobs.map((job: any) => {
-            const jobApps = apps.filter(a => a.job_id === job.id);
-            const selected = jobApps.filter(a => ['hired', 'joined', 'leave_requested'].includes(a.status)).length;
-            return (
-              <tr key={job.id} className="border-b border-gray-50">
-                <Td>{job.title}</Td>
-                <Td>{job.company_sites?.site_name}</Td>
-                <Td>{jobApps.length}</Td>
-                <Td>{selected}</Td>
-                <Td>{statusBadge(job.status)}</Td>
-              </tr>
-            );
-          })}
-        </DataTable>
-        {jobs.length === 0 && <EmptyState text="No jobs for report" />}
-      </Card>
-    </div>
-  );
-}
-
-

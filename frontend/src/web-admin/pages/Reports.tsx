@@ -1,3 +1,6 @@
+import { useState as useReportMode } from 'react';
+import OperationalReports from './OperationalReports';
+import FinancialReports from '../../components/reports/FinancialReports';
 // Admin reports — area availability, language proficiency, commission (live: GET /admin/reports/analytics)
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -7,7 +10,7 @@ import { getAdminAnalytics, AdminAnalytics } from '../../services/reportService'
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
-export default function Reports() {
+function LegacyAnalytics() {
   const [data, setData] = useState<AdminAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,4 +123,10 @@ export default function Reports() {
       )}
     </motion.div>
   );
+}
+
+export default function Reports() {
+  const [mode, setMode] = useReportMode<'operational' | 'financial' | 'legacy'>(() => new URLSearchParams(window.location.search).get('financial_report') ? 'financial' : 'operational');
+  const navigate = (next: 'operational' | 'financial' | 'legacy') => { const url = new URL(window.location.href); url.search = ''; window.history.replaceState({}, '', url); setMode(next); };
+  return <><div className="px-6 pt-4 flex gap-3 flex-wrap"><button className="text-sm underline" onClick={() => navigate('operational')}>Operational reports</button><button className="text-sm underline" onClick={() => navigate('financial')}>Wallet & settlement monitoring</button><button className="text-sm underline" onClick={() => navigate('legacy')}>Existing area / language / commission estimates</button></div>{mode === 'financial' ? <FinancialReports role="super_admin"/> : mode === 'legacy' ? <><p className="px-6 pt-4 text-sm text-amber-800">Legacy analytics use profile language entries and inferred availability. Commission is a 10% estimate, not a posted fee ledger.</p><LegacyAnalytics /></> : <OperationalReports />}</>;
 }

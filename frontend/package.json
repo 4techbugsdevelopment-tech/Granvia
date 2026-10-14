@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck:reports": "tsc --noEmit -p tsconfig.reporting.json"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/vite-env.d.ts",
+    "src/lib/reportTypes.ts",
+    "src/services/reportService.ts",
+    "src/services/employerReportService.ts",
+    "src/services/adminReportService.ts",
+    "src/services/financialReportService.ts",
+    "src/employer/EmployerReportsPage.tsx",
+    "src/employer/EmployerReportingHub.tsx",
+    "src/components/reports/**/*.tsx",
+    "src/web-admin/pages/OperationalReports.tsx",
+    "src/web-admin/pages/Reports.tsx"
+  ]
+}
