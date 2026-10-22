@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
+import { prisma } from '../prisma';
 import multer from 'multer';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
@@ -21,6 +23,7 @@ const router = Router();
 
 // mirrors routes/api/guard.php — all under auth:sanctum + role:guard
 router.use('/guard', requireAuth, requireRole('guard'));
+router.use('/guard/reports/extended', createExtendedReportRouter(prisma, 'guard'));
 
 router.post('/guard/jobs/:job/apply', asyncHandler(applications.apply));
 router.get('/guard/jobs', asyncHandler(jobs.activeForGuard));

@@ -6,6 +6,7 @@ export const owner = { id: id(1), role: 'employer', accountStatus: 'active' };
 export const company = id(2), site = id(3);
 export function fixture() {
   const tables: Record<string, Row[]> = {
+    operationsAssignment: [], withdrawalRequest: [], invoice: [],
     associateType: [{ code: 'guard', name: 'Associate' }],
     employerWallet: [{ id: id(60), employerUserId: owner.id, status: 'active', currency: 'INR', createdAt: new Date('2026-09-01T00:00:00Z'), balance: new Prisma.Decimal('20012.65'), depositBalance: new Prisma.Decimal('19012.45'), creditBalance: new Prisma.Decimal('1000.20'), totalRecharged: new Prisma.Decimal('20000.10'), totalCredited: new Prisma.Decimal('1000.20'), totalDebited: new Prisma.Decimal('987.65') }],
     walletTransaction: [
@@ -35,7 +36,9 @@ export function fixture() {
   };
   const calls: string[] = [];
   function relation(row: Row, key: string) {
-    if (key === 'user') return tables.user.find(u => u.id === (row.userId ?? row.employerUserId)) ?? null;
+    if (key === 'user') return tables.user.find(u => u.id === (row.userId ?? row.employerUserId ?? row.guardUserId)) ?? null;
+    if (key === 'wallet') return tables.associateWallet.find(w => w.id === row.walletId) ?? null;
+    if (key === 'associateWallet') return tables.associateWallet.find(w => w.guardUserId === row.id) ?? null;
     if (key === 'employerProfile') return tables.employerProfile.find(p => p.userId === row.id) ?? null;
     if (key === 'guardProfile') return tables.guardProfile.find(p => p.userId === row.id) ?? null;
     if (key === 'employerWallet') return tables.employerWallet.find(w => w.employerUserId === row.id) ?? null;

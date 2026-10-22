@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ExtendedReports from '../components/reports/ExtendedReports';
 import { ClipboardList, LogOut, RefreshCw, Users, UserCheck, MessageSquare } from 'lucide-react';
 import { getOperationsDashboard, listOperationsApplications, updateOperationsApplication, type OperationsDashboard } from '../services/operationsService';
 import { signOut } from '../services/authService';
@@ -6,6 +7,7 @@ import { signOut } from '../services/authService';
 const STATUSES = ['under_review', 'contacted', 'shortlisted', 'interview_requested', 'interview_completed', 'selected', 'rejected', 'onboarding', 'accepted', 'joined'];
 
 export default function OperationsApp({ onLogout }: { onLogout: () => void }) {
+  const [reports, setReports] = useState(() => new URLSearchParams(window.location.search).has('extended_report'));
   const [dashboard, setDashboard] = useState<OperationsDashboard | null>(null);
   const [applications, setApplications] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,6 +54,8 @@ export default function OperationsApp({ onLogout }: { onLogout: () => void }) {
       <button onClick={() => void signOut().finally(onLogout)} className="flex items-center gap-2 text-sm"><LogOut size={17} /> Logout</button>
     </header>
     <main className="max-w-7xl mx-auto p-4 md:p-6">
+      <div className="mb-4 flex gap-4 text-sm"><button className="underline" onClick={() => setReports(false)}>Workspace</button><button className="underline" onClick={() => setReports(true)}>Reports</button></div>
+      {reports ? <ExtendedReports role="operations"/> : <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">{cards.map(([label, value, icon]) => <div key={label} className="bg-white rounded-2xl p-4 shadow-sm"><div className="text-[#8b1a1a] mb-2">{icon}</div><div className="text-2xl font-bold">{value}</div><div className="text-xs text-slate-500">{label}</div></div>)}</div>
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 flex items-center justify-between border-b"><div><h2 className="font-bold">Assigned applications</h2><p className="text-xs text-slate-500">Only records within your active Employer scope are shown.</p></div><button onClick={() => void load()} className="p-2 rounded-lg bg-slate-100"><RefreshCw size={16} /></button></div>
@@ -62,6 +66,7 @@ export default function OperationsApp({ onLogout }: { onLogout: () => void }) {
           {!applications.length && <tr><td colSpan={5} className="p-8 text-center text-slate-400">No assigned applications.</td></tr>}
         </tbody></table></div>
       </div>
+      </>}
     </main>
   </div>;
 }

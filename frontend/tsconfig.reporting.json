@@ -7,6 +7,7 @@
     "src/services/employerReportService.ts",
     "src/services/adminReportService.ts",
     "src/services/financialReportService.ts",
+    "src/services/extendedReportService.ts",
     "src/employer/EmployerReportsPage.tsx",
     "src/employer/EmployerReportingHub.tsx",
     "src/components/reports/**/*.tsx",

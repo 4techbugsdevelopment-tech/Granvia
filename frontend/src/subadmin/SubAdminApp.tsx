@@ -34,7 +34,7 @@ const NAV: { id: SubPage; label: string; icon: React.ReactNode; master?: boolean
 ];
 
 export default function SubAdminApp({ onLogout, layout = 'desktop' }: { onLogout: () => void; layout?: 'desktop' | 'mobile' }) {
-  const [page, setPage] = useState<SubPage>('dashboard');
+  const [page, setPage] = useState<SubPage>(() => new URLSearchParams(window.location.search).has('extended_report') ? 'reports' : 'dashboard');
   const handleLogout = () => { signOut().finally(onLogout); };
 
   const render = () => {

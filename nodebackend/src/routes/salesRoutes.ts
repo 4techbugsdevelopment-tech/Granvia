@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
+import { prisma } from '../prisma';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
@@ -8,6 +10,7 @@ const router = Router();
 
 // mirrors routes/api/sales.php — auth:sanctum + role:sales_executive
 router.use('/sales', requireAuth, requireRole('sales_executive'));
+router.use('/sales/reports/extended', createExtendedReportRouter(prisma, 'sales_executive'));
 
 router.get('/sales/reports/counts', asyncHandler(sales.counts));
 router.get('/sales/activity', asyncHandler(sales.activity));

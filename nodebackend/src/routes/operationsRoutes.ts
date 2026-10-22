@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
+import { prisma } from '../prisma';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
 import { asyncHandler } from '../utils/http';
@@ -6,6 +8,7 @@ import * as operations from '../controllers/operationsController';
 
 const router = Router();
 router.use('/operations', requireAuth, requireRole('operations'));
+router.use('/operations/reports/extended', createExtendedReportRouter(prisma, 'operations'));
 router.get('/operations/dashboard', asyncHandler(operations.dashboard));
 router.get('/operations/applications', asyncHandler(operations.applications));
 router.patch('/operations/applications/:application/status', asyncHandler(operations.updateApplication));

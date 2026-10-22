@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
+import { prisma } from '../prisma';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/role';
@@ -8,6 +10,7 @@ const router = Router();
 
 // mirrors routes/api/subadmin.php — auth:sanctum + role:sub_admin
 router.use('/subadmin', requireAuth, requireRole('sub_admin'));
+router.use('/subadmin/reports/extended', createExtendedReportRouter(prisma, 'sub_admin'));
 
 router.get('/subadmin/reports/counts', asyncHandler(sub.counts));
 

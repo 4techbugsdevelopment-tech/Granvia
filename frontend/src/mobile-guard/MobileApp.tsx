@@ -1,4 +1,5 @@
 import { useHiringRefresh } from '../hooks/useHiringRefresh';
+import ExtendedReports from '../components/reports/ExtendedReports';
 import { listMyJobOffers } from '../services/applicationService';
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,9 +26,10 @@ interface MobileAppProps {
 type Screen =
   | 'dashboard' | 'jobs' | 'attendance' | 'profile' | 'applications'
   | 'wallet' | 'availability' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions'
-  | 'aadhaar-mock-test';
+  | 'aadhaar-mock-test' | 'reports';
 
 function initialScreen(): Screen {
+  if (new URLSearchParams(window.location.search).has('extended_report')) return 'reports';
   if (window.location.pathname === '/guard/aadhaar/mock-test') return 'aadhaar-mock-test';
   if (new URLSearchParams(window.location.search).has('esign_return')) return 'agreement';
   return 'dashboard';
@@ -41,6 +43,7 @@ const NAV_ITEMS = [
 ];
 
 const MORE_ITEMS = [
+  { id: 'reports' as Screen, icon: <ClipboardList size={20} />, label: 'Reports & Statements' },
   { id: 'applications' as Screen, icon: <ClipboardList size={20} />, label: 'Applications' },
   { id: 'wallet' as Screen, icon: <Wallet size={20} />, label: 'Wallet' },
   { id: 'availability' as Screen, icon: <CalendarDays size={20} />, label: 'Availability' },
@@ -89,6 +92,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       case 'profile': return <ProfileScreen />;
       case 'applications': return <ApplicationsScreen />;
       case 'wallet': return <WalletScreen />;
+      case 'reports': return <ExtendedReports role="guard"/>;
       case 'availability': return <AvailabilityScreen />;
       case 'accepted-jobs': return <AcceptedJobsScreen />;
       case 'notifications': return <NotificationsScreen />;

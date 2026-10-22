@@ -2,6 +2,8 @@
 
 Date: 2026-10-12 (client timezone: Asia/Calcutta)
 
+2026-10-22 extension: [role-wise extended reporting status](REPORTING_EXTENDED_IMPLEMENTATION_STATUS.md) records the first additional 24 report views across all seven roles, their verification and remaining catalogue work. The original phase results below refer to the earlier Employer/Super Admin release.
+
 ## Delivery status
 
 Reporting implementation for Employer and Super Admin is complete through Phase 4. Phase 5 automated, build, lint, focused type-check and configured SQL Server query checks are complete. Browser/mobile acceptance and verification of the published HTTP endpoints remain outstanding: this session has no connected browser surface, and deployment was not performed.

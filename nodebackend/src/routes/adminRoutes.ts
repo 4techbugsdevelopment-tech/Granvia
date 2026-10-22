@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
 import { createAdminReportRouter } from './adminReportRoutes';
 import { prisma } from '../prisma';
 import { asyncHandler } from '../utils/http';
@@ -25,6 +26,7 @@ const router = Router();
 
 // mirrors routes/api/admin.php — all under auth:sanctum + role:super_admin
 router.use('/admin', requireAuth, requireRole('super_admin'));
+router.use('/admin/reports/extended', createExtendedReportRouter(prisma, 'super_admin'));
 router.use('/admin/reports', createAdminReportRouter(prisma));
 
 router.get('/admin/guards', asyncHandler(adminGuard.index));

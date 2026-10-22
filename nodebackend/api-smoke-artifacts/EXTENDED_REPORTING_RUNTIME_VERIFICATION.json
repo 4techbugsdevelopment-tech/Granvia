@@ -1,0 +1,200 @@
+{
+  "client_date": "2026-10-22",
+  "status": "incomplete",
+  "verification": "Read-only configured-database service queries; not browser, deployed API or release acceptance",
+  "checks": [
+    {
+      "role": "super_admin",
+      "report": "employer-registrations",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "CURRENT_STATUS"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "associate-registrations",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "CURRENT_STATUS"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "employer-credits",
+      "status": "query_passed",
+      "records": 2,
+      "warnings": [
+        "CREDITS_NOT_COLLECTIONS"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "associate-wallets",
+      "status": "query_passed",
+      "records": 7,
+      "warnings": [
+        "STORED_WALLETS_ONLY"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "associate-statement",
+      "status": "query_passed",
+      "records": 8,
+      "warnings": [
+        "RESERVES_SEPARATE"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "withdrawals",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "RECORDED_PAYOUT_STATUS"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "recruitment-pipeline",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": [
+        "CURRENT_PIPELINE"
+      ]
+    },
+    {
+      "role": "super_admin",
+      "report": "invoices",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "INVOICE_FACE_VALUE"
+      ]
+    },
+    {
+      "role": "employer",
+      "report": "employer-credits",
+      "status": "query_passed",
+      "records": 2,
+      "warnings": [
+        "CREDITS_NOT_COLLECTIONS"
+      ]
+    },
+    {
+      "role": "employer",
+      "report": "recruitment-pipeline",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": [
+        "CURRENT_PIPELINE"
+      ]
+    },
+    {
+      "role": "employer",
+      "report": "companies",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": []
+    },
+    {
+      "role": "employer",
+      "report": "sites",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": []
+    },
+    {
+      "role": "employer",
+      "report": "invoices",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "INVOICE_FACE_VALUE"
+      ]
+    },
+    {
+      "role": "guard",
+      "report": "associate-wallets",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": [
+        "STORED_WALLETS_ONLY"
+      ]
+    },
+    {
+      "role": "guard",
+      "report": "associate-statement",
+      "status": "query_passed",
+      "records": 4,
+      "warnings": [
+        "RESERVES_SEPARATE"
+      ]
+    },
+    {
+      "role": "guard",
+      "report": "withdrawals",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "RECORDED_PAYOUT_STATUS"
+      ]
+    },
+    {
+      "role": "guard",
+      "report": "recruitment-pipeline",
+      "status": "query_passed",
+      "records": 1,
+      "warnings": [
+        "CURRENT_PIPELINE"
+      ]
+    },
+    {
+      "role": "sub_admin",
+      "report": "employer-registrations",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "CURRENT_STATUS",
+        "CURRENT_ASSIGNMENTS"
+      ]
+    },
+    {
+      "role": "sub_admin",
+      "report": "associate-registrations",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "CURRENT_STATUS",
+        "CURRENT_ASSIGNMENTS"
+      ]
+    },
+    {
+      "role": "sub_admin",
+      "report": "recruitment-pipeline",
+      "status": "query_passed",
+      "records": 0,
+      "warnings": [
+        "CURRENT_PIPELINE"
+      ]
+    },
+    {
+      "role": "sales_executive",
+      "report": "actor",
+      "status": "unverified_no_active_account"
+    },
+    {
+      "role": "operations",
+      "report": "actor",
+      "status": "unverified_no_active_account"
+    },
+    {
+      "role": "finance",
+      "report": "actor",
+      "status": "unverified_no_active_account"
+    }
+  ]
+}

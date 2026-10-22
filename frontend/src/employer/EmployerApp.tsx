@@ -101,7 +101,7 @@ interface EmployerAppProps { onLogout: () => void; layout?: 'desktop' | 'mobile'
 
 export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAppProps) {
   const { profile } = useAuth();
-  const [page, setPage] = useState<EmployerPage>('dashboard');
+  const [page, setPage] = useState<EmployerPage>(() => new URLSearchParams(window.location.search).has('extended_report') ? 'reports' : 'dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [employerProfile, setEmployerProfile] = useState<any>(null);

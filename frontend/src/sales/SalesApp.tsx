@@ -1,5 +1,6 @@
 // Sales Executive panel — live data from the API (scoped by sales_executive_id).
 import { useEffect, useMemo, useState } from 'react';
+import ExtendedReports from '../components/reports/ExtendedReports';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Briefcase, BadgePercent, MapPinned, LogOut, X, Search,
@@ -17,7 +18,7 @@ import {
 } from '../services/salesService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 
-type SalesPage = 'dashboard' | 'clients' | 'jobs' | 'discounts' | 'manpower';
+type SalesPage = 'dashboard' | 'clients' | 'jobs' | 'discounts' | 'manpower' | 'reports';
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 // `master: true` → entry / creation actions shown in the top-left drawer on mobile.
@@ -27,6 +28,7 @@ const NAV: { id: SalesPage; label: string; icon: React.ReactNode; master?: boole
   { id: 'jobs', label: 'Manage Jobs', icon: <Briefcase size={18} /> },
   { id: 'discounts', label: 'Manage Discounts', icon: <BadgePercent size={18} />, master: true },
   { id: 'manpower', label: 'Manpower Map', icon: <MapPinned size={18} /> },
+  { id: 'reports', label: 'Reports', icon: <TrendingUp size={18} />, master: true },
 ];
 
 function Loading() {
@@ -552,7 +554,7 @@ function ManpowerPage() {
 // ── Shell ────────────────────────────────────────────────────────────────────
 
 export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: () => void; layout?: 'desktop' | 'mobile' }) {
-  const [page, setPage] = useState<SalesPage>('dashboard');
+  const [page, setPage] = useState<SalesPage>(() => new URLSearchParams(window.location.search).has('extended_report') ? 'reports' : 'dashboard');
   const handleLogout = () => { signOut().finally(onLogout); };
 
   const render = () => {
@@ -562,6 +564,7 @@ export default function SalesApp({ onLogout, layout = 'desktop' }: { onLogout: (
       case 'jobs': return <ManageJobsPage />;
       case 'discounts': return <DiscountsPage />;
       case 'manpower': return <ManpowerPage />;
+      case 'reports': return <ExtendedReports role="sales_executive"/>;
     }
   };
 

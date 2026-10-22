@@ -1,5 +1,6 @@
 // Branch-level Reports — live manpower skills + commission tracking.
 import { useEffect, useMemo, useState } from 'react';
+import ExtendedReports from '../../components/reports/ExtendedReports';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Languages, GraduationCap, IndianRupee } from 'lucide-react';
 import { getSkillsReport, getCommissionReport, SkillRow, CommissionReport } from '../../services/subadminService';
@@ -17,7 +18,7 @@ const SKILL_COLUMNS: DataColumn<SkillRow>[] = [
   { header: 'Experience', cell: m => m.experience ?? '—' },
 ];
 
-export default function ReportsPage() {
+function LegacyReportsPage() {
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [commission, setCommission] = useState<CommissionReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,4 +95,9 @@ export default function ReportsPage() {
       <DataTable columns={SKILL_COLUMNS} rows={rows} rowKey={m => m.id} empty="No associates match these filters." />
     </Page>
   );
+}
+
+export default function ReportsPage() {
+  const [legacy, setLegacy] = useState(false);
+  return <><div className="flex flex-wrap gap-3 p-4"><button className="text-sm underline" onClick={() => setLegacy(false)}>Registrations & hiring</button><button className="text-sm underline" onClick={() => setLegacy(true)}>Skills & commission estimates</button></div>{legacy ? <><p className="px-4 text-sm text-amber-800">Commission is a calculated 10% estimate from completed payments, not a posted commission ledger.</p><LegacyReportsPage/></> : <ExtendedReports role="sub_admin"/>}</>;
 }

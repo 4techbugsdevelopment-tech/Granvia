@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createExtendedReportRouter } from './extendedReportRoutes';
 import { createEmployerReportRouter } from './employerReportRoutes';
 import { prisma } from '../prisma';
 import multer from 'multer';
@@ -30,6 +31,7 @@ const router = Router();
 
 // mirrors routes/api/employer.php — all under auth:sanctum + role:employer
 router.use('/employer', requireAuth, requireRole('employer'));
+router.use('/employer/reports/extended', createExtendedReportRouter(prisma, 'employer'));
 router.use('/employer/reports', createEmployerReportRouter(prisma));
 
 router.get('/employer/companies', asyncHandler(company.index));

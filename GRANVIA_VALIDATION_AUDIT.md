@@ -1,5 +1,16 @@
 # Granvia Validation, Data Integrity, Grid Filtering, Workflow and UI Cleanup Audit
 
+## 2026-10-22 — Extended role-wise reporting implementation
+
+- Completed first backend section: exact-role routes, registration counts and trends, Employer credits, Associate stored balances/ledger, withdrawals, scoped recruitment pipeline, own company/site registers, and invoice registers. These are read-only additions with IST dates, full-filter totals, decimal amounts, pagination and CSV export.
+- Verified initial section: 56 reporting tests passed, including 12 new tests for role denial, owner/assignment scope, credits versus reserve/debit entries, IST boundaries, invoice dates, safe fields and CSV. Focused frontend type check and reporting lint passed.
+- Completed role integration: 24 new report views (Super Admin 8, Employer 5, Associate 4, Sub Admin 3, Sales 2, Operations 1, Finance 1). Each existing role shell has a Reports entry or extended-report group. Searchable permitted account/company selectors, error/retry states, CSV export and bounded scrollable summary breakdowns are wired.
+- Completed scope hardening: legacy null application owners resolve through authorised jobs; conflicting owners are excluded. Foreign-company and conflicting parent filters are rejected for Employer/Admin invoice, site and pipeline reports. Unauthenticated and inactive actors fail before report queries. Sensitive bank fields, raw gateway payloads, credentials and exact GPS are excluded.
+- Final verification: **96 backend tests passed**, including **60 reporting tests / 16 new extended-report tests**. Backend production build, frontend production build, reporting-focused frontend type check, focused lint and diff whitespace check passed. The frontend's existing large-chunk warning remains; no full-project frontend type-check success is claimed.
+- Configured SQL Server verification: **20 report/selector query paths passed** for active Super Admin, Employer, Associate and Sub Admin accounts. Sales Executive, Operations and Finance have no active account in the configured database; their database verification is incomplete, while fixture HTTP/security tests pass. Redacted evidence: `nodebackend/api-smoke-artifacts/EXTENDED_REPORTING_RUNTIME_VERIFICATION.json`. No business records, accounts or schema were changed by verification.
+- Browser/deployment acceptance remains open: the connected-surface inventory returned no browser or app. No deployment, production bearer-token HTTP acceptance, real browser/WebView test or representative-volume load test was performed.
+- Catalogue reconciliation completed: `docs/REPORTING_EXTENDED_IMPLEMENTATION_STATUS.md` lists delivered views, limits and next work; `docs/ROLE_WISE_REPORT_CATALOGUE.md` marks partial coverage. The 105-entry catalogue is **not fully implemented**. Payroll, actual commissions, bank reconciliation, historical workforce metrics, broader Finance assignment/permissions and other listed reports remain pending.
+
 Date: 2026-09-17
 
 Attendance audit update: 2026-09-21
