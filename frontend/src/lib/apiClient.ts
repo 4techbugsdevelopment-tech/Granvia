@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { notifyAuthChange } from './authBus';
+import { getAdminEmployerId } from './adminEmployerAccess';
 
 // Relative by default so the same build works on localhost and production:
 // - dev: Vite proxies /api -> backend (see vite.config.ts server.proxy)
@@ -31,13 +32,15 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const employerId = getAdminEmployerId();
+  if (employerId) config.headers['X-Admin-Employer-Id'] = employerId;
   return config;
 });
 
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401 && getStoredToken()) {
+    if (error?.response?.status === 401 && getStoredToken() && !getAdminEmployerId()) {
       setStoredToken(null);
       notifyAuthChange();
     }

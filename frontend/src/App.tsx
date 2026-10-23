@@ -25,6 +25,7 @@ import {
 import GranviaLogo from './components/GranviaLogo';
 import { Tilt } from './components/fx';
 import { useAuth } from './hooks/useAuth';
+import { exitAdminEmployerAccess, getAdminEmployerId } from './lib/adminEmployerAccess';
 
 const Globe = lazy(() => import('./components/fx/Globe'));
 const ThreeScene = lazy(() => import('./components/fx/ThreeScene'));
@@ -52,7 +53,7 @@ type GranviaWindow = Window & {
 
 function getModeForRole(role: string | undefined): AppMode | null {
   if (!role) return null;
-  if (role === 'super_admin') return 'admin';
+  if (role === 'super_admin' || role === 'admin_employee') return 'admin';
   if (role === 'guard') return 'mobile';
   if (role === 'employer') return 'employer';
   if (role === 'sales_executive') return 'sales';
@@ -310,7 +311,7 @@ function AppShell() {
     setPathForMode(nextMode, replace);
     setMode(nextMode);
     if (nextMode === 'admin') {
-      setAdminState(profile?.role === 'super_admin' ? 'dashboard' : 'login');
+      setAdminState((profile?.role === 'super_admin' || profile?.role === 'admin_employee') ? 'dashboard' : 'login');
     }
     if (nextMode === 'mobile') {
       setMobileState(profile?.role === 'guard' ? 'app' : 'splash');
@@ -383,7 +384,7 @@ function AppShell() {
           setPathForMode('admin', true);
         }
         setAdminState(
-          profile?.role === 'super_admin'
+          (profile?.role === 'super_admin' || profile?.role === 'admin_employee')
             ? 'dashboard'
             : 'splash',
         );
@@ -450,6 +451,9 @@ function AppShell() {
 
   if (authLoading) {
     return <div className="min-h-screen grid place-items-center text-sm text-gray-500">Loading...</div>;
+  }
+  if (getAdminEmployerId() && !profile?.admin_employer_access) {
+    return <div className="min-h-screen grid place-items-center bg-slate-50 p-6"><div className="max-w-lg space-y-4 rounded-2xl bg-white p-8 shadow-sm"><h1 className="text-xl font-bold">Unable to open employer account</h1><p className="text-gray-600">An active Super Admin login and a valid employer account are required. Your Super Admin login has not been changed.</p><div className="flex gap-4"><button className="rounded-xl bg-slate-900 px-4 py-2 text-white" onClick={() => window.location.reload()}>Retry</button><button onClick={exitAdminEmployerAccess}>Return to Super Admin</button></div></div></div>;
   }
 
   const handleModeSelect = (m: AppMode) => {

@@ -78,3 +78,8 @@ export async function updateJobPost(jobId: string, updates: Record<string, unkno
   const { data } = await apiClient.patch(`/employer/jobs/${jobId}`, updates);
   return remapJob(data);
 }
+/** Job-form choices are available with Job Management permission alone. */
+export async function listAdminJobOptions(): Promise<{ companies: { id: string; employerId: string; companyName: string }[]; sites: { id: string; companyId: string; siteName: string | null; city: string | null }[] }> {
+  const { data } = await apiClient.get('/admin/jobs/options');
+  return data;
+}

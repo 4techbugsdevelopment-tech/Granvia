@@ -9,6 +9,8 @@ import FlipCard from '../../components/FlipCard';
 import AdminOverviewMap from '../../components/map/AdminOverviewMap';
 import { Guard } from '../../lib/storage';
 import { listGuards } from '../../services/adminGuardService';
+import { useAuth } from '../../hooks/useAuth';
+import { canOpenAdminPage } from '../adminAccess';
 import { listAllJobsForAdmin } from '../../services/jobService';
 import { getAdminReportCounts, AdminReportCounts } from '../../services/reportService';
 import type { AdminPage } from '../Sidebar';
@@ -42,6 +44,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
+  const { profile } = useAuth();
   const [counts, setCounts] = useState<AdminReportCounts | null>(null);
   const [guards, setGuards] = useState<Guard[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -49,9 +52,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   useEffect(() => {
     getAdminReportCounts().then(setCounts).catch(e => setError(e?.response?.data?.message || e.message));
-    listGuards().then(setGuards).catch(() => {});
-    listAllJobsForAdmin().then(data => setJobs(data ?? [])).catch(() => {});
-  }, []);
+    if (canOpenAdminPage(profile, 'guards')) listGuards().then(setGuards).catch(() => {});
+    if (canOpenAdminPage(profile, 'jobs')) listAllJobsForAdmin().then(data => setJobs(data ?? [])).catch(() => {});
+  }, [profile]);
 
   const activeGuards = guards.filter(g => g.status === 'Active').length;
   const verifiedGuards = guards.filter(g => g.aadhaarStatus === 'Verified' && g.policeVerification === 'Verified').length;
@@ -162,7 +165,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0f1e3c' }}>Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Welcome back, Super Admin</p>
+          <p className="text-sm text-gray-500 mt-0.5">Welcome back, {profile?.full_name || 'Admin'}</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <Activity size={14} style={{ color: '#22c55e' }} />

@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'employer' | 'guard' | 'sub_admin' | 'sales_executive' | 'operations' | 'finance';
+export type UserRole = 'super_admin' | 'admin_employee' | 'employer' | 'guard' | 'sub_admin' | 'sales_executive' | 'operations' | 'finance';
 
 export interface ProfileRow {
   id: string;
@@ -6,6 +6,12 @@ export interface ProfileRow {
   email: string;
   mobile: string | null;
   role: UserRole;
+  admin_permissions?: string[];
+  admin_role_name?: string;
+  admin_employer_access?: {
+    actor_id: string; actor_name: string; employer_id: string;
+    employer_name: string; employer_status: string;
+  };
   profile_type: string | null;
   account_status: string;
   avatar_url: string | null;

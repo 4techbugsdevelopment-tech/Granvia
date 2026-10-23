@@ -4,6 +4,8 @@ import {
   LayoutDashboard, Building2, Briefcase, Clock, GitBranch,
   Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail, MapPin
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { canOpenAdminPage } from './adminAccess';
 import GranviaLogo from '../components/GranviaLogo';
 
 export type AdminPage =
@@ -17,6 +19,8 @@ export type AdminPage =
   | 'wallet'
   | 'reports'
   | 'email-logs'
+  | 'employee-roles'
+  | 'employees'
   | 'roles'
   | 'associate-types'
   | 'locations'
@@ -48,13 +52,16 @@ export const adminNavItems: NavItem[] = [
   { id: 'wallet', label: 'Wallet & Payments', icon: <Wallet size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
-  { id: 'roles', label: 'Manage Roles', icon: <Shield size={18} /> },
+  { id: 'employee-roles', label: 'Super Admin Roles', icon: <Shield size={18} /> },
+  { id: 'employees', label: 'Super Admin Employees', icon: <Shield size={18} /> },
+  { id: 'roles', label: 'Employer Staff Roles', icon: <Shield size={18} /> },
   { id: 'associate-types', label: 'Associate Types', icon: <Briefcase size={18} /> },
   { id: 'locations', label: 'City & State Master', icon: <MapPin size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, onLogout, collapsed, onToggle }: SidebarProps) {
+  const { profile } = useAuth();
   const [expanded, setExpanded] = useState<string | null>('guards');
 
   const isActive = (id: AdminPage) => {
@@ -109,7 +116,7 @@ export default function Sidebar({ currentPage, onNavigate, onLogout, collapsed, 
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
-        {adminNavItems.map(item => (
+        {adminNavItems.filter(item => canOpenAdminPage(profile, item.id)).map(item => (
           <div key={item.id}>
             <motion.button
               onClick={() => {

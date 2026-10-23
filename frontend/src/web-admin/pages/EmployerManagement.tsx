@@ -30,6 +30,8 @@ import {
   type ValidationMap,
 } from '../../lib/formValidation';
 import { previewUrl } from '../../lib/fileUrls';
+import { useAuth } from '../../hooks/useAuth';
+import { adminEmployerUrl } from '../../lib/adminEmployerAccess';
 
 const EMPTY_DATA: EmployerManagementData = {
   employers: [],
@@ -88,6 +90,10 @@ function validateEmployerDraft(form: {
 }
 
 export default function EmployerManagement() {
+  const { profile } = useAuth();
+  const employerName = (employer: Employer) => profile?.role === 'super_admin'
+    ? <a href={adminEmployerUrl(employer.id)} target="_blank" rel="noopener noreferrer" title={`Manage ${employer.contactPersonName} in a new tab`} className="font-semibold text-blue-800 underline decoration-blue-200 underline-offset-4 hover:text-blue-600">{employer.contactPersonName} <ExternalLink size={12} className="inline" /></a>
+    : employer.contactPersonName;
   const [data, setData] = useState<EmployerManagementData>(EMPTY_DATA);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Employer | null>(null);
@@ -230,7 +236,7 @@ export default function EmployerManagement() {
           const employerSites = sites.filter(site => site.employerId === employer.id);
           return (
             <div key={employer.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employer.contactPersonName}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div>{statusBadge(employer.accountStatus)}</div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employerName(employer)}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div>{statusBadge(employer.accountStatus)}</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                 <MobileDetail label="Location" value={`${employer.city}, ${employer.state}`} />
                 <MobileDetail label="Aadhaar" value={statusBadge(employer.aadhaarVerificationStatus)} />
@@ -268,7 +274,7 @@ export default function EmployerManagement() {
                 return (
                   <tr key={employer.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{employer.contactPersonName}</div>
+                      <div className="font-semibold text-gray-900">{employerName(employer)}</div>
                       <div className="text-xs text-gray-400">{employer.id} · {employer.businessType}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">

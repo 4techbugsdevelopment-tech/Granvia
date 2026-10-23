@@ -1,4 +1,5 @@
 import ReleaseAttachments from '../components/ReleaseAttachments';
+import { exitAdminEmployerAccess } from '../lib/adminEmployerAccess';
 import EmployerReportingHub from './EmployerReportingHub';
 import { useHiringRefresh } from '../hooks/useHiringRefresh';
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
@@ -142,9 +143,10 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
   };
 
   const activeCompany = companies.find(c => c.id === activeCompanyId) ?? companies[0] ?? null;
-  const aadhaarVerified = employer.isAadhaarVerified && employer.aadhaarVerificationStatus === 'verified';
+  const adminAccess = profile.admin_employer_access;
+  const aadhaarVerified = !!adminAccess || (employer.isAadhaarVerified && employer.aadhaarVerificationStatus === 'verified');
 
-  const visibleNavItems = aadhaarVerified
+  const visibleNavItems = adminAccess ? navItems : aadhaarVerified
     ? (companies.length === 0
         ? navItems.filter(item => ['dashboard', 'companies', 'profile', 'team'].includes(item.id))
         : navItems)
@@ -159,7 +161,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
     reload();
   };
 
-  const handleLogout = () => signOut().finally(onLogout);
+  const handleLogout = () => adminAccess ? exitAdminEmployerAccess() : signOut().finally(onLogout);
 
   const handleJobCreated = () => {
     setPage('jobs');
@@ -263,12 +265,13 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         <div className="p-3 border-t border-white/10">
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/60 hover:bg-red-900/30">
             <LogOut size={18} />
-            {!collapsed && <span>Logout</span>}
+            {!collapsed && <span>{adminAccess ? 'Return to Super Admin' : 'Logout'}</span>}
           </button>
         </div>
       </motion.aside>
 
       <motion.main className="flex-1 min-h-screen flex flex-col" animate={{ marginLeft: collapsed ? 76 : 280 }}>
+        {adminAccess && <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-6 py-3 text-sm text-amber-950"><div><strong>Super Admin access:</strong> managing {employer.contactPersonName} ({employer.email}). <span className="text-amber-800">Employer status: {adminAccess.employer_status}. Changes apply to this employer.</span></div><button onClick={exitAdminEmployerAccess} className="rounded-lg border border-amber-400 px-3 py-1.5 font-semibold">Return to Super Admin</button></div>}
         <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between">
           <div>
             <h1 className="font-bold text-sm text-gray-900">{pageTitles[currentPage]}</h1>
@@ -283,7 +286,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
             <NotificationBell />
             <div className="hidden sm:block text-right">
               <div className="text-sm font-semibold text-gray-800">{employer.contactPersonName}</div>
-              <div className="text-xs text-gray-400">Employer</div>
+              <div className="text-xs text-gray-400">{adminAccess ? 'Super Admin managing employer' : 'Employer'}</div>
             </div>
             <div className="w-9 h-9 rounded-full text-white flex items-center justify-center font-bold" style={{ background: 'linear-gradient(135deg, #0f1e3c, #8b1a1a)' }}>
               {(activeCompany?.company_name || employer.contactPersonName).charAt(0)}

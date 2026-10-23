@@ -9,6 +9,17 @@ Ref docs: `PROJECT_CHANGES.md` (SRS audit), `PROJECT_PROGRESS.md` (status snapsh
 
 ## Latest completed work
 
+### 2026-10-23 - Super Admin direct employer access
+- Employer names now open the selected employer dashboard in a new tab while preserving the original Super Admin login.
+- Added per-tab employer selection, server-side Super Admin verification, employer-scoped operations, an access banner and Return to Super Admin.
+- No new migration required. See `docs/ADMIN_EMPLOYER_ACCESS.md` for authorization, tests and pending real-account browser acceptance.
+
+### 2026-10-23 - Super Admin employee roles and web login
+- Added separate Super Admin Roles and Super Admin Employees with owner-scoped CRUD, module permissions, passwords and WhatsApp share composition.
+- Added employee web login, menu/page guards and backend module enforcement; existing employer staff definitions remain separate.
+- Local implementation is complete; database migration and real-account browser acceptance are pending due to a SQL Server TLS connection failure.
+- See `docs/ADMIN_EMPLOYEE_ACCESS.md` for behavior, migration and validation evidence.
+
 ### 2026-08-11 - Role master and module permissions
 - â˜‘ Added super-admin-only Role Master CRUD.
 - â˜‘ Roles now store module-level permissions.

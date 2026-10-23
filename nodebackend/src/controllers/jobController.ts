@@ -283,3 +283,14 @@ export async function adminUpdateStatus(req: Request, res: Response) {
   });
   return res.json(serializeOut(updated, OUT_JSON));
 }
+/** Minimal company/site choices for Job Management, without Employer records or wallets. */
+export async function adminOptions(_req: Request, res: Response) {
+  const [companies, sites] = await Promise.all([
+    prisma.employerCompany.findMany({ select: { id: true, employerUserId: true, companyName: true }, orderBy: { companyName: 'asc' } }),
+    prisma.companySite.findMany({ select: { id: true, companyId: true, siteName: true, city: true }, orderBy: { siteName: 'asc' } }),
+  ]);
+  return res.json({
+    companies: companies.map(row => ({ id: row.id, employerId: row.employerUserId, companyName: row.companyName })),
+    sites: sites.map(row => ({ id: row.id, companyId: row.companyId, siteName: row.siteName, city: row.city })),
+  });
+}

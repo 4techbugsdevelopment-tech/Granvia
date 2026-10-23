@@ -4,7 +4,8 @@ import { createAdminReportRouter } from './adminReportRoutes';
 import { prisma } from '../prisma';
 import { asyncHandler } from '../utils/http';
 import { requireAuth } from '../middleware/auth';
-import { requireRole } from '../middleware/role';
+import { requireAdminPanel } from '../middleware/adminPanel';
+import * as adminEmployees from '../controllers/adminEmployeeController';
 import * as adminGuard from '../controllers/adminGuardController';
 import * as adminEmployer from '../controllers/adminEmployerController';
 import * as guardDoc from '../controllers/guardDocumentController';
@@ -25,7 +26,15 @@ import * as attendance from '../controllers/attendanceController';
 const router = Router();
 
 // mirrors routes/api/admin.php — all under auth:sanctum + role:super_admin
-router.use('/admin', requireAuth, requireRole('super_admin'));
+router.use('/admin', requireAuth, asyncHandler(requireAdminPanel));
+router.get('/admin/employee-roles', asyncHandler(adminEmployees.roles));
+router.post('/admin/employee-roles', asyncHandler(adminEmployees.saveRole));
+router.patch('/admin/employee-roles/:role', asyncHandler(adminEmployees.saveRole));
+router.delete('/admin/employee-roles/:role', asyncHandler(adminEmployees.deleteRole));
+router.get('/admin/employees', asyncHandler(adminEmployees.employees));
+router.post('/admin/employees', asyncHandler(adminEmployees.saveEmployee));
+router.patch('/admin/employees/:employee', asyncHandler(adminEmployees.saveEmployee));
+router.delete('/admin/employees/:employee', asyncHandler(adminEmployees.deleteEmployee));
 router.use('/admin/reports/extended', createExtendedReportRouter(prisma, 'super_admin'));
 router.use('/admin/reports', createAdminReportRouter(prisma));
 
@@ -69,6 +78,7 @@ router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
 router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
+router.get('/admin/jobs/options', asyncHandler(job.adminOptions));
 router.get('/admin/jobs', asyncHandler(job.all));
 router.post('/admin/jobs', asyncHandler(job.adminStore));
 router.patch('/admin/jobs/:job', asyncHandler(job.adminUpdate));

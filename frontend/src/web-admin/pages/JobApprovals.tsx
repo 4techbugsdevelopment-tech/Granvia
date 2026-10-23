@@ -5,7 +5,7 @@ import {
   RefreshCw, AlertCircle, ChevronDown, Eye, EyeOff, Plus, Pencil, Trash2, X, ArrowLeft,
 } from 'lucide-react';
 import { approveJob, createAdminJob, deleteAdminJob, listAllJobsForAdmin, rejectJob, updateAdminJob, updateAdminJobStatus } from '../../services/jobService';
-import { listEmployerManagementData } from '../../services/adminEmployerService';
+import { listAdminJobOptions } from '../../services/jobService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
@@ -86,7 +86,7 @@ export default function JobApprovals() {
 
   useEffect(() => {
     load();
-    listEmployerManagementData()
+    listAdminJobOptions()
       .then(data => { setCompanies(data.companies ?? []); setSites(data.sites ?? []); })
       .catch(e => setError(getErrorMessage(e, 'Failed to load employer companies.')));
     listActiveAssociateTypes()

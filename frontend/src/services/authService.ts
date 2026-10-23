@@ -1,5 +1,6 @@
 import { apiClient, getStoredToken, setStoredToken } from '../lib/apiClient';
 import { notifyAuthChange } from '../lib/authBus';
+import { exitAdminEmployerAccess, getAdminEmployerId } from '../lib/adminEmployerAccess';
 import { EmployerProfileRow, GuardProfileRow, ProfileRow, UserRole } from '../lib/apiTypes';
 
 export type AppSession = {
@@ -190,6 +191,7 @@ export async function resetPassword(email: string, otp: string, password: string
 }
 
 export async function signOut() {
+  if (getAdminEmployerId()) { exitAdminEmployerAccess(); return; }
   const token = getStoredToken();
   try {
     await apiClient.post('/auth/logout', undefined, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);

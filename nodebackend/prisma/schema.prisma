@@ -39,9 +39,39 @@ model User {
   employerWallet  EmployerWallet?
   associateWallet AssociateWallet?
   associatePartnerAgreements AssociatePartnerAgreement[]
+  adminEmployee AdminEmployee?
 
   @@index([role])
   @@map("users")
+}
+
+model AdminEmployeeRole {
+  id String @id @default(uuid()) @db.NVarChar(36)
+  ownerUserId String @map("owner_user_id") @db.NVarChar(36)
+  name String @db.NVarChar(150)
+  description String? @db.NVarChar(Max)
+  permissions String @db.NVarChar(Max)
+  status String @default("active") @db.NVarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  employees AdminEmployee[]
+
+  @@unique([ownerUserId, name])
+  @@map("admin_employee_roles")
+}
+
+model AdminEmployee {
+  id String @id @default(uuid()) @db.NVarChar(36)
+  userId String @unique @map("user_id") @db.NVarChar(36)
+  ownerUserId String @map("owner_user_id") @db.NVarChar(36)
+  roleId String @map("role_id") @db.NVarChar(36)
+  createdAt DateTime @default(now()) @map("created_at")
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role AdminEmployeeRole @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([ownerUserId])
+  @@index([roleId])
+  @@map("admin_employees")
 }
 
 model Role {

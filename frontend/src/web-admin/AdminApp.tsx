@@ -12,6 +12,9 @@ import HiringWorkflow from './pages/HiringWorkflow';
 import WalletPayments from './pages/WalletPayments';
 import Reports from './pages/Reports';
 import EmailLogs from './pages/EmailLogs';
+import AdminEmployeeRoles from './pages/AdminEmployeeRoles';
+import AdminEmployees from './pages/AdminEmployees';
+import { canOpenAdminPage } from './adminAccess';
 import RoleMaster from './pages/RoleMaster';
 import AssociateTypeMaster from './pages/AssociateTypeMaster';
 import LocationMaster from './pages/LocationMaster';
@@ -36,7 +39,9 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   wallet: 'Wallet & Payments',
   reports: 'Reports',
   'email-logs': 'Email Logs',
-  roles: 'Manage Roles',
+  roles: 'Employer Staff Roles',
+  'employee-roles': 'Super Admin Roles',
+  employees: 'Super Admin Employees',
   'associate-types': 'Associate Types',
   locations: 'City & State Master',
   settings: 'Settings',
@@ -52,6 +57,8 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/hiring') return 'hiring';
   if (pathname === '/admin/wallet') return 'wallet';
   if (pathname === '/admin/reports') return 'reports';
+  if (pathname === '/admin/employee-roles') return 'employee-roles';
+  if (pathname === '/admin/employees') return 'employees';
   if (pathname === '/admin/roles') return 'roles';
   if (pathname === '/admin/associate-types') return 'associate-types';
   if (pathname === '/admin/locations') return 'locations';
@@ -78,6 +85,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
   };
 
   const navigate = (nextPage: AdminPage) => {
+    if (!canOpenAdminPage(profile, nextPage)) return;
     setPage(nextPage);
     const nextPath = getAdminPath(nextPage);
     if (window.location.pathname !== nextPath) {
@@ -85,9 +93,17 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
     }
   };
 
+  useEffect(() => {
+    if (profile?.role === 'admin_employee' && window.location.pathname === '/admin' && !canOpenAdminPage(profile, 'dashboard')) {
+      const first = (Object.keys(PAGE_TITLES) as AdminPage[]).find(item => canOpenAdminPage(profile, item));
+      if (first) navigate(first);
+    }
+  }, [profile]);
+
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
 
   const renderPage = () => {
+    if (!canOpenAdminPage(profile, page)) return <div className="p-8 text-gray-600">You do not have access to this module. Select an assigned module from the menu, or contact your Super Admin.</div>;
     switch (page) {
       case 'dashboard': return <Dashboard onNavigate={navigate} />;
       case 'guards': return <GuardList onAddGuard={() => navigate('add-guard')} />;
@@ -99,6 +115,8 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'wallet': return <WalletPayments />;
       case 'reports': return <Reports />;
       case 'email-logs': return <EmailLogs />;
+      case 'employee-roles': return <AdminEmployeeRoles />;
+      case 'employees': return <AdminEmployees />;
       case 'roles': return <RoleMaster />;
       case 'associate-types': return <AssociateTypeMaster />;
       case 'locations': return <LocationMaster />;
@@ -164,7 +182,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
               </div>
               <div className="hidden sm:block">
                 <div className="text-sm font-semibold text-gray-800">{profile?.full_name || 'Admin'}</div>
-                <div className="text-xs text-gray-400">Super Admin</div>
+                <div className="text-xs text-gray-400">{profile?.admin_role_name || 'Super Admin'}</div>
               </div>
             </div>
           </div>
