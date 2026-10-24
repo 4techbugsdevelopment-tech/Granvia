@@ -14,6 +14,7 @@ import { asyncHandler } from '../src/utils/http';
 import { parseAdminPermissions } from '../src/utils/adminEmployeeAccess';
 import { serializeUser } from '../src/serializers/userSerializer';
 import { canOpenAdminPage } from '../../frontend/src/web-admin/adminAccess';
+import { withAdminEmployeeStorage } from '../src/services/adminEmployeeStorage';
 
 // Prisma delegates expose methods through a Proxy rather than own descriptors.
 function mockMethod(t: { after: (fn: () => void) => void }, object: any, key: string, fn: any) {
@@ -267,4 +268,27 @@ test('frontend menu and page guard deny unassigned modules and management screen
   assert.equal(canOpenAdminPage({ ...profile, account_status: 'blocked' }, 'attendance'), false);
   assert.equal(canOpenAdminPage({ ...profile, role: 'super_admin' }, 'employees'), true);
   assert.equal(canOpenAdminPage(null, 'dashboard'), false);
+});
+
+test('stale generated client returns a deployment error rather than undefined.findMany', async t => {
+  mockMethod(t, prisma, 'adminEmployeeRole', undefined);
+  let called = false;
+  const handler = withAdminEmployeeStorage(async () => { called = true; });
+  await assert.rejects(handler(request('/employee-roles', 'GET', owner), response() as any), (error: any) => error.status === 503 && /Prisma Client/.test(error.message));
+  assert.equal(called, false);
+});
+
+test('missing employee schema returns unavailable rather than a successful empty list', async () => {
+  for (const code of ['P2021', 'P2022']) {
+    const handler = withAdminEmployeeStorage(async () => { throw Object.assign(new Error('database setup missing'), { code }); });
+    await assert.rejects(handler(request(), response() as any), (error: any) => error.status === 503 && /20261023120000_super_admin_employees/.test(error.message));
+  }
+});
+
+test('employee storage wrapper preserves successful results and unrelated errors', async () => {
+  const handler = withAdminEmployeeStorage(async () => 'ready');
+  assert.equal(await handler(request(), response() as any), 'ready');
+  const original = new Error('unrelated');
+  const failing = withAdminEmployeeStorage(async () => { throw original; });
+  await assert.rejects(failing(request(), response() as any), error => error === original);
 });

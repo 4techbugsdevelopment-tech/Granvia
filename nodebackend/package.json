@@ -5,6 +5,7 @@
   "description": "Granvia API — Node.js (Express + Prisma + SQL Server) backend",
   "main": "dist/index.js",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json && node scripts/copy-document-assets.cjs",
     "start": "node dist/index.js",
@@ -15,6 +16,7 @@
     "verify:reports:readonly": "tsx scripts/verify-reporting-readonly.ts",
     "verify:reports:extended:readonly": "tsx scripts/verify-extended-reporting-readonly.ts",
     "prisma:generate": "prisma generate",
+    "setup:admin-employees": "tsx scripts/setup-admin-employees.ts",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "migrate:data": "tsx scripts/migrate-data.ts",

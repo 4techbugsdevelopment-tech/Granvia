@@ -1,6 +1,6 @@
 # Super Admin roles and employees
 
-Implemented locally on 2026-10-23. Database migration and real-account browser acceptance remain pending.
+Implemented locally on 2026-10-23. The configured database tables and list queries are now verified. Deployed backend restart and real-account browser acceptance remain unverified.
 
 ## Web flow
 
@@ -35,10 +35,12 @@ After creation or password reset, the password just entered is kept only in comp
 - `GET /admin/jobs/options`: minimal job-form company/site choices.
 - Migration: `nodebackend/prisma/migrations/20261023120000_super_admin_employees/migration.sql`.
 
-Once database connectivity and the target environment are verified, use the normal migration deployment process (`npx.cmd prisma migrate deploy` from `nodebackend`) and restart the backend built with the regenerated Prisma Client. Check migration status first so unrelated pending migrations are reviewed before deployment.
+From `nodebackend`, `npm.cmd run setup:admin-employees` checks only this feature's delegates, tables and list queries. `npm.cmd run setup:admin-employees -- --apply` installs only its missing additive tables, refusing a partial/incompatible schema. It does not run unrelated pending migrations, seed users, reset data, or modify the Prisma migration ledger. The feature migration SQL now tolerates already-created tables so a later controlled migration deployment can record it without duplicate-table errors. Review unrelated pending migrations before using the general migration-deploy command.
 
-The read-only `prisma migrate status` attempt failed with `P1011`, TLS connection setup: "No credentials are available in the security package (os error -2146893042)". No database migration or live account writes were performed for this feature.
+The earlier Prisma CLI `migrate status` attempt failed with `P1011`, TLS connection setup: "No credentials are available in the security package (os error -2146893042)". Follow-up diagnosis of `/admin/employee-roles` confirmed that a fresh local generated client has both delegates, while both feature tables were absent. The runtime MSSQL adapter could connect successfully. The targeted setup command created both tables in the configured database; subsequent role and employee-relation reads passed. No employee accounts or existing records were written. No running local Granvia API process was identified for restart, and the reported serving environment has not been confirmed.
 
-Local verification: Prisma schema validation, backend/frontend production builds, `npm.cmd run test:admin-employees` (16 focused tests), and `npm.cmd run test:reports` (60 existing regression tests). Controller/session/HTTP guard tests use mocked database delegates; they do not prove live SQL Server CRUD or browser behavior. The full frontend typecheck reports existing errors in other employer/attendance files and no errors in the new feature files.
+Local verification: Prisma schema validation, backend/frontend production builds, `npm.cmd run test:admin-employees` (19 focused tests), and `npm.cmd run test:reports` (60 existing regression tests). Follow-up backend build passed and configured-database list queries passed after targeted setup. Controller/session/HTTP guard tests use mocked database delegates; they do not prove authenticated API CRUD or browser behavior. The full frontend typecheck reports existing errors in other employer/attendance files and no errors in the new feature files.
+
+For the reported `undefined.findMany` deployment failure, rebuild the actual deployed backend (`npm run build`, which regenerates Prisma Client) and restart its existing API service. Generating on disk does not update a long-running Node process. `npm run dev` now generates the client before starting the watcher. Employee-management endpoints return a clear 503 for stale delegates or missing schema rather than a TypeError or a misleading empty list; these guards are not a substitute for deployment and schema setup.
 
 Release acceptance still needs real Super Admin role/employee CRUD, employee login including configured OTP, menu refresh, direct API denial, role inactivation, password reset, deletion and WhatsApp message review on the target environment. This work does not implement login or permission enforcement for the existing employer staff records.

@@ -1,6 +1,8 @@
 BEGIN TRY
 BEGIN TRAN;
 
+IF OBJECT_ID(N'dbo.admin_employee_roles', N'U') IS NULL
+BEGIN
 CREATE TABLE [dbo].[admin_employee_roles] (
     [id] NVARCHAR(36) NOT NULL,
     [owner_user_id] NVARCHAR(36) NOT NULL,
@@ -13,7 +15,10 @@ CREATE TABLE [dbo].[admin_employee_roles] (
     CONSTRAINT [admin_employee_roles_pkey] PRIMARY KEY CLUSTERED ([id]),
     CONSTRAINT [admin_employee_roles_owner_user_id_name_key] UNIQUE NONCLUSTERED ([owner_user_id], [name])
 );
+END;
 
+IF OBJECT_ID(N'dbo.admin_employees', N'U') IS NULL
+BEGIN
 CREATE TABLE [dbo].[admin_employees] (
     [id] NVARCHAR(36) NOT NULL,
     [user_id] NVARCHAR(36) NOT NULL,
@@ -27,6 +32,7 @@ CREATE TABLE [dbo].[admin_employees] (
 );
 CREATE NONCLUSTERED INDEX [admin_employees_owner_user_id_idx] ON [dbo].[admin_employees]([owner_user_id]);
 CREATE NONCLUSTERED INDEX [admin_employees_role_id_idx] ON [dbo].[admin_employees]([role_id]);
+END;
 
 COMMIT TRAN;
 END TRY

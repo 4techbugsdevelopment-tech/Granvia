@@ -17,7 +17,7 @@ Ref docs: `PROJECT_CHANGES.md` (SRS audit), `PROJECT_PROGRESS.md` (status snapsh
 ### 2026-10-23 - Super Admin employee roles and web login
 - Added separate Super Admin Roles and Super Admin Employees with owner-scoped CRUD, module permissions, passwords and WhatsApp share composition.
 - Added employee web login, menu/page guards and backend module enforcement; existing employer staff definitions remain separate.
-- Local implementation is complete; database migration and real-account browser acceptance are pending due to a SQL Server TLS connection failure.
+- Local implementation and configured-database setup are complete; role and employee list queries pass through the runtime MSSQL adapter. The serving backend still needs a verified rebuild/restart and real-account browser acceptance; the Prisma CLI TLS failure is separate from the working runtime driver.
 - See `docs/ADMIN_EMPLOYEE_ACCESS.md` for behavior, migration and validation evidence.
 
 ### 2026-08-11 - Role master and module permissions

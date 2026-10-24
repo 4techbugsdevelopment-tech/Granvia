@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { hasAdminEmployeeAccess, parseAdminPermissions } from '../utils/adminEmployeeAccess';
+import { assertAdminEmployeeClient } from '../services/adminEmployeeStorage';
 
 /** Only mounted on /admin. Unknown resources and account-management APIs fail closed. */
 export async function requireAdminPanel(req: Request, res: Response, next: NextFunction) {
@@ -8,6 +9,7 @@ export async function requireAdminPanel(req: Request, res: Response, next: NextF
   if (!user || user.accountStatus !== 'active') return res.status(403).json({ message: 'Account is not active.' });
   if (user.role === 'super_admin') return next();
   if (user.role !== 'admin_employee') return res.status(403).json({ message: 'Forbidden.' });
+  assertAdminEmployeeClient();
   const employee = await prisma.adminEmployee.findUnique({ where: { userId: user.id }, include: { role: true } });
   const owner = employee ? await prisma.user.findUnique({ where: { id: employee.ownerUserId } }) : null;
   if (!employee || employee.role.ownerUserId !== employee.ownerUserId || employee.role.status !== 'active' || owner?.role !== 'super_admin' || owner.accountStatus !== 'active' ||

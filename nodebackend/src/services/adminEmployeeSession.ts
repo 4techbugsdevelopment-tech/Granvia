@@ -1,9 +1,11 @@
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { parseAdminPermissions } from '../utils/adminEmployeeAccess';
+import { assertAdminEmployeeClient } from './adminEmployeeStorage';
 
 export async function adminEmployeeSession<T extends { id: string; role: string }>(user: T) {
   if (user.role !== 'admin_employee') return { ...user, adminPermissions: undefined, adminRoleName: undefined };
+  assertAdminEmployeeClient();
   const employee = await prisma.adminEmployee.findUnique({ where: { userId: user.id }, include: { role: true } });
   const owner = employee ? await prisma.user.findUnique({ where: { id: employee.ownerUserId } }) : null;
   if (!employee || employee.role.ownerUserId !== employee.ownerUserId || employee.role.status !== 'active' || owner?.role !== 'super_admin' || owner.accountStatus !== 'active') {
