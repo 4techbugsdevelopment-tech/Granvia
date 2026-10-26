@@ -1,0 +1,18 @@
+import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth';
+import { requireRole } from '../middleware/role';
+import { asyncHandler } from '../utils/http';
+import { companyStorage } from '../services/adminCompanyAccess';
+import * as controller from '../controllers/adminCompanyController';
+const router = Router();
+const wrap = (handler: (req: Request, res: Response) => Promise<unknown>) => asyncHandler((req, res) => companyStorage(() => handler(req, res)));
+router.use('/company-allocations', requireAuth, requireRole('super_admin'));
+router.get('/company-allocations/options', wrap(controller.options));
+router.get('/company-allocations', wrap(controller.assignments));
+router.post('/company-allocations', wrap(controller.assign));
+router.delete('/company-allocations/:assignment', wrap(controller.unassign));
+router.use('/managed-companies', requireAuth);
+router.get('/managed-companies', wrap(controller.mine));
+router.get('/managed-companies/:company/:department', wrap(controller.workspace));
+router.patch('/managed-companies/:company/:department/:resource/:record', wrap(controller.action));
+export default router;

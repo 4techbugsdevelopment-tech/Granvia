@@ -38,6 +38,9 @@ export async function roles(req: Request, res: Response) {
 }
 export async function saveRole(req: Request, res: Response) {
   const data = roleSchema.parse(req.body);
+  if (data.permissions.some(p => p.startsWith('Company ')) && data.permissions.some(p => !p.startsWith('Company '))) {
+    throw new HttpError(422, 'Company department roles must use only Company permissions. Create a separate role for platform-wide administration.');
+  }
   if (req.params.role) await ownedRole(req.params.role, ownerId(req));
   try {
     const payload = { ...data, permissions: JSON.stringify([...new Set(data.permissions)]) };
@@ -90,6 +93,7 @@ export async function deleteEmployee(req: Request, res: Response) {
   const employee = await ownedEmployee(req);
   await prisma.$transaction(async tx => {
     await tx.personalAccessToken.deleteMany({ where: { tokenableId: employee.userId } });
+    await tx.adminCompanyAssignment.deleteMany({ where: { employeeId: employee.id } });
     await tx.adminEmployee.delete({ where: { id: employee.id } });
     await tx.user.delete({ where: { id: employee.userId } });
   });

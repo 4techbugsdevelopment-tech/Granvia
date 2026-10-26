@@ -10,6 +10,7 @@ import fileRoutes from './fileRoutes';
 import associateAgreementRoutes from './associateAgreementRoutes';
 import operationsRoutes from './operationsRoutes';
 import financeRoutes from './financeRoutes';
+import adminCompanyRoutes from './adminCompanyRoutes';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use(fileRoutes); // signed file downloads
 router.use(associateAgreementRoutes); // Associate Partner onboarding agreement + ESP callback
 router.use(operationsRoutes);
 router.use(financeRoutes);
+router.use(adminCompanyRoutes);
 
 export default router;

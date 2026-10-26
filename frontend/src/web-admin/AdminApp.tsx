@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import EmailLogs from './pages/EmailLogs';
 import AdminEmployeeRoles from './pages/AdminEmployeeRoles';
 import AdminEmployees from './pages/AdminEmployees';
+import CompanyDepartments from './pages/CompanyDepartments';
 import { canOpenAdminPage } from './adminAccess';
 import RoleMaster from './pages/RoleMaster';
 import AssociateTypeMaster from './pages/AssociateTypeMaster';
@@ -42,6 +43,8 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   roles: 'Employer Staff Roles',
   'employee-roles': 'Super Admin Roles',
   employees: 'Super Admin Employees',
+  'company-allocations': 'Company Staff Allocation',
+  'managed-companies': 'My Company Departments',
   'associate-types': 'Associate Types',
   locations: 'City & State Master',
   settings: 'Settings',
@@ -58,6 +61,8 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/wallet') return 'wallet';
   if (pathname === '/admin/reports') return 'reports';
   if (pathname === '/admin/employee-roles') return 'employee-roles';
+  if (pathname === '/admin/company-allocations') return 'company-allocations';
+  if (pathname === '/admin/managed-companies') return 'managed-companies';
   if (pathname === '/admin/employees') return 'employees';
   if (pathname === '/admin/roles') return 'roles';
   if (pathname === '/admin/associate-types') return 'associate-types';
@@ -117,6 +122,8 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'email-logs': return <EmailLogs />;
       case 'employee-roles': return <AdminEmployeeRoles />;
       case 'employees': return <AdminEmployees />;
+      case 'company-allocations': return <CompanyDepartments allocation />;
+      case 'managed-companies': return <CompanyDepartments />;
       case 'roles': return <RoleMaster />;
       case 'associate-types': return <AssociateTypeMaster />;
       case 'locations': return <LocationMaster />;

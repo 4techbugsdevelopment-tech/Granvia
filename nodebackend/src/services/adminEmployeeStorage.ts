@@ -20,7 +20,7 @@ export function withAdminEmployeeStorage(handler: (req: Request, res: Response) 
     catch (error) {
       const code = (error as { code?: string })?.code;
       if (code === 'P2021' || code === 'P2022') {
-        throw new HttpError(503, 'Super Admin employee management database setup is incomplete. Apply the 20261023120000_super_admin_employees migration, then restart the API service.');
+        throw new HttpError(503, 'Super Admin employee management database setup is incomplete. Apply the 20261023120000_super_admin_employees and 20261026120000_admin_company_assignments migrations, then restart the API service.');
       }
       throw error;
     }

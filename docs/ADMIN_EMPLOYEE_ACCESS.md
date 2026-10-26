@@ -1,5 +1,7 @@
 # Super Admin roles and employees
 
+2026-10-26 extension: [Granvia managed company departments](GRANVIA_MANAGED_COMPANY_DEPARTMENTS.md) adds Company HR/Sales/Operations/Accounts permissions, per-company staff allocations and a scoped department workspace. These permissions must use separate roles from the platform-wide modules described below. The extension adds its own migration and has not been installed in the configured database.
+
 Implemented locally on 2026-10-23. The configured database tables and list queries are now verified. Deployed backend restart and real-account browser acceptance remain unverified.
 
 ## Web flow

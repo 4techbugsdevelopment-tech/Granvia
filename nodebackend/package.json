@@ -11,6 +11,7 @@
     "start": "node dist/index.js",
     "test:esign": "tsx --test tests/esign.test.ts",
     "test:admin-employees": "tsx --test tests/adminEmployees.test.ts",
+    "test:company-assignments": "tsx --test tests/adminCompanyAssignments.test.ts",
     "test:admin-employer-access": "tsx --test tests/adminEmployerAccess.test.ts",
     "test:reports": "tsx --test tests/reportingFoundations.test.ts tests/employerReports.test.ts tests/adminReports.test.ts tests/financialReports.test.ts tests/extendedReports.test.ts",
     "verify:reports:readonly": "tsx scripts/verify-reporting-readonly.ts",

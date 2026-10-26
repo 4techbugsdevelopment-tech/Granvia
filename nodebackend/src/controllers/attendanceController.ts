@@ -82,7 +82,7 @@ type AttendanceAuditInput = {
   radiusMeters?: number | null;
   remarks?: string | null;
   metadata?: Record<string, unknown> | null;
-  requestContext?: { ipAddress?: string | null; userAgent?: string | null; origin?: string | null; referer?: string | null };
+  requestContext?: { ipAddress?: string | null; userAgent?: string | null; origin?: string | null; referer?: string | null; managedCompanyActorId?: string | null };
 };
 
 function requestAuditContext(req: Request) {
@@ -92,6 +92,7 @@ function requestAuditContext(req: Request) {
     userAgent: req.get('user-agent') || null,
     origin: req.get('origin') || null,
     referer: req.get('referer') || null,
+    managedCompanyActorId: req.managedCompanyActorId || null,
   };
 }
 
@@ -128,8 +129,8 @@ async function writeAttendanceAudit(db: AttendanceAuditDb, input: AttendanceAudi
   await db.attendanceAuditEvent.create({
     data: {
       eventType: input.eventType,
-      actorUserId: input.actorUserId ?? null,
-      actorRole: input.actorRole ?? null,
+      actorUserId: context?.managedCompanyActorId ?? input.actorUserId ?? null,
+      actorRole: context?.managedCompanyActorId ? 'admin_employee' : input.actorRole ?? null,
       attendanceRecordId: input.attendanceRecordId ?? null,
       exceptionRequestId: input.exceptionRequestId ?? null,
       guardUserId: input.guardUserId ?? null,

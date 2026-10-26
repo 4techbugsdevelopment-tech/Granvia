@@ -11,6 +11,7 @@ declare global {
     interface Request {
       user?: Awaited<ReturnType<typeof prisma.user.findUnique>>;
       bearerToken?: string;
+      managedCompanyActorId?: string;
       adminEmployerAccess?: {
         actor_id: string; actor_name: string; employer_id: string;
         employer_name: string; employer_status: string;

@@ -169,12 +169,13 @@ test('deleting an employee removes tokens, assignment and login in one transacti
   mockMethod(t, prisma.adminEmployee, 'findFirst', async () => employee);
   mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
     personalAccessToken: { deleteMany: async () => calls.push('tokens') },
+    adminCompanyAssignment: { deleteMany: async () => calls.push('company-assignments') },
     adminEmployee: { delete: async () => calls.push('assignment') },
     user: { delete: async () => calls.push('user') },
   }));
   const req = request('/employees', 'DELETE', owner); req.params.employee = employeeId;
   await controller.deleteEmployee(req, response() as unknown as Response);
-  assert.deepEqual(calls, ['tokens', 'assignment', 'user']);
+  assert.deepEqual(calls, ['tokens', 'company-assignments', 'assignment', 'user']);
 });
 
 test('session exposes effective modules and role name without a password', async t => {

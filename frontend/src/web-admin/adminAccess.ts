@@ -7,8 +7,10 @@ const PAGE_MODULES: Partial<Record<AdminPage, string>> = {
   'email-logs': 'Email Logs', 'associate-types': 'Associate Types', locations: 'City & State Master',
 };
 export function canOpenAdminPage(profile: ProfileRow | null, page: AdminPage) {
+  if (page === 'managed-companies' && profile?.role === 'super_admin') return false;
   if (profile?.role === 'super_admin') return true;
   if (profile?.role !== 'admin_employee' || profile.account_status !== 'active') return false;
+  if (page === 'managed-companies') return (profile.admin_permissions ?? []).some(p => ['Company HR', 'Company Sales', 'Company Operations', 'Company Accounts'].includes(p));
   const module = PAGE_MODULES[page];
   return !!module && (profile.admin_permissions ?? []).includes(module);
 }

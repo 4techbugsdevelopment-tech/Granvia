@@ -2,6 +2,7 @@ export const ADMIN_EMPLOYEE_MODULES = [
   'Dashboard', 'Associate Management', 'Employer Management', 'Job Management',
   'Attendance', 'Hiring Workflow', 'Wallet & Payments', 'Reports', 'Email Logs',
   'Associate Types', 'City & State Master',
+  'Company HR', 'Company Sales', 'Company Operations', 'Company Accounts',
 ] as const;
 
 export function adminEmployeeModules(path: string, method: string): string[] {

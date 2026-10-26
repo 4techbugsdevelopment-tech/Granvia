@@ -21,6 +21,8 @@ export type AdminPage =
   | 'email-logs'
   | 'employee-roles'
   | 'employees'
+  | 'company-allocations'
+  | 'managed-companies'
   | 'roles'
   | 'associate-types'
   | 'locations'
@@ -43,6 +45,8 @@ export interface NavItem {
 }
 
 export const adminNavItems: NavItem[] = [
+  { id: 'company-allocations', label: 'Company Staff Allocation', icon: <Building2 size={18} /> },
+  { id: 'managed-companies', label: 'My Company Departments', icon: <Building2 size={18} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'guards', label: 'Manage Associates', icon: <Shield size={18} /> },
   { id: 'employers', label: 'Manage Employers', icon: <Building2 size={18} /> },

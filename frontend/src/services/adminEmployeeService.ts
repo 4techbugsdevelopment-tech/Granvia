@@ -1,6 +1,6 @@
 import { apiClient } from '../lib/apiClient';
 
-export const ADMIN_EMPLOYEE_MODULES = ['Dashboard', 'Associate Management', 'Employer Management', 'Job Management', 'Attendance', 'Hiring Workflow', 'Wallet & Payments', 'Reports', 'Email Logs', 'Associate Types', 'City & State Master'] as const;
+export const ADMIN_EMPLOYEE_MODULES = ['Dashboard', 'Associate Management', 'Employer Management', 'Job Management', 'Attendance', 'Hiring Workflow', 'Wallet & Payments', 'Reports', 'Email Logs', 'Associate Types', 'City & State Master', 'Company HR', 'Company Sales', 'Company Operations', 'Company Accounts'] as const;
 export interface AdminEmployeeRole {
   id: string; name: string; description: string | null; permissions: string[]; status: 'active' | 'inactive';
 }

@@ -502,13 +502,13 @@ export async function updateStatus(req: Request, res: Response) {
         status: nextStatus,
         notes: data.remarks ?? application.notes,
         reviewedAt: new Date(),
-        reviewedBy: req.user!.id,
+        reviewedBy: req.managedCompanyActorId ?? req.user!.id,
       },
     });
     await tx.applicationStatusLog.create({
       data: {
         applicationId: application.id,
-        changedBy: req.user!.id,
+        changedBy: req.managedCompanyActorId ?? req.user!.id,
         oldStatus,
         newStatus: nextStatus,
         remarks: data.remarks ?? null,
