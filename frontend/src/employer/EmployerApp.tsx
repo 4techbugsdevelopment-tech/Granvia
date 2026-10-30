@@ -2,7 +2,7 @@ import ReleaseAttachments from '../components/ReleaseAttachments';
 import { exitAdminEmployerAccess } from '../lib/adminEmployerAccess';
 import EmployerReportingHub from './EmployerReportingHub';
 import { useHiringRefresh } from '../hooks/useHiringRefresh';
-import { Children, isValidElement, useEffect, useRef, useState } from 'react';
+import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
@@ -25,7 +25,7 @@ import { listEmployerJobs, createJobPost, updateJobPost, deleteJobPost } from '.
 import { listEmployerApplications, updateApplicationStatus, declareAssociateAadhaar, scheduleApplicationInterview, decideLeaveRequest, releaseHiredAssociate } from '../services/applicationService';
 import { listEmployerAttendance, listEmployerAttendanceRequests, updateAttendanceRequestStatus, updateAttendanceStatus } from '../services/attendanceService';
 import { listEmployerPayments, listEmployerInvoices, createPaymentRecord, requestCashPaymentOtp, confirmCashPaymentOtp } from '../services/paymentService';
-import { getEmployerWallet, listWalletTransactions, rechargeEmployerWallet } from '../services/walletService';
+import { createEmployerWalletRechargeRequest, getEmployerWallet, listEmployerWalletRechargeRequests, listWalletTransactions, type WalletRechargeRequest } from '../services/walletService';
 import {
   listInterviewRequests, createInterviewRequest, updateInterviewRequest,
   listJobOffers, createJobOffer, updateJobOffer,
@@ -44,6 +44,8 @@ import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
 import { previewUrl } from '../lib/fileUrls';
+import SalaryStructurePanel, { validateSalaryDraft } from '../components/salary/SalaryStructurePanel';
+import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../services/salaryStructureService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ interface EmployerInfo {
   isAadhaarVerified: boolean;
   aadhaarVerificationStatus: string;
   aadhaarLastFour: string;
+  logoUrl: string;
 }
 
 type EmployerPage =
@@ -140,6 +143,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
     isAadhaarVerified: Boolean(employerProfile?.is_aadhaar_verified),
     aadhaarVerificationStatus: employerProfile?.aadhaar_verification_status || 'pending',
     aadhaarLastFour: employerProfile?.aadhaar_last_four || '',
+    logoUrl: previewUrl(employerProfile?.logo_url),
   };
 
   const activeCompany = companies.find(c => c.id === activeCompanyId) ?? companies[0] ?? null;
@@ -209,6 +213,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         onNavigate={id => setPage(id as EmployerPage)}
         onLogout={handleLogout}
         accent="#8b1a1a"
+        brandLogoUrl={employer.logoUrl}
         headerRight={(
           <div className="flex items-center gap-1">
             <NotificationBell />
@@ -237,8 +242,11 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         style={{ background: 'linear-gradient(180deg, #0a1628, #0f1e3c 65%, #120a0a)' }}
         animate={{ width: collapsed ? 76 : 280 }}
       >
-        <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
-          {!collapsed ? <GranviaLogo size={32} textColor="white" accentColor="#8b1a1a" /> : <GranviaLogo size={28} showText={false} iconColor="white" accentColor="#8b1a1a" />}
+        <div className={`${collapsed ? 'px-2' : 'px-4'} py-5 border-b border-white/10 flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
+            {!collapsed ? <GranviaLogo size={36} textColor="white" accentColor="#8b1a1a" /> : <GranviaLogo size={28} showText={false} iconColor="white" accentColor="#8b1a1a" />}
+            {!collapsed && employer.logoUrl && <img src={employer.logoUrl} alt={`${employer.contactPersonName} logo`} className="h-9 w-9 rounded-full border-2 border-white/70 bg-white object-contain p-0.5" />}
+          </div>
           <button onClick={() => setCollapsed(!collapsed)} className="text-white/60 hover:text-white">
             <Menu size={18} />
           </button>
@@ -288,9 +296,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
               <div className="text-sm font-semibold text-gray-800">{employer.contactPersonName}</div>
               <div className="text-xs text-gray-400">{adminAccess ? 'Super Admin managing employer' : 'Employer'}</div>
             </div>
-            <div className="w-9 h-9 rounded-full text-white flex items-center justify-center font-bold" style={{ background: 'linear-gradient(135deg, #0f1e3c, #8b1a1a)' }}>
-              {(activeCompany?.company_name || employer.contactPersonName).charAt(0)}
-            </div>
+            {employer.logoUrl ? <img src={employer.logoUrl} alt="Employer logo" className="h-9 w-9 rounded-full border border-gray-200 bg-white object-contain p-0.5" /> : <div className="w-9 h-9 rounded-full text-white flex items-center justify-center font-bold" style={{ background: 'linear-gradient(135deg, #0f1e3c, #8b1a1a)' }}>{(activeCompany?.company_name || employer.contactPersonName).charAt(0)}</div>}
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">{renderPage()}</div>
@@ -978,7 +984,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
         <DataTable headers={['Company', 'Registration', 'Location', 'Verification', 'Account', 'Actions']}>
           {companies.map((company: any) => (
             <tr key={company.id} className="border-b border-gray-50">
-              <Td><b>{company.company_name}</b><div className="text-xs text-gray-400">{company.business_type}</div></Td>
+              <Td><div className="flex items-center gap-2">{company.logo_url && <img src={previewUrl(company.logo_url)} alt={`${company.company_name} logo`} className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div><b>{company.company_name}</b><div className="text-xs text-gray-400">{company.business_type}</div></div></div></Td>
               <Td>{company.registration_type}<div className="text-xs text-gray-400">GST {company.gst_number || '--'} / PAN {company.pan_number || '--'}</div></Td>
               <Td>{company.city}, {company.state}</Td>
               <Td>{statusBadge(company.verification_status)}</Td>
@@ -1147,7 +1153,6 @@ function validateJobForm(form: Record<string, string>): ValidationErrors {
   if (!/^[1-9]\d*$/.test(String(form.guards_required ?? '').trim())) {
     errors.guards_required = 'Associates required must be a whole number greater than 0.';
   }
-  addError(errors, 'salary_amount', moneyError(String(form.salary_amount ?? ''), 'Salary amount', true));
   if (!form.start_date) errors.start_date = 'Start date is required.';
   if (form.start_date && form.end_date && form.end_date < form.start_date) {
     errors.end_date = 'End date cannot be before start date.';
@@ -1751,6 +1756,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
   const [jobErrors, setJobErrors] = useState<ValidationErrors>({});
   const [jobError, setJobError] = useState('');
   const [siteSuccessMessage, setSiteSuccessMessage] = useState('');
+  const [salaryStructure, setSalaryStructure] = useState<SalaryStructureDraft>(() => createDefaultSalaryStructure());
   const [siteForm, setSiteForm] = useState<SiteFormState>({
     site_name: '', site_type: 'Office', address: '', city: company.city ?? '', state: company.state ?? '',
     pincode: company.pincode ?? '', contact_person: _employer.contactPersonName,
@@ -1759,7 +1765,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
   });
   const [job, setJob] = useState({
     title: '', site_id: '', guards_required: '1', category: 'Associate', guard_type: '',
-    gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', salary_amount: '', payment_type: 'Monthly',
+    gender_preference: 'Any', experience_required: '0-1 years', qualification_required: '12th Pass', payment_type: 'Monthly',
     duty_hours: '8 hours', shift_type: 'Day', start_date: '', end_date: '',
     required_skills: 'Security,Patrolling', language_requirements: 'Hindi,English',
     police_verification_required: true, uniform_required: true, food_facility: false, accommodation_facility: false,
@@ -1840,6 +1846,9 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
 
   const saveJob = async () => {
     const validationErrors = validateJobForm(job as Record<string, string>);
+    const salaryError = validateSalaryDraft(salaryStructure);
+    if (salaryError) validationErrors.salary_structure = salaryError;
+    if (salaryStructure && job.payment_type !== 'Monthly') validationErrors.payment_type = 'Salary structure amounts are monthly.';
     setJobErrors(validationErrors);
     setJobError('');
     if (Object.keys(validationErrors).length > 0) {
@@ -1863,7 +1872,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
         gender_preference: job.gender_preference,
         experience_required: job.experience_required,
         qualification_required: job.qualification_required,
-        salary_amount: Number(job.salary_amount),
+        salary_structure: salaryStructure,
         payment_type: job.payment_type,
         duty_hours: job.duty_hours,
         shift_type: job.shift_type,
@@ -1970,8 +1979,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
-          <Input label="Salary / Payment" value={job.salary_amount} error={jobErrors.salary_amount} onChange={v => setJob({ ...job, salary_amount: v.replace(/[^\d.]/g, '') })} />
-          <Sel label="Payment Type" value={job.payment_type} options={['Daily', 'Monthly', 'Contract', 'Shift-based']} onChange={v => setJob({ ...job, payment_type: v })} />
+          <Sel label="Payment Type" value={job.payment_type} error={jobErrors.payment_type} options={['Monthly']} onChange={v => setJob({ ...job, payment_type: v })} />
           <Input label="Duty Hours" value={job.duty_hours} onChange={v => setJob({ ...job, duty_hours: v })} />
           <Sel label="Shift Type" value={job.shift_type} options={['Day', 'Night', 'Rotational']} onChange={v => setJob({ ...job, shift_type: v })} />
           <Input label="Start Date" type="date" value={job.start_date} error={jobErrors.start_date} onChange={v => setJob({ ...job, start_date: v })} />
@@ -1979,6 +1987,10 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Status" value={job.status} options={['draft', 'active']} onChange={v => setJob({ ...job, status: v })} />
           <Input label="Required Skills" value={job.required_skills} onChange={v => setJob({ ...job, required_skills: v })} />
           <Input label="Languages" value={job.language_requirements} onChange={v => setJob({ ...job, language_requirements: v })} />
+        </div>
+        <div className="mt-5">
+          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} />
+          {jobErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{jobErrors.salary_structure}</p>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
           {([['Police Verification Required', 'police_verification_required'], ['Uniform Required', 'uniform_required'], ['Food Facility', 'food_facility'], ['Accommodation Facility', 'accommodation_facility']] as const).map(([label, key]) => (
@@ -2010,7 +2022,9 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
   const [search, setSearch]       = useState('');
   const [editingJob, setEditingJob] = useState<any | null>(null);
+  const [viewingJob, setViewingJob] = useState<any | null>(null);
   const [editForm, setEditForm]   = useState<Record<string, any>>({});
+  const [editSalaryStructure, setEditSalaryStructure] = useState<SalaryStructureDraft | null>(null);
   const [saving, setSaving]       = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -2049,13 +2063,13 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
 
   const openEdit = (job: any) => {
     setEditingJob(job);
+    setEditSalaryStructure(salaryDraftFromRecord(job.salary_structure));
     setEditErrors({});
     setEditError('');
     setEditForm({
       title:               job.title ?? '',
       site_id:             job.site_id ?? '',
       guards_required:     String(job.guards_required ?? 1),
-      salary_amount:       String(job.salary_amount ?? ''),
       payment_type:        job.payment_type ?? 'Monthly',
       shift_type:          job.shift_type ?? 'Day',
       duty_hours:          job.duty_hours ?? '8 hours',
@@ -2071,6 +2085,11 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
   const saveEdit = async () => {
     if (!editingJob) return;
     const validationErrors = validateJobForm(editForm);
+    if (editSalaryStructure) {
+      const salaryError = validateSalaryDraft(editSalaryStructure);
+      if (salaryError) validationErrors.salary_structure = salaryError;
+      if (editForm.payment_type !== 'Monthly') validationErrors.payment_type = 'Salary structure amounts are monthly.';
+    }
     setEditErrors(validationErrors);
     setEditError('');
     if (Object.keys(validationErrors).length > 0) {
@@ -2083,7 +2102,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
         title:               editForm.title,
         site_id:             editForm.site_id,
         guards_required:     Number(editForm.guards_required),
-        salary_amount:       Number(editForm.salary_amount),
+        ...(editSalaryStructure ? { salary_structure: editSalaryStructure } : {}),
         payment_type:        editForm.payment_type,
         shift_type:          editForm.shift_type,
         duty_hours:          editForm.duty_hours,
@@ -2175,12 +2194,19 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               <Td>{job.guards_required}</Td>
               <Td>
                 ₹{job.salary_amount}
-                <div className="text-xs text-gray-400">{job.payment_type}</div>
+                <div className="text-xs text-gray-400">Gross / {job.salary_structure ? 'Month' : job.payment_type}</div>
+                {job.salary_structure && <div className="text-xs text-gray-400">Net ₹{job.salary_structure.net_monthly} · CTC ₹{job.salary_structure.annual_ctc}/yr</div>}
               </Td>
               <Td>{job.shift_type}</Td>
               <Td>{statusBadge(job.status)}</Td>
               <Td>
                 <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setViewingJob(job)}
+                    className="table-action"
+                  >
+                    View
+                  </button>
                   <button
                     onClick={() => openEdit(job)}
                     className="table-action tone-blue"
@@ -2203,6 +2229,37 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
           </>
         )}
       </Card>
+
+      {viewingJob && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setViewingJob(null)}>
+          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl md:max-w-4xl md:rounded-2xl" onClick={event => event.stopPropagation()}>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div><h3 className="text-xl font-bold text-gray-900">{viewingJob.title}</h3><p className="text-sm text-gray-500">{viewingJob.company_sites?.site_name} · {associateTypeLabel(viewingJob.guard_type)}</p></div>
+              <button type="button" onClick={() => setViewingJob(null)} className="rounded-lg border p-2" aria-label="Close job details"><X size={18} /></button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Openings</p><p className="font-bold">{viewingJob.guards_required}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Shift</p><p className="font-bold">{viewingJob.shift_type}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Duty hours</p><p className="font-bold">{viewingJob.duty_hours}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Status</p><div className="mt-1">{statusBadge(viewingJob.status)}</div></div>
+            </div>
+            {viewingJob.salary_structure ? <>
+              <h4 className="mb-3 mt-6 font-bold text-gray-900">Salary Structure</h4>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {[
+                  ['Gross Monthly', viewingJob.salary_structure.gross_monthly],
+                  ['Deductions', viewingJob.salary_structure.deductions_monthly],
+                  ['Estimated Net', viewingJob.salary_structure.net_monthly],
+                  ['Employer Cost', viewingJob.salary_structure.employer_cost_monthly],
+                  ['Annual CTC', viewingJob.salary_structure.annual_ctc],
+                ].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-900 p-3 text-white"><p className="text-xs text-slate-300">{label}</p><p className="mt-1 font-bold">₹{value}</p></div>)}
+              </div>
+              <div className="mt-4 overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-gray-500"><th className="p-2">Component</th><th className="p-2">Category</th><th className="p-2">Calculation</th><th className="p-2 text-right">Monthly</th></tr></thead><tbody>{viewingJob.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-2 font-medium">{row.name}</td><td className="p-2 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-2">{row.calculation_type === 'percentage' ? `${row.percentage}% of ${String(row.percentage_basis).replaceAll('_', ' ')}` : 'Fixed'}</td><td className="p-2 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
+            </> : <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Historical salary record: gross ₹{viewingJob.salary_amount}. No component breakdown is stored for this job.</div>}
+            {viewingJob.description && <div className="mt-5"><h4 className="font-bold text-gray-900">Description</h4><p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{viewingJob.description}</p></div>}
+          </div>
+        </div>
+      )}
 
       {/* ── Delete confirmation overlay ── */}
       {confirmDeleteId && (
@@ -2236,7 +2293,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
           style={{ background: 'rgba(0,0,0,0.4)' }}
           onClick={() => setEditingJob(null)}>
           <div
-            className="bg-white w-full md:max-w-2xl rounded-t-3xl md:rounded-2xl overflow-y-auto shadow-2xl"
+            className="bg-white w-full md:max-w-5xl rounded-t-3xl md:rounded-2xl overflow-y-auto shadow-2xl"
             style={{ maxHeight: '90vh' }}
             onClick={e => e.stopPropagation()}
           >
@@ -2251,15 +2308,18 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Input label="Job Title"       value={ef.title}               error={editErrors.title} onChange={set('title')} />
                 <Sel   label="Site"            value={ef.site_id}             error={editErrors.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
                 <Input label="Associates Required" value={ef.guards_required} error={editErrors.guards_required} onChange={v => set('guards_required')(v.replace(/\D/g, ''))} />
-                <Input label="Salary"          value={ef.salary_amount}       error={editErrors.salary_amount} onChange={v => set('salary_amount')(v.replace(/[^\d.]/g, ''))} />
                 <Sel   label="Associate Type"  value={ef.guard_type}          error={editErrors.guard_type} options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
-                <Sel   label="Payment Type"    value={ef.payment_type}        options={['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
+                <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={editSalaryStructure ? ['Monthly'] : ['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
                 <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />
                 <Input label="End Date"        value={ef.end_date}            error={editErrors.end_date} onChange={set('end_date')} />
                 <Input label="Experience"      value={ef.experience_required} onChange={set('experience_required')} />
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
+              </div>
+              <div className="mt-5">
+                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} onChange={value => { if (!editSalaryStructure) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} />
+                {editErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{editErrors.salary_structure}</p>}
               </div>
               <div className="mt-3">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
@@ -3085,22 +3145,26 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
 function WalletPage() {
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [rechargeRequests, setRechargeRequests] = useState<WalletRechargeRequest[]>([]);
   const [amount, setAmount] = useState('1000');
   const [remarks, setRemarks] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const reloadWallet = () => {
+  const reloadWallet = useCallback(() => {
     getEmployerWallet().then(setWallet).catch(() => setWallet({ balance: 0 }));
     listWalletTransactions().then(setTransactions).catch(() => setTransactions([]));
-  };
+    listEmployerWalletRechargeRequests().then(setRechargeRequests).catch(() => setRechargeRequests([]));
+  }, []);
 
   useEffect(() => {
     reloadWallet();
-  }, []);
+    const timer = window.setInterval(reloadWallet, 20_000);
+    return () => window.clearInterval(timer);
+  }, [reloadWallet]);
 
-  const addBalance = async () => {
+  const submitRechargeRequest = async () => {
     const amountMessage = moneyError(amount, 'Recharge amount', true);
     if (amountMessage) {
       setSuccessMsg('');
@@ -3117,13 +3181,13 @@ function WalletPage() {
     setError('');
     setSuccessMsg('');
     try {
-      const result = await rechargeEmployerWallet(value, remarks.trim() || undefined);
-      setWallet(result.wallet);
-      await listWalletTransactions().then(setTransactions);
-      setSuccessMsg(`Rs ${value.toLocaleString('en-IN')} wallet recharge completed through mock payment gateway.`);
+      await createEmployerWalletRechargeRequest(value, remarks.trim() || undefined);
+      await listEmployerWalletRechargeRequests().then(setRechargeRequests);
+      setSuccessMsg(`Recharge request for Rs ${value.toLocaleString('en-IN')} submitted to Super Admin.`);
+      setAmount('');
       setRemarks('');
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to recharge wallet.'));
+      setError(getErrorMessage(err, 'Unable to submit wallet recharge request.'));
     } finally {
       setBusy(false);
     }
@@ -3142,11 +3206,27 @@ function WalletPage() {
         </div>
         <div className="mt-6 grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-[180px_1fr_auto]">
           <input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} className="form-input" placeholder="Amount" />
-          <input value={remarks} maxLength={500} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Recharge note" />
-          <button onClick={addBalance} disabled={busy} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
-            {busy ? 'Processing...' : 'Make Payment'}
+          <input value={remarks} maxLength={500} onChange={e => setRemarks(e.target.value)} className="form-input" placeholder="Request note" />
+          <button onClick={submitRechargeRequest} disabled={busy} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
+            {busy ? 'Submitting...' : 'Request Recharge'}
           </button>
         </div>
+        <p className="mt-3 text-xs text-gray-500">Your wallet will be credited after Super Admin allocates the requested amount.</p>
+      </Card>
+      <Card className="p-5">
+        <h3 className="font-bold text-gray-900 mb-4">Recharge Requests</h3>
+        <DataTable headers={['Amount', 'Note', 'Requested', 'Completed', 'Status']}>
+          {rechargeRequests.map(request => (
+            <tr key={request.id} className="border-b border-gray-50">
+              <Td>Rs {Number(request.amount).toLocaleString('en-IN')}</Td>
+              <Td>{request.remarks || '--'}</Td>
+              <Td>{new Date(request.created_at).toLocaleString('en-IN')}</Td>
+              <Td>{request.completed_at ? new Date(request.completed_at).toLocaleString('en-IN') : '--'}</Td>
+              <Td><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${request.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{request.status}</span></Td>
+            </tr>
+          ))}
+        </DataTable>
+        {rechargeRequests.length === 0 && <EmptyState text="No recharge requests" />}
       </Card>
       <Card className="p-5">
         <h3 className="font-bold text-gray-900 mb-4">Balance Statement</h3>
@@ -3179,6 +3259,7 @@ function WalletStat({ label, value, color }: { label: string; value: number; col
 
 function walletSourceLabel(source?: string) {
   if (source === 'mock_gateway_recharge') return 'Mock gateway';
+  if (source === 'admin_recharge_allocation') return 'Recharge allocation';
   if (source === 'admin_credit') return 'Super Admin credit';
   if (source === 'job_payment') return 'Job payment';
   return source || '--';

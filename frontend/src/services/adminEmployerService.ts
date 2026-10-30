@@ -107,7 +107,7 @@ function mapEmployer(user: Row, firstCompany?: EmployerCompany): Employer {
     gstNumber: firstCompany?.gstNumber || '',
     panNumber: firstCompany?.panNumber || '',
     website: firstCompany?.website || '',
-    logo: firstCompany?.logo || null,
+    logo: employerProfile.logo_url || firstCompany?.logo || null,
     description: firstCompany?.description || '',
     verificationStatus: toTitleStatus(employerProfile.verification_status, 'Pending'),
     accountStatus: toTitleStatus(user.account_status, 'Pending'),
@@ -270,6 +270,21 @@ export async function deleteEmployerFromAdmin(id: string) {
 export async function resetEmployerPasswordFromAdmin(id: string): Promise<{ message: string; temporary_password: string }> {
   const { data } = await apiClient.post(`/admin/employers/${id}/password-reset`);
   return data;
+}
+
+async function uploadBrandLogo(url: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return data;
+}
+
+export function uploadEmployerLogoFromAdmin(employerId: string, file: File) {
+  return uploadBrandLogo(`/admin/employers/${employerId}/logo`, file);
+}
+
+export function uploadCompanyLogoFromAdmin(employerId: string, companyId: string, file: File) {
+  return uploadBrandLogo(`/admin/employers/${employerId}/companies/${companyId}/logo`, file);
 }
 
 /** Admin manually declares an employer's Aadhaar verification (API disabled). */

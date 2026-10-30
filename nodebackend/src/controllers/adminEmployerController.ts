@@ -11,6 +11,7 @@ import { urlFor } from '../utils/fileStorage';
 import { requestBaseUrl } from '../utils/requestBaseUrl';
 import { assertActiveCityState } from './locationMasterController';
 import { generateStrongPassword, humanNameSchema, indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema, strongPasswordSchema } from '../utils/validation';
+import { storeFile, type IncomingFile } from '../utils/fileStorage';
 
 // Port of App\Http\Controllers\Admin\EmployerController.
 
@@ -63,6 +64,19 @@ async function assertUnique(email?: string, mobile?: string, ignoreId?: string) 
     const m = await prisma.user.findFirst({ where: { mobile, NOT: ignoreId ? { id: ignoreId } : undefined } });
     if (m) throw new HttpError(422, 'The mobile has already been taken.', { errors: { mobile: ['The mobile has already been taken.'] } });
   }
+}
+
+async function assertSuperAdminUploader(userId: string) {
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, accountStatus: true } });
+  if (!actor || actor.role !== 'super_admin' || actor.accountStatus !== 'active') throw new HttpError(403, 'Only an active Super Admin can upload employer branding.');
+}
+
+function brandImage(req: Request) {
+  const file = req.file as IncomingFile | undefined;
+  if (!file) throw new HttpError(422, 'Select a logo image.', { errors: { file: ['Select a logo image.'] } });
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) throw new HttpError(422, 'The logo must be a JPG, PNG, or WebP image.', { errors: { file: ['The logo must be a JPG, PNG, or WebP image.'] } });
+  if (file.size > 5 * 1024 * 1024) throw new HttpError(422, 'The logo must not be greater than 5 MB.', { errors: { file: ['The logo must not be greater than 5 MB.'] } });
+  return file;
 }
 
 /** GET /admin/employers */
@@ -215,6 +229,26 @@ export async function update(req: Request, res: Response) {
 
   const fresh = await prisma.user.findUnique({ where: { id: employer.id }, include: { employerProfile: true } });
   return res.json(serializeUserRow(fresh as unknown as Record<string, unknown>));
+}
+
+/** POST /admin/employers/:employer/logo -- Super Admin-only employer portal branding. */
+export async function uploadEmployerLogo(req: Request, res: Response) {
+  await assertSuperAdminUploader(req.user!.id);
+  const employer = await prisma.user.findUnique({ where: { id: req.params.employer }, include: { employerProfile: true } });
+  if (!employer || employer.role !== 'employer' || !employer.employerProfile) throw new HttpError(404, 'Employer profile not found.');
+  const stored = storeFile('employer-logos', employer.id, brandImage(req));
+  const profile = await prisma.employerProfile.update({ where: { userId: employer.id }, data: { logoUrl: stored.url } });
+  return res.json(snakeKeys(profile));
+}
+
+/** POST /admin/employers/:employer/companies/:company/logo -- Super Admin-only company branding. */
+export async function uploadCompanyLogo(req: Request, res: Response) {
+  await assertSuperAdminUploader(req.user!.id);
+  const company = await prisma.employerCompany.findFirst({ where: { id: req.params.company, employerUserId: req.params.employer } });
+  if (!company) throw new HttpError(404, 'Company does not belong to this employer.');
+  const stored = storeFile('company-logos', company.id, brandImage(req));
+  const updated = await prisma.employerCompany.update({ where: { id: company.id }, data: { logoUrl: stored.url } });
+  return res.json(snakeKeys(updated));
 }
 
 /** POST /admin/employers/:employer/password-reset */

@@ -4,6 +4,7 @@ import { HttpError } from '../utils/http';
 import { readInChunks, reportDateRange, reportPagination, reportQuerySchema } from './query';
 import { reportCsv, reportResponse, type ReportWarning } from './response';
 import { resolveReportScope, type ReportActor } from './scope';
+import { FILLED_APPLICATION_STATUSES } from '../services/jobCapacity';
 
 type Db = Prisma.TransactionClient;
 export type ReportingRole = 'super_admin' | 'employer' | 'guard' | 'sub_admin' | 'sales_executive' | 'operations' | 'finance';
@@ -28,11 +29,14 @@ export const EXTENDED_REPORTS: Record<ReportingRole, { kind: string; label: stri
     { kind: 'invoices', label: 'Invoice register & ageing' },
   ],
   employer: [
-    { kind: 'employer-credits', label: 'Total credits statement' },
+    { kind: 'associates', label: 'Associate master tracker' },
+    { kind: 'employees', label: 'Employee & sub-admin tracker' },
+    { kind: 'companies', label: 'Company master register' },
+    { kind: 'sites', label: 'Site master register' },
+    { kind: 'jobs', label: 'Job master tracker' },
     { kind: 'recruitment-pipeline', label: 'Applicants, workforce & pipeline' },
-    { kind: 'companies', label: 'Company register' },
-    { kind: 'sites', label: 'Site register' },
     { kind: 'invoices', label: 'Invoice register & ageing' },
+    { kind: 'employer-credits', label: 'Total credits statement' },
   ],
   guard: [
     { kind: 'associate-wallets', label: 'My wallet balances' },
@@ -100,6 +104,7 @@ const allowed: Record<string, string[]> = {
   'employer-credits': ['employer_id', 'source'], 'associate-wallets': ['guard_id', 'status'],
   'associate-statement': ['guard_id', 'status'], withdrawals: ['guard_id', 'status'],
   'recruitment-pipeline': ['employer_id', 'company_id', 'site_id', 'job_id', 'guard_id', 'status'],
+  associates: ['company_id', 'status'], employees: ['status'], jobs: ['company_id', 'status'],
   companies: ['status'], sites: ['company_id', 'status'], invoices: ['employer_id', 'company_id', 'status'],
 };
 
@@ -152,6 +157,124 @@ async function pipelineScope(db: Db, actor: ReportActor, q: Query): Promise<Pris
 }
 
 type Result = { items: Row[]; summary: Record<string, unknown>; total: number; columns: Column[]; basis: string; warnings?: ReportWarning[] };
+
+function permissions(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string').join('; ') || null : null;
+  } catch { return null; }
+}
+
+async function associateMaster(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  const applicationWhere: Prisma.JobApplicationWhereInput = {
+    ...await pipelineScope(db, actor, { ...q, guard_id: undefined, status: undefined }),
+    appliedAt: reportDateRange(q, 'timestamp'),
+  };
+  const groups = await db.jobApplication.groupBy({
+    by: ['guardUserId'], where: applicationWhere, _count: { _all: true }, _min: { appliedAt: true }, _max: { appliedAt: true },
+    orderBy: { guardUserId: 'asc' }, take: EXPORT_LIMIT + 1,
+  });
+  if (groups.length > EXPORT_LIMIT) throw new HttpError(422, `Associate master supports up to ${EXPORT_LIMIT} associated people. Narrow the company or dates.`);
+  const users = await readInChunks(groups.map(group => group.guardUserId), batch => db.user.findMany({
+    where: { id: { in: batch }, role: 'guard', ...(q.status ? { accountStatus: q.status } : {}) },
+    select: { id: true, fullName: true, email: true, mobile: true, accountStatus: true,
+      guardProfile: { select: { city: true, state: true, verificationStatus: true, experience: true, qualification: true } } },
+  }));
+  const byId = new Map(users.map(user => [user.id, user]));
+  const matching = groups.filter(group => byId.has(group.guardUserId));
+  const statusGroups = await readInChunks(matching.map(group => group.guardUserId), batch => db.jobApplication.groupBy({
+    by: ['guardUserId', 'status'], where: { AND: [applicationWhere, { guardUserId: { in: batch } }] }, _count: { _all: true },
+  }));
+  const statuses = new Map<string, Record<string, number>>();
+  for (const group of statusGroups) {
+    const current = statuses.get(group.guardUserId) ?? {};
+    current[group.status] = group._count._all; statuses.set(group.guardUserId, current);
+  }
+  const page = matching.slice(skip, skip + take);
+  const rows = page.map(group => {
+    const user = byId.get(group.guardUserId)!; const profile = user.guardProfile; const applicationStatuses = statuses.get(user.id) ?? {};
+    return { id: user.id, name: user.fullName, email: user.email, mobile: user.mobile, account_status: user.accountStatus,
+      verification: profile?.verificationStatus ?? null, city: profile?.city ?? null, state: profile?.state ?? null,
+      experience: profile?.experience ?? null, qualification: profile?.qualification ?? null, applications: group._count._all,
+      workforce_positions: FILLED_APPLICATION_STATUSES.reduce((sum, status) => sum + (applicationStatuses[status] ?? 0), 0),
+      application_statuses: Object.entries(applicationStatuses).map(([status, count]) => `${status}: ${count}`).join('; ') || null,
+      first_applied_at: iso(group._min.appliedAt), last_applied_at: iso(group._max.appliedAt) };
+  });
+  const accountStatuses: Record<string, number> = {}, pipelineStatuses: Record<string, number> = {};
+  for (const user of users) accountStatuses[user.accountStatus] = (accountStatuses[user.accountStatus] ?? 0) + 1;
+  for (const group of statusGroups) pipelineStatuses[group.status] = (pipelineStatuses[group.status] ?? 0) + group._count._all;
+  const workforce = matching.filter(group => FILLED_APPLICATION_STATUSES.some(status => (statuses.get(group.guardUserId)?.[status] ?? 0) > 0)).length;
+  return { total: matching.length, basis: 'Employer-owned job applications applied_at (IST); profile and account fields are current',
+    warnings: [{ code: 'CURRENT_ASSOCIATE_PROFILE', section: 'associates', message: 'The list is deduplicated from applications to your jobs. Profile, verification and account values are current; workforce positions are current application statuses, not historical employment events.' }],
+    columns: col(['name', 'Associate'], ['mobile', 'Mobile'], ['email', 'Email'], ['account_status', 'Account status'], ['verification', 'Verification'], ['city', 'City'], ['state', 'State'], ['experience', 'Experience'], ['qualification', 'Qualification'], ['applications', 'Applications'], ['workforce_positions', 'Current workforce positions'], ['application_statuses', 'Application statuses'], ['first_applied_at', 'First applied at'], ['last_applied_at', 'Last applied at'], ['id', 'Associate ID']),
+    items: rows, summary: { associated_associates: matching.length, current_workforce_associates: workforce, current_account_statuses: accountStatuses, application_statuses: pipelineStatuses } };
+}
+
+async function employeeMaster(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  const range = reportDateRange(q, 'timestamp');
+  const staffStatus = q.status ? q.status.charAt(0).toUpperCase() + q.status.slice(1).toLowerCase() : undefined;
+  const staffWhere: Prisma.StaffMemberWhereInput = { subAdminUserId: actor.id, createdAt: range, ...(staffStatus ? { status: staffStatus } : {}) };
+  const subAdminWhere: Prisma.UserWhereInput = { role: 'sub_admin', subAdminProfile: { employerUserId: actor.id }, createdAt: range, ...(q.status ? { accountStatus: q.status } : {}) };
+  const [staffTotal, subAdminTotal, staffGroups, subAdminGroups] = await Promise.all([
+    db.staffMember.count({ where: staffWhere }), db.user.count({ where: subAdminWhere }),
+    db.staffMember.groupBy({ by: ['status'], where: staffWhere, _count: { _all: true } }),
+    db.user.groupBy({ by: ['accountStatus'], where: subAdminWhere, _count: { _all: true } }),
+  ]);
+  const readLimit = Math.min(EXPORT_LIMIT + 1, skip + take);
+  const [staff, subAdmins] = await Promise.all([
+    db.staffMember.findMany({ where: staffWhere, take: readLimit, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
+      id: true, name: true, email: true, mobile: true, status: true, role: true, permissions: true, createdAt: true,
+      roleMaster: { select: { name: true, permissions: true } },
+    } }),
+    db.user.findMany({ where: subAdminWhere, take: readLimit, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
+      id: true, fullName: true, email: true, mobile: true, accountStatus: true, createdAt: true,
+      subAdminProfile: { select: { branchName: true, contactEmail: true, phone: true } },
+    } }),
+  ]);
+  const rows: Array<{ sortDate: Date; row: Row }> = [
+    ...staff.map(member => ({ sortDate: member.createdAt, row: { id: member.id, type: 'Employee', name: member.name, role: member.roleMaster?.name ?? member.role,
+      branch: null, email: member.email, mobile: member.mobile, status: member.status.toLowerCase(),
+      permissions: permissions(member.roleMaster?.permissions ?? member.permissions), created_at: iso(member.createdAt) } })),
+    ...subAdmins.map(user => ({ sortDate: user.createdAt, row: { id: user.id, type: 'Sub Admin', name: user.fullName, role: 'Sub Admin', branch: user.subAdminProfile?.branchName ?? null,
+      email: user.subAdminProfile?.contactEmail ?? user.email, mobile: user.subAdminProfile?.phone ?? user.mobile,
+      status: user.accountStatus, permissions: null, created_at: iso(user.createdAt) } })),
+  ];
+  rows.sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime() || String(b.row.id).localeCompare(String(a.row.id)));
+  const items = rows.slice(skip, skip + take).map(item => item.row);
+  return { total: staffTotal + subAdminTotal, basis: 'staff_members/users created_at (IST); role, permissions and statuses are current',
+    warnings: [{ code: 'TWO_TEAM_ACCOUNT_TYPES', section: 'employees', message: 'This tracker combines regular staff records and Sub Admin login accounts. Permissions are shown for role-based staff where stored; Sub Admin access is represented by its account type and branch.' }],
+    columns: col(['type', 'Employee type'], ['name', 'Name'], ['role', 'Role'], ['branch', 'Branch / team'], ['mobile', 'Mobile'], ['email', 'Email'], ['status', 'Status'], ['permissions', 'Permissions'], ['created_at', 'Created at'], ['id', 'Employee ID']), items,
+    summary: { total_employees: staffTotal + subAdminTotal, regular_staff: staffTotal, sub_admins: subAdminTotal,
+      regular_staff_statuses: Object.fromEntries(staffGroups.map(group => [group.status.toLowerCase(), group._count._all])),
+      sub_admin_statuses: Object.fromEntries(subAdminGroups.map(group => [group.accountStatus, group._count._all])) } };
+}
+
+async function jobMaster(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  const where: Prisma.JobPostWhereInput = { employerUserId: actor.id, ...(q.company_id ? { companyId: q.company_id } : {}),
+    ...(q.status ? { status: q.status } : {}), createdAt: reportDateRange(q, 'timestamp') };
+  const [total, jobStatuses, applicationStatuses] = await Promise.all([
+    db.jobPost.count({ where }), db.jobPost.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    db.jobApplication.groupBy({ by: ['status'], where: { job: where }, _count: { _all: true } }),
+  ]);
+  const page = await db.jobPost.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
+    id: true, title: true, category: true, guardType: true, guardsRequired: true, status: true, startDate: true, endDate: true,
+    shiftType: true, paymentType: true, salaryAmount: true, createdAt: true, company: { select: { companyName: true } }, site: { select: { siteName: true } },
+  } });
+  const perJob = page.length ? await db.jobApplication.groupBy({ by: ['jobId', 'status'], where: { jobId: { in: page.map(job => job.id) }, job: where }, _count: { _all: true } }) : [];
+  const counts = new Map<string, Record<string, number>>();
+  for (const group of perJob) { const current = counts.get(group.jobId) ?? {}; current[group.status] = group._count._all; counts.set(group.jobId, current); }
+  return { total, basis: 'job_posts.created_at (IST); job and application statuses are current',
+    warnings: [{ code: 'CURRENT_JOB_STATUS', section: 'jobs', message: 'Application and vacancy counts use current application statuses. They are not a historical staffing snapshot.' }],
+    columns: col(['title', 'Job'], ['company', 'Company'], ['site', 'Site'], ['category', 'Category'], ['associate_type', 'Associate type'], ['status', 'Status'], ['required', 'Required'], ['applications', 'Applications'], ['filled', 'Filled'], ['remaining', 'Remaining'], ['salary', 'Salary (INR)'], ['payment_type', 'Payment type'], ['shift', 'Shift'], ['start_date', 'Start date'], ['end_date', 'End date'], ['created_at', 'Created at'], ['id', 'Job ID']),
+    items: page.map(job => { const byStatus = counts.get(job.id) ?? {}; const filled = FILLED_APPLICATION_STATUSES.reduce((sum, status) => sum + (byStatus[status] ?? 0), 0);
+      return { id: job.id, title: job.title, company: job.company?.companyName ?? null, site: job.site?.siteName ?? null, category: job.category,
+        associate_type: job.guardType, status: job.status, required: Math.max(1, job.guardsRequired), applications: Object.values(byStatus).reduce((sum, count) => sum + count, 0), filled,
+        remaining: Math.max(0, Math.max(1, job.guardsRequired) - filled), salary: job.salaryAmount?.toString() ?? null, payment_type: job.paymentType,
+        shift: job.shiftType, start_date: iso(job.startDate), end_date: iso(job.endDate), created_at: iso(job.createdAt) }; }),
+    summary: { jobs: total, current_job_statuses: Object.fromEntries(jobStatuses.map(group => [group.status, group._count._all])),
+      current_application_statuses: Object.fromEntries(applicationStatuses.map(group => [group.status, group._count._all])) } };
+}
 
 async function registrations(db: Db, actor: ReportActor, kind: string, q: Query, skip: number, take: number): Promise<Result> {
   const role = kind === 'employer-registrations' ? 'employer' : 'guard';
@@ -284,16 +407,16 @@ async function companyRegister(db: Db, actor: ReportActor, kind: string, q: Quer
   if (kind === 'companies') {
     const where: Prisma.EmployerCompanyWhereInput = { employerUserId: actor.id, createdAt: reportDateRange(q, 'timestamp'), ...(q.status ? { accountStatus: q.status } : {}) };
     const total = await db.employerCompany.count({ where });
-    const rows = await db.employerCompany.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, companyName: true, createdAt: true, accountStatus: true, verificationStatus: true, city: true, state: true } });
-    return { total, basis: 'employer_companies.created_at (IST)', columns: col(['name', 'Company'], ['created_at', 'Created at'], ['status', 'Account status'], ['verification', 'Verification'], ['city', 'City'], ['state', 'State'], ['id', 'Company ID']), items: rows.map(r => ({ id: r.id, name: r.companyName, created_at: iso(r.createdAt), status: r.accountStatus, verification: r.verificationStatus, city: r.city, state: r.state })), summary: { companies: total } };
+    const rows = await db.employerCompany.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, companyName: true, businessType: true, companyEmail: true, companyPhone: true, gstNumber: true, panNumber: true, website: true, registeredAddress: true, city: true, state: true, pincode: true, createdAt: true, accountStatus: true, verificationStatus: true } });
+    return { total, basis: 'employer_companies.created_at (IST)', columns: col(['name', 'Company'], ['business_type', 'Business type'], ['email', 'Company email'], ['phone', 'Company phone'], ['gst', 'GST number'], ['pan', 'PAN number'], ['website', 'Website'], ['address', 'Registered address'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode'], ['status', 'Account status'], ['verification', 'Verification'], ['created_at', 'Created at'], ['id', 'Company ID']), items: rows.map(r => ({ id: r.id, name: r.companyName, business_type: r.businessType, email: r.companyEmail, phone: r.companyPhone, gst: r.gstNumber, pan: r.panNumber, website: r.website, address: r.registeredAddress, city: r.city, state: r.state, pincode: r.pincode, status: r.accountStatus, verification: r.verificationStatus, created_at: iso(r.createdAt) })), summary: { companies: total } };
   }
   const companies = await db.employerCompany.findMany({ where: { employerUserId: actor.id, ...(q.company_id ? { id: q.company_id } : {}) }, select: { id: true, companyName: true }, take: 501 });
   if (companies.length > 500) throw new HttpError(422, 'Select a company to narrow the site register.');
   const names = new Map(companies.map(c => [c.id, c.companyName]));
   const where: Prisma.CompanySiteWhereInput = { companyId: { in: companies.map(c => c.id) }, createdAt: reportDateRange(q, 'timestamp'), ...(q.status ? { status: q.status } : {}) };
   const total = await db.companySite.count({ where });
-  const rows = await db.companySite.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, companyId: true, siteName: true, createdAt: true, status: true } });
-  return { total, basis: 'company_sites.created_at (IST)', columns: col(['name', 'Site'], ['company', 'Company'], ['status', 'Status'], ['created_at', 'Created at'], ['id', 'Site ID']), items: rows.map(r => ({ id: r.id, name: r.siteName, company: names.get(r.companyId) ?? null, status: r.status, created_at: iso(r.createdAt) })), summary: { sites: total } };
+  const rows = await db.companySite.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, companyId: true, siteName: true, code: true, siteType: true, address: true, city: true, state: true, pincode: true, contactPerson: true, contactMobile: true, shiftDetails: true, createdAt: true, status: true } });
+  return { total, basis: 'company_sites.created_at (IST)', columns: col(['name', 'Site'], ['code', 'Site code'], ['company', 'Company'], ['type', 'Site type'], ['address', 'Address'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode'], ['contact_person', 'Contact person'], ['contact_mobile', 'Contact mobile'], ['shift_details', 'Shift details'], ['status', 'Status'], ['created_at', 'Created at'], ['id', 'Site ID']), items: rows.map(r => ({ id: r.id, name: r.siteName, code: r.code, company: names.get(r.companyId) ?? null, type: r.siteType, address: r.address, city: r.city, state: r.state, pincode: r.pincode, contact_person: r.contactPerson, contact_mobile: r.contactMobile, shift_details: r.shiftDetails, status: r.status, created_at: iso(r.createdAt) })), summary: { sites: total } };
 }
 
 async function invoices(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
@@ -317,7 +440,7 @@ export async function extendedReport(db: Db, actor: ReportActor | undefined, rol
   for (const key of Object.keys(raw as object)) if (![...commonFilters, ...allowed[kind]].includes(key)) throw new HttpError(422, `Unsupported filter: ${key}.`);
   if (role === 'employer' && q.employer_id) throw new HttpError(422, 'Employer scope comes from your signed-in account.');
   if (role === 'guard' && q.guard_id) throw new HttpError(422, 'Associate scope comes from your signed-in account.');
-  if ((role === 'employer' || role === 'super_admin') && ['sites', 'invoices', 'recruitment-pipeline'].includes(kind) && (q.employer_id || q.company_id || q.site_id || q.job_id)) {
+  if ((role === 'employer' || role === 'super_admin') && ['sites', 'invoices', 'recruitment-pipeline', 'associates', 'jobs'].includes(kind) && (q.employer_id || q.company_id || q.site_id || q.job_id)) {
     const resolved = await resolveReportScope(db, user, role, q);
     if (role === 'super_admin' && resolved.employerUserId) q.employer_id = resolved.employerUserId;
   }
@@ -331,6 +454,9 @@ export async function extendedReport(db: Db, actor: ReportActor | undefined, rol
   else if (kind === 'associate-wallets') result = await associateWallets(db, user, q, skip, take);
   else if (kind === 'associate-statement') result = await associateStatement(db, user, q, skip, take);
   else if (kind === 'withdrawals') result = await withdrawals(db, user, q, skip, take);
+  else if (kind === 'associates') result = await associateMaster(db, user, q, skip, take);
+  else if (kind === 'employees') result = await employeeMaster(db, user, q, skip, take);
+  else if (kind === 'jobs') result = await jobMaster(db, user, q, skip, take);
   else if (kind === 'recruitment-pipeline') result = await pipeline(db, user, q, skip, take);
   else if (kind === 'invoices') result = await invoices(db, user, q, skip, take);
   else result = await companyRegister(db, user, kind, q, skip, take);

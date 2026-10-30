@@ -18,7 +18,7 @@ export default function LogoImage({ size = 'md', showText = false }: LogoImagePr
       <img
         src="/granvia-logo.png"
         alt="Granvia Logo"
-        className={`${sizeClasses.img} w-auto object-contain`}
+        className={`${sizeClasses.img} aspect-square rounded-full bg-white p-1 object-contain`}
       />
       {showText && (
         <div className="flex flex-col">

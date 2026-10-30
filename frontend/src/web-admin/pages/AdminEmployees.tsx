@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { AdminEmployee, AdminEmployeeRole, AdminEmployeeInput, listAdminEmployeeRoles, listAdminEmployees, saveAdminEmployee, deleteAdminEmployee, employeeWhatsAppLink } from '../../services/adminEmployeeService';
+import { AdminEmployee, AdminEmployeeRole, AdminEmployeeInput, AdminEmployerOption, listAdminEmployeeRoles, listAdminEmployees, listAdminEmployeeEmployers, saveAdminEmployee, deleteAdminEmployee, employeeWhatsAppLink } from '../../services/adminEmployeeService';
 import { Card, PageHeader, Table } from './_adminUi';
 
-const empty: AdminEmployeeInput = { full_name: '', email: '', mobile: '', role_id: '', account_status: 'active', password: '' };
+const empty: AdminEmployeeInput = { full_name: '', email: '', mobile: '', role_id: '', account_status: 'active', password: '', employer_ids: [] };
 export default function AdminEmployees() {
   const [rows, setRows] = useState<AdminEmployee[]>([]);
   const [roles, setRoles] = useState<AdminEmployeeRole[]>([]);
+  const [employers, setEmployers] = useState<AdminEmployerOption[]>([]);
+  const [employerCompanies, setEmployerCompanies] = useState<Record<string, string[]>>({});
   const [draft, setDraft] = useState(empty);
   const [editing, setEditing] = useState<string>();
   const [open, setOpen] = useState(false);
@@ -15,7 +17,14 @@ export default function AdminEmployees() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const load = async () => { const [employees, roleRows] = await Promise.all([listAdminEmployees(), listAdminEmployeeRoles()]); setRows(employees); setRoles(roleRows); setLoading(false); };
+  const load = async () => {
+    const [employees, roleRows, employerOptions] = await Promise.all([listAdminEmployees(), listAdminEmployeeRoles(), listAdminEmployeeEmployers()]);
+    setRows(employees); setRoles(roleRows); setEmployers(employerOptions.employers);
+    setEmployerCompanies(employerOptions.companies.filter(company => company.accountStatus === 'active').reduce<Record<string, string[]>>((groups, company) => {
+      (groups[company.employerUserId] ||= []).push(company.companyName); return groups;
+    }, {}));
+    setLoading(false);
+  };
   useEffect(() => { load().catch(e => { setError(e?.response?.data?.message || 'Unable to load employees.'); setLoading(false); }); }, []);
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('');
@@ -35,7 +44,8 @@ export default function AdminEmployees() {
     catch (e: any) { setError(e?.response?.data?.message || 'Unable to delete employee.'); }
     finally { setBusy(false); }
   };
-  const startEdit = (row: AdminEmployee) => { setEditing(row.id); setDraft({ full_name: row.full_name, email: row.email, mobile: row.mobile, role_id: row.role_id, account_status: row.account_status, password: '' }); setError(''); setOpen(true); };
+  const startEdit = (row: AdminEmployee) => { setEditing(row.id); setDraft({ full_name: row.full_name, email: row.email, mobile: row.mobile, role_id: row.role_id, account_status: row.account_status, password: '', employer_ids: row.employer_ids }); setError(''); setOpen(true); };
+  const toggleEmployer = (id: string) => setDraft(current => ({ ...current, employer_ids: current.employer_ids.includes(id) ? current.employer_ids.filter(item => item !== id) : [...current.employer_ids, id] }));
   return <div className="p-6 space-y-5">
     <PageHeader title="Super Admin Employees" subtitle="Create web panel accounts and assign your Super Admin roles." action={<button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" onClick={() => { setEditing(undefined); setDraft(empty); setError(''); setOpen(true); }}>Add Employee</button>} />
     {notice && <p role="status" className="text-green-700">{notice}</p>}
@@ -44,7 +54,7 @@ export default function AdminEmployees() {
       {rows.map(row => <tr key={row.id}><td className="p-4 font-semibold">{row.full_name}</td><td className="p-4 text-sm">{row.email}<br />{row.mobile}</td><td className="p-4">{row.role_name}{row.role_status !== 'active' && <p className="text-red-700 text-xs">Role inactive</p>}</td><td className="p-4">{row.account_status}</td><td className="p-4"><div className="flex flex-wrap gap-3 text-sm"><button className="text-blue-700" onClick={() => setView(row)}>View</button><button className="text-blue-700" onClick={() => startEdit(row)}>Edit</button><button className="text-green-700" onClick={() => setShare({ employee: row, password: '' })}>WhatsApp Share</button><button disabled={busy} className="text-red-700" onClick={() => remove(row)}>Delete</button></div></td></tr>)}
       {!rows.length && <tr><td colSpan={5} className="p-8 text-center text-gray-500">{loading ? 'Loading employees...' : 'No Super Admin employees yet.'}</td></tr>}
     </Table></Card>
-    {open && <div className="fixed inset-0 z-[70] bg-slate-900/50 overflow-y-auto p-4"><form onSubmit={save} className="mx-auto my-6 max-w-xl rounded-2xl bg-white p-6 space-y-4">
+    {open && <div className="fixed inset-0 z-[70] bg-slate-900/50 overflow-y-auto p-4"><form onSubmit={save} className="mx-auto my-6 max-w-5xl rounded-2xl bg-white p-6 space-y-4">
       <h2 className="text-xl font-bold">{editing ? 'Edit' : 'Add'} Super Admin Employee</h2>
       {error && <p role="alert" className="text-red-700">{error}</p>}
       <label className="block">Full name<input required className="form-input mt-1" value={draft.full_name} onChange={e => setDraft({ ...draft, full_name: e.target.value })} /></label>
@@ -52,13 +62,24 @@ export default function AdminEmployees() {
       <label className="block">Mobile / WhatsApp<input required type="tel" placeholder="10-digit Indian mobile" className="form-input mt-1" value={draft.mobile} onChange={e => setDraft({ ...draft, mobile: e.target.value })} /></label>
       <label className="block">Super Admin role<select required className="form-input mt-1" value={draft.role_id} onChange={e => setDraft({ ...draft, role_id: e.target.value })}><option value="">Select a role</option>{roles.filter(row => row.status === 'active' || row.id === draft.role_id).map(row => <option key={row.id} value={row.id}>{row.name}{row.status !== 'active' ? ' (inactive — select an active role)' : ''}</option>)}</select></label>
       <p className="text-sm text-gray-500">Modules: {roles.find(row => row.id === draft.role_id)?.permissions.join(', ') || 'None selected'}</p>
+      {editing && <fieldset className="space-y-3">
+        <div><legend className="font-semibold">Assign employers</legend><p className="text-sm text-gray-500">The employee receives every selected employer's companies, limited to the Company modules enabled in the role above.</p></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {employers.map(employer => <label key={employer.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${draft.employer_ids.includes(employer.id) ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}>
+            <input type="checkbox" className="mt-1 h-4 w-4" checked={draft.employer_ids.includes(employer.id)} onChange={() => toggleEmployer(employer.id)} />
+            <span className="min-w-0"><span className="block font-medium">{employer.fullName}</span><span className="block truncate text-xs text-gray-500">{employer.email}</span><span className="mt-1 block text-xs text-gray-600">{employerCompanies[employer.id]?.join(', ') || 'No active company yet'}</span></span>
+          </label>)}
+        </div>
+        {!employers.length && <p className="text-sm text-gray-500">No active employers are available.</p>}
+        <p className="text-sm font-medium">{draft.employer_ids.length} employer{draft.employer_ids.length === 1 ? '' : 's'} selected</p>
+      </fieldset>}
       <label className="block">{editing ? 'New password (leave blank to keep current)' : 'Password'}<input type="password" autoComplete="new-password" required={!editing} minLength={12} className="form-input mt-1" value={draft.password} onChange={e => setDraft({ ...draft, password: e.target.value })} /></label>
       <p className="text-xs text-gray-500">Use at least 12 characters with uppercase, lowercase, a number, and a symbol. Saved passwords cannot be viewed. To share a new password later, set it here first.</p>
       <label className="block">Status<select className="form-input mt-1" value={draft.account_status} onChange={e => setDraft({ ...draft, account_status: e.target.value as AdminEmployee['account_status'] })}>{['active', 'inactive', 'blocked'].map(status => <option key={status} value={status}>{status}</option>)}</select></label>
       {!roles.some(row => row.status === 'active') && <p className="text-amber-700">Create an active Super Admin role first.</p>}
       <div className="flex justify-end gap-4"><button type="button" disabled={busy} onClick={() => { setOpen(false); setDraft(empty); }}>Cancel</button><button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" disabled={busy || !roles.some(row => row.id === draft.role_id && row.status === 'active')}>{busy ? 'Saving...' : 'Save Employee'}</button></div>
     </form></div>}
-    {view && <div className="fixed inset-0 z-[70] bg-slate-900/50 p-4 overflow-y-auto"><div className="mx-auto my-8 max-w-lg rounded-2xl bg-white p-6 space-y-3"><h2 className="text-xl font-bold">{view.full_name}</h2><p>{view.email}</p><p>{view.mobile}</p><p>Role: {view.role_name} ({view.role_status})</p><p>Account: {view.account_status}</p><p>Modules: {view.permissions.join(', ') || 'None'}</p><button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" onClick={() => setView(null)}>Close</button></div></div>}
+    {view && <div className="fixed inset-0 z-[70] bg-slate-900/50 p-4 overflow-y-auto"><div className="mx-auto my-8 max-w-lg rounded-2xl bg-white p-6 space-y-3"><h2 className="text-xl font-bold">{view.full_name}</h2><p>{view.email}</p><p>{view.mobile}</p><p>Role: {view.role_name} ({view.role_status})</p><p>Account: {view.account_status}</p><p>Modules: {view.permissions.join(', ') || 'None'}</p><p>Employers: {employers.filter(employer => view.employer_ids.includes(employer.id)).map(employer => employer.fullName).join(', ') || 'None assigned'}</p><button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" onClick={() => setView(null)}>Close</button></div></div>}
     {share && <div className="fixed inset-0 z-[80] bg-slate-900/50 p-4 overflow-y-auto"><div className="mx-auto my-8 max-w-lg rounded-2xl bg-white p-6 space-y-4"><h2 className="text-xl font-bold">Share employee login</h2><p>Send {share.employee.full_name} their web login link, email, and role on WhatsApp.</p><p className="text-sm text-gray-500">{share.password ? 'The password you just saved will be included in the message.' : 'The current password cannot be retrieved. Edit the employee to set a new password if you want to share it.'}</p><div className="flex gap-4"><button onClick={() => setShare(null)}>Close</button><a className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" href={employeeWhatsAppLink(share.employee, share.password)} target="_blank" rel="noopener noreferrer" onClick={() => setShare(null)}>Open WhatsApp</a></div></div></div>}
   </div>;
 }

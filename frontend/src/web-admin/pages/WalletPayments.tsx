@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDownLeft, ArrowUpRight, RefreshCw, Wallet } from 'lucide-react';
 import { PageHeader, StatTile, Table, Pill } from './_adminUi';
-import { grantEmployerWalletCredit, listAdminWallets } from '../../services/walletService';
+import { completeWalletRechargeRequest, listAdminWallets } from '../../services/walletService';
 import { getErrorMessage } from '../../services/apiErrors';
 
 const inr = (n: number) => `Rs ${Number(n || 0).toLocaleString('en-IN')}`;
@@ -11,11 +11,8 @@ const tone = (s: string) => s === 'completed' ? 'green' : s === 'pending' ? 'amb
 export default function WalletPayments() {
   const [data, setData] = useState<Awaited<ReturnType<typeof listAdminWallets>> | null>(null);
   const [filters, setFilters] = useState({ employer_id: '', guard_id: '', transaction_type: '', source: '', status: '', reference_id: '', date_from: '', date_to: '', min_amount: '', max_amount: '' });
-  const [selectedEmployerId, setSelectedEmployerId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [completingRequestId, setCompletingRequestId] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
@@ -26,7 +23,6 @@ export default function WalletPayments() {
       const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value.trim()));
       const next = await listAdminWallets(params);
       setData(next);
-      setSelectedEmployerId(current => current || next.wallets[0]?.employer_user_id || '');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to load wallet data.'));
     } finally {
@@ -38,27 +34,18 @@ export default function WalletPayments() {
     void load();
   }, []);
 
-  const selectedWallet = useMemo(
-    () => data?.wallets.find(wallet => wallet.employer_user_id === selectedEmployerId),
-    [data?.wallets, selectedEmployerId],
-  );
-
-  const grantCredit = async () => {
-    const value = Number(amount);
-    if (!selectedEmployerId || !value || value <= 0) return;
-    setBusy(true);
+  const completeRequest = async (requestId: string, amount: number, employerName: string) => {
+    setCompletingRequestId(requestId);
     setNotice('');
     setError('');
     try {
-      await grantEmployerWalletCredit(selectedEmployerId, value, remarks.trim() || undefined);
-      setAmount('');
-      setRemarks('');
-      setNotice(`Credit of ${inr(value)} added to ${selectedWallet?.employer?.full_name || 'employer'}.`);
+      await completeWalletRechargeRequest(requestId);
+      setNotice(`${inr(amount)} allocated to ${employerName}. The recharge request is completed.`);
       await load();
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to grant employer credit.'));
+      setError(getErrorMessage(err, 'Unable to complete the wallet recharge request.'));
     } finally {
-      setBusy(false);
+      setCompletingRequestId('');
     }
   };
 
@@ -74,7 +61,7 @@ export default function WalletPayments() {
   return (
     <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeader title="Wallet & Payments" subtitle="Employer recharge, Super Admin credit and debit ledger" />
+        <PageHeader title="Wallet & Payments" subtitle="Employer recharge requests, wallet allocation and debit ledger" />
         <button onClick={() => void load()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
           <RefreshCw size={16} /> Refresh
         </button>
@@ -123,22 +110,31 @@ export default function WalletPayments() {
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <Wallet size={18} style={{ color: '#0f1e3c' }} />
-          <h2 className="font-bold text-gray-900">Provide Employer Credit</h2>
+          <h2 className="font-bold text-gray-900">Wallet Recharge Requests</h2>
         </div>
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_minmax(220px,1fr)_auto]">
-          <select value={selectedEmployerId} onChange={event => setSelectedEmployerId(event.target.value)} className="form-input">
-            {data?.wallets.map(wallet => (
-              <option key={wallet.id} value={wallet.employer_user_id}>
-                {wallet.employer?.full_name || wallet.employer?.email || wallet.employer_user_id} - {inr(wallet.balance)}
-              </option>
-            ))}
-          </select>
-          <input inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value.replace(/[^\d.]/g, ''))} className="form-input" placeholder="Amount" />
-          <input value={remarks} onChange={event => setRemarks(event.target.value)} className="form-input" placeholder="Credit note" />
-          <button onClick={grantCredit} disabled={busy || !selectedEmployerId || !Number(amount)} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
-            {busy ? 'Saving...' : 'Add Credit'}
-          </button>
-        </div>
+        <Table headers={['Employer', 'Requested', 'Amount', 'Note', 'Completed', 'Status', 'Action']}>
+          {(data?.recharge_requests ?? []).map(request => {
+            const employerName = request.employer?.full_name || request.employer?.email || request.employer_user_id;
+            return (
+              <tr key={request.id} className="border-b border-gray-50 hover:bg-gray-50/60">
+                <td className="px-4 py-3.5"><div className="text-sm font-semibold text-gray-900">{employerName}</div><div className="text-xs text-gray-400">{request.employer?.email || request.employer_user_id}</div></td>
+                <td className="px-4 py-3.5 text-xs text-gray-500">{new Date(request.created_at).toLocaleString('en-IN')}</td>
+                <td className="px-4 py-3.5 text-sm font-bold text-gray-900">{inr(Number(request.amount))}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-600">{request.remarks || '--'}</td>
+                <td className="px-4 py-3.5 text-xs text-gray-500">{request.completed_at ? new Date(request.completed_at).toLocaleString('en-IN') : '--'}</td>
+                <td className="px-4 py-3.5"><Pill label={request.status} tone={tone(request.status) as any} /></td>
+                <td className="px-4 py-3.5">
+                  {request.status === 'pending' ? (
+                    <button onClick={() => void completeRequest(request.id, Number(request.amount), employerName)} disabled={!!completingRequestId} className="rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>
+                      {completingRequestId === request.id ? 'Allocating...' : 'Allocate & Complete'}
+                    </button>
+                  ) : <span className="text-xs text-green-700">Completed</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </Table>
+        {(data?.recharge_requests ?? []).length === 0 && <div className="py-8 text-center text-sm text-gray-400">No wallet recharge requests</div>}
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -194,6 +190,7 @@ export default function WalletPayments() {
 
 function sourceLabel(source?: string) {
   if (source === 'mock_gateway_recharge') return 'Mock gateway';
+  if (source === 'admin_recharge_allocation') return 'Recharge allocation';
   if (source === 'admin_credit') return 'Admin credit';
   if (source === 'job_payment') return 'Job payment';
   return source || '--';

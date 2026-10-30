@@ -17,7 +17,7 @@ export function adminEmployeeModules(path: string, method: string): string[] {
     guards: 'Associate Management', 'guard-documents': 'Associate Management',
     employers: 'Employer Management', 'company-documents': 'Employer Management',
     jobs: 'Job Management', attendance: 'Attendance',
-    hiring: 'Hiring Workflow', wallets: 'Wallet & Payments', 'email-logs': 'Email Logs',
+    hiring: 'Hiring Workflow', wallets: 'Wallet & Payments', 'wallet-recharge-requests': 'Wallet & Payments', 'email-logs': 'Email Logs',
     'associate-types': 'Associate Types', location: 'City & State Master',
   };
   // Money allocation is a separate permission even from Employer Management.

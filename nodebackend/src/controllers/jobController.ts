@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys, serializeOut, toPrismaData, parseJsonField } from '../utils/serialize';
 import { moneySchema } from '../utils/validation';
+import { salaryStructureInclude, salaryStructureInputSchema, saveJobSalaryStructure } from '../services/salaryStructureService';
 
 const OUT_JSON = ['required_skills', 'language_requirements'];
 
@@ -31,6 +33,7 @@ const jobFields = {
   experience_required: z.string().nullish(),
   qualification_required: z.string().nullish(),
   salary_amount: moneySchema('Salary amount').nullish(),
+  salary_structure: salaryStructureInputSchema.optional(),
   payment_type: z.string().nullish(),
   duty_hours: z.string().nullish(),
   shift_type: z.string().nullish(),
@@ -47,11 +50,15 @@ const jobFields = {
   status: z.string().nullish(),
 };
 
-const createSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields });
+const createSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).superRefine((data, context) => {
+  if (data.salary_amount == null && data.salary_structure == null) context.addIssue({ code: z.ZodIssueCode.custom, path: ['salary_structure'], message: 'Enter a salary structure.' });
+  if (data.salary_structure != null && data.payment_type !== 'Monthly') context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_type'], message: 'Salary structures use monthly amounts; select Monthly payment type.' });
+});
 const updateSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).partial();
 
 const companySelect = { company: { select: { id: true, companyName: true } } };
 const siteSelect = { site: { select: { id: true, siteName: true, city: true, state: true } } };
+const employerJobInclude = { ...companySelect, ...siteSelect, ...salaryStructureInclude };
 const MIN_EMPLOYER_DEPOSIT_BALANCE = 10000;
 
 async function assertActiveAssociateType(code: string) {
@@ -64,7 +71,7 @@ export async function mine(req: Request, res: Response) {
   const companyId = req.query.company_id as string | undefined;
   const jobs = await prisma.jobPost.findMany({
     where: { employerUserId: req.user!.id, ...(companyId ? { companyId } : {}) },
-    include: { ...companySelect, ...siteSelect },
+    include: employerJobInclude,
     orderBy: { createdAt: 'desc' },
   });
   return res.json(serializeOut(jobs, OUT_JSON));
@@ -93,30 +100,38 @@ export async function store(req: Request, res: Response) {
     }
   }
 
-  const job = await prisma.jobPost.create({
-    data: {
-      ...toPrismaData(data, JSON_FIELDS),
-      employerUserId: req.user!.id,
-      // Employer-created active jobs must be discoverable by associates.
-      // Draft remains available when the employer is not ready to publish.
+  const { salary_structure, ...jobData } = data;
+  const job = await prisma.$transaction(async tx => {
+    const created = await tx.jobPost.create({ data: {
+      ...toPrismaData(jobData, JSON_FIELDS), employerUserId: req.user!.id,
       status: data.status === 'draft' ? 'draft' : 'active',
-    } as never,
-    include: { ...companySelect, ...siteSelect },
+    } as never });
+    if (salary_structure) {
+      const calculated = await saveJobSalaryStructure(tx, created.id, req.user!.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure);
+      await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
+    }
+    return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
   });
   return res.status(201).json(serializeOut(job, OUT_JSON));
 }
 
 /** PATCH /employer/jobs/:job */
 export async function update(req: Request, res: Response) {
-  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
+  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job }, include: { salaryStructure: { select: { id: true } } } });
   if (!job) throw new HttpError(404, 'Not found.');
   if (job.employerUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
 
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
-  const updated = await prisma.jobPost.update({
-    where: { id: job.id },
-    data: toPrismaData(data, JSON_FIELDS) as never,
+  if (data.salary_structure && (data.payment_type ?? job.paymentType) !== 'Monthly') throw new HttpError(422, 'Salary structures use monthly amounts; select Monthly payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && data.payment_type !== 'Monthly') throw new HttpError(422, 'A structured salary must use Monthly payment type.');
+  const { salary_structure, salary_amount, ...jobData } = data;
+  if (job.salaryStructure && salary_amount != null && !new Prisma.Decimal(salary_amount).equals(job.salaryAmount ?? 0)) throw new HttpError(422, 'This job uses a salary structure. Update the structure instead of the legacy salary amount.');
+  const updated = await prisma.$transaction(async tx => {
+    let grossSalary: string | undefined;
+    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, job.employerUserId, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure)).gross_monthly;
+    await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
+    return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });
   return res.json(serializeOut(updated, OUT_JSON));
 }
@@ -177,7 +192,7 @@ export async function activeForGuard(req: Request, res: Response) {
 export async function pending(_req: Request, res: Response) {
   const jobs = await prisma.jobPost.findMany({
     where: { status: 'pending_approval' },
-    include: { ...companyName, ...siteBrief },
+    include: { ...companyName, ...siteBrief, ...salaryStructureInclude },
     orderBy: { createdAt: 'desc' },
   });
   return res.json(serializeOut(jobs, OUT_JSON));
@@ -186,7 +201,7 @@ export async function pending(_req: Request, res: Response) {
 /** GET /admin/jobs */
 export async function all(_req: Request, res: Response) {
   const jobs = await prisma.jobPost.findMany({
-    include: { ...companyName, ...siteBrief },
+    include: { ...companyName, ...siteBrief, ...salaryStructureInclude },
     orderBy: { createdAt: 'desc' },
   });
   return res.json(serializeOut(jobs, OUT_JSON));
@@ -219,22 +234,26 @@ export async function adminStore(req: Request, res: Response) {
     }
   }
 
-  const job = await prisma.jobPost.create({
-    data: {
-      ...toPrismaData(data, JSON_FIELDS),
-      employerUserId: company.employerUserId,
-      status: data.status ?? 'pending_approval',
-    } as never,
+  const { salary_structure, ...jobData } = data;
+  const job = await prisma.$transaction(async tx => {
+    const created = await tx.jobPost.create({ data: { ...toPrismaData(jobData, JSON_FIELDS), employerUserId: company.employerUserId, status: data.status ?? 'pending_approval' } as never });
+    if (salary_structure) {
+      const calculated = await saveJobSalaryStructure(tx, created.id, company.employerUserId, req.user!.id, salary_structure);
+      await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
+    }
+    return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
   });
   return res.status(201).json(serializeOut(job, OUT_JSON));
 }
 
 /** PATCH /admin/jobs/:job — edit job details from the admin manage page. */
 export async function adminUpdate(req: Request, res: Response) {
-  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job } });
+  const job = await prisma.jobPost.findUnique({ where: { id: req.params.job }, include: { salaryStructure: { select: { id: true } } } });
   if (!job) throw new HttpError(404, 'Not found.');
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
+  if (data.salary_structure && (data.payment_type ?? job.paymentType) !== 'Monthly') throw new HttpError(422, 'Salary structures use monthly amounts; select Monthly payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && data.payment_type !== 'Monthly') throw new HttpError(422, 'A structured salary must use Monthly payment type.');
   let employerUserId: string | undefined;
 
   if (data.company_id || data.site_id) {
@@ -249,9 +268,13 @@ export async function adminUpdate(req: Request, res: Response) {
     }
   }
 
-  const updated = await prisma.jobPost.update({
-    where: { id: job.id },
-    data: { ...toPrismaData(data, JSON_FIELDS), ...(employerUserId ? { employerUserId } : {}) } as never,
+  const { salary_structure, salary_amount, ...jobData } = data;
+  if (job.salaryStructure && salary_amount != null && !new Prisma.Decimal(salary_amount).equals(job.salaryAmount ?? 0)) throw new HttpError(422, 'This job uses a salary structure. Update the structure instead of the legacy salary amount.');
+  const updated = await prisma.$transaction(async tx => {
+    let grossSalary: string | undefined;
+    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, employerUserId ?? job.employerUserId, req.user!.id, salary_structure)).gross_monthly;
+    await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(employerUserId ? { employerUserId } : {}), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
+    return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });
   return res.json(serializeOut(updated, OUT_JSON));
 }

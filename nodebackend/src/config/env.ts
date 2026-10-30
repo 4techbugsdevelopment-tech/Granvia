@@ -19,6 +19,10 @@ const publicApiUrl = process.env.PUBLIC_API_URL
   ?? appUrl;
 const enabled = (value: string | undefined, defaultValue = false) =>
   value == null ? defaultValue : /^(1|true|yes|on)$/i.test(value.trim());
+const boundedInteger = (value: string | undefined, fallback: number, min: number, max: number) => {
+  const parsed = Number(value ?? fallback);
+  return Number.isInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
 
 export const env = {
   port,
@@ -52,6 +56,35 @@ export const env = {
     baseUrl: (process.env.SUREPASS_BASE_URL ?? 'https://sandbox.surepass.app').replace(/\/+$/, ''),
     bearerToken: process.env.SUREPASS_BEARER_TOKEN?.trim() ?? '',
     timeoutMs: Number(process.env.SUREPASS_TIMEOUT_MS ?? 15_000),
+  },
+  sms: {
+    enabled: enabled(process.env.SMS_ENABLED),
+    provider: (process.env.SMS_PROVIDER ?? 'mock').trim().toLowerCase(),
+    registrationOtpEnabled: enabled(process.env.SMS_REGISTRATION_OTP_ENABLED),
+    mockExposeOtp: enabled(process.env.SMS_MOCK_EXPOSE_OTP),
+    hashSecret: process.env.SMS_OTP_HASH_SECRET?.trim() ?? '',
+    otpTtlSeconds: boundedInteger(process.env.SMS_OTP_TTL_SECONDS, 300, 60, 900),
+    grantTtlSeconds: boundedInteger(process.env.SMS_OTP_GRANT_TTL_SECONDS, 600, 60, 1800),
+    resendCooldownSeconds: boundedInteger(process.env.SMS_OTP_RESEND_COOLDOWN_SECONDS, 60, 15, 300),
+    maxAttempts: boundedInteger(process.env.SMS_OTP_MAX_ATTEMPTS, 5, 1, 10),
+    maxSendsPerHour: boundedInteger(process.env.SMS_OTP_MAX_SENDS_PER_HOUR, 5, 1, 20),
+    maxRequestsPerIpPerHour: boundedInteger(process.env.SMS_OTP_MAX_REQUESTS_PER_IP_PER_HOUR, 20, 1, 200),
+    maxVerifyRequestsPerIpPer15Minutes: boundedInteger(process.env.SMS_OTP_MAX_VERIFY_REQUESTS_PER_IP_PER_15_MIN, 30, 1, 300),
+    timeoutMs: boundedInteger(process.env.SMS_TIMEOUT_MS, 10_000, 1_000, 30_000),
+    maxRetries: boundedInteger(process.env.SMS_MAX_RETRIES, 2, 0, 3),
+    retryBaseDelayMs: boundedInteger(process.env.SMS_RETRY_BASE_DELAY_MS, 250, 50, 2_000),
+    registrationOtpTemplate: process.env.SMS_TEMPLATE_REGISTRATION_OTP?.trim()
+      || 'Your Granvia verification code is {{otp}}. It expires in {{ttl_minutes}} minutes.',
+    powerText: {
+      baseUrl: (process.env.POWERTEXT_BASE_URL ?? '').trim().replace(/\/+$/, ''),
+      sendPath: process.env.POWERTEXT_SEND_PATH?.trim() ?? '',
+      httpMethod: (process.env.POWERTEXT_HTTP_METHOD ?? 'POST').trim().toUpperCase(),
+      authKey: process.env.POWERTEXT_AUTH_KEY?.trim() ?? '',
+      senderId: process.env.POWERTEXT_SENDER_ID?.trim() ?? '',
+      routeId: process.env.POWERTEXT_ROUTE_ID?.trim() ?? '',
+      dltEntityId: process.env.POWERTEXT_DLT_ENTITY_ID?.trim() ?? '',
+      otpTemplateId: process.env.POWERTEXT_OTP_TEMPLATE_ID?.trim() ?? '',
+    },
   },
   esign: {
     provider: (process.env.ESIGN_PROVIDER ?? 'unconfigured').trim().toLowerCase(),

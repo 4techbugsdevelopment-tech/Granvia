@@ -176,6 +176,43 @@ test('Company/site registers enforce company ownership even with legacy missing 
   await assert.rejects(extendedReport(db, owner, 'employer', 'sites', { company_id: id(20) }), /report scope/);
 });
 
+test('Employer Associate master is deduplicated, scoped and downloadable with workforce counts', async () => {
+  const { db, tables } = fixture();
+  Object.assign(tables.user.find(row => row.id === id(4))!, { email: 'associate@example.test', mobile: '9876543210' });
+  tables.jobApplication.push({ ...tables.jobApplication[0], id: id(301), jobId: id(101), status: 'pending' });
+  tables.jobApplication.push({ ...tables.jobApplication[0], id: id(302), jobId: id(303), employerUserId: id(304), guardUserId: id(305) });
+  tables.jobPost.push({ ...tables.jobPost[0], id: id(303), employerUserId: id(304), companyId: id(20), title: 'Foreign job' });
+  tables.user.push({ id: id(305), role: 'guard', fullName: 'Foreign Associate', accountStatus: 'active', createdAt: new Date() });
+  const result = await extendedReport(db, owner, 'employer', 'associates', {});
+  assert.ok('items' in result); assert.equal(result.pagination.total, 1); assert.equal(result.items[0].applications, 6);
+  assert.equal(result.items[0].workforce_positions, 3); assert.equal(result.items[0].mobile, '9876543210');
+  assert.ok(!JSON.stringify(result).includes('PRIVATE BANK')); assert.ok(!JSON.stringify(result).includes('Foreign Associate'));
+  const exported = await extendedReport(db, owner, 'employer', 'associates', {}, true);
+  assert.ok('csv' in exported); assert.match(exported.csv, /Associate A/);
+});
+
+test('Employer Employee master combines regular staff and Sub Admin accounts', async () => {
+  const { db, tables } = fixture();
+  tables.role.push({ id: id(320), name: 'HR Manager', permissions: '["Hiring","Attendance"]' });
+  tables.staffMember.push({ id: id(321), subAdminUserId: owner.id, roleId: id(320), name: 'Staff One', role: 'Old Role', email: 'staff@example.test', mobile: '9000000001', status: 'Active', permissions: '[]', createdAt: new Date('2026-10-12T06:00:00Z') });
+  tables.user.push({ id: id(322), role: 'sub_admin', fullName: 'Branch Admin', email: 'branch@example.test', mobile: '9000000002', accountStatus: 'active', createdAt: new Date('2026-10-12T05:00:00Z') });
+  tables.subAdminProfile.push({ id: id(323), userId: id(322), employerUserId: owner.id, branchName: 'West Branch', contactEmail: 'west@example.test', phone: '9000000003' });
+  const result = await extendedReport(db, owner, 'employer', 'employees', {});
+  assert.ok('items' in result); assert.equal(result.pagination.total, 2); assert.equal(result.summary.regular_staff, 1); assert.equal(result.summary.sub_admins, 1);
+  assert.equal(result.items[0].role, 'HR Manager'); assert.equal(result.items[0].permissions, 'Hiring; Attendance');
+  assert.ok(result.items.some(row => row.branch === 'West Branch'));
+});
+
+test('Employer Job master covers vacancies and enriched Company and Site registers', async () => {
+  const { db } = fixture();
+  const jobs = await extendedReport(db, owner, 'employer', 'jobs', {});
+  assert.ok('items' in jobs); assert.equal(jobs.pagination.total, 301); assert.equal(jobs.items[0].company, 'Company A');
+  const companies = await extendedReport(db, owner, 'employer', 'companies', {});
+  assert.ok('items' in companies); assert.equal(companies.items[0].gst, 'GST-A'); assert.equal(companies.items[0].address, 'Company address');
+  const sites = await extendedReport(db, owner, 'employer', 'sites', {});
+  assert.ok('items' in sites); assert.equal(sites.items[0].contact_person, 'Site Contact'); assert.equal(sites.items[0].code, 'SITE-A');
+});
+
 test('CSV exports complete filtered datasets, metadata and formula-safe text; oversized exports fail', async () => {
   const { db, tables } = fixture(); tables.user[0].fullName = '=HYPERLINK("bad")';
   const csv = await extendedReport(db, admin, 'super_admin', 'employer-registrations', { page_size: '1', page: '2' }, true);

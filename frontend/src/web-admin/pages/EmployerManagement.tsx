@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Building2, Edit, Eye, ExternalLink, Plus, Search, Shield, ShieldOff, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, Edit, Eye, ExternalLink, ImagePlus, Plus, Search, Shield, ShieldOff, Trash2, XCircle } from 'lucide-react';
 import { EmployerFieldKind, getInputMode, sanitizeEmployerInput } from '../../lib/inputSanitizers';
 import { Employer } from '../../lib/storage';
 import {
@@ -13,6 +13,8 @@ import {
   resetEmployerPasswordFromAdmin,
   declareEmployerAadhaar,
   reviewEmployerDocument,
+  uploadCompanyLogoFromAdmin,
+  uploadEmployerLogoFromAdmin,
 } from '../../services/adminEmployerService';
 import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
 import { usePincodeAutofill } from '../../hooks/usePincodeAutofill';
@@ -103,6 +105,7 @@ export default function EmployerManagement() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [documentBusy, setDocumentBusy] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState<string | null>(null);
 
   const { employers, companies, documents, sites, jobs, walletBalances, walletBreakdown } = data;
   const filtered = employers.filter(employer => {
@@ -208,6 +211,22 @@ export default function EmployerManagement() {
     }
   };
 
+  const uploadCompanyLogo = async (company: EmployerManagementData['companies'][number], file?: File) => {
+    if (!file) return;
+    setLogoBusy(company.id);
+    setError('');
+    setNotice('');
+    try {
+      await uploadCompanyLogoFromAdmin(company.employerId, company.id, file);
+      await reload();
+      setNotice(`${company.companyName} logo updated.`);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to upload company logo.'));
+    } finally {
+      setLogoBusy(null);
+    }
+  };
+
   return (
     <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -236,7 +255,7 @@ export default function EmployerManagement() {
           const employerSites = sites.filter(site => site.employerId === employer.id);
           return (
             <div key={employer.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employerName(employer)}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div>{statusBadge(employer.accountStatus)}</div>
+              <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employer.logo && <img src={previewUrl(employer.logo)} alt="Employer logo" className="h-11 w-11 shrink-0 rounded-full border bg-white object-contain p-0.5" />}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employerName(employer)}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div></div>{statusBadge(employer.accountStatus)}</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                 <MobileDetail label="Location" value={`${employer.city}, ${employer.state}`} />
                 <MobileDetail label="Aadhaar" value={statusBadge(employer.aadhaarVerificationStatus)} />
@@ -274,7 +293,7 @@ export default function EmployerManagement() {
                 return (
                   <tr key={employer.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{employerName(employer)}</div>
+                      <div className="flex items-center gap-2">{employer.logo && <img src={previewUrl(employer.logo)} alt="Employer logo" className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div className="font-semibold text-gray-900">{employerName(employer)}</div></div>
                       <div className="text-xs text-gray-400">{employer.id} · {employer.businessType}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
@@ -328,7 +347,7 @@ export default function EmployerManagement() {
             const owner = employers.find(employer => employer.id === company.employerId);
             const companySites = sites.filter(site => site.employerId === company.employerId && site.companyId === company.id);
             const companyJobs = jobs.filter(job => job.employerId === company.employerId && job.companyId === company.id);
-            return <div key={company.id} className="rounded-xl border border-gray-100 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-gray-900">{company.companyName}</p><p className="text-xs text-gray-500">{owner?.contactPersonName || company.employerId}</p></div>{statusBadge(company.accountStatus)}</div><div className="mt-3 grid grid-cols-2 gap-3"><MobileDetail label="Location" value={`${company.city}, ${company.state}`} /><MobileDetail label="Verification" value={statusBadge(company.verificationStatus)} /><MobileDetail label="Sites" value={String(companySites.length)} /><MobileDetail label="Jobs" value={String(companyJobs.length)} /></div></div>;
+            return <div key={company.id} className="rounded-xl border border-gray-100 p-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{company.logo ? <img src={previewUrl(company.logo)} alt={`${company.companyName} logo`} className="h-12 w-12 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><Building2 size={20}/></div>}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{company.companyName}</p><p className="text-xs text-gray-500">{owner?.contactPersonName || company.employerId}</p></div></div>{statusBadge(company.accountStatus)}</div><div className="mt-3 grid grid-cols-2 gap-3"><MobileDetail label="Location" value={`${company.city}, ${company.state}`} /><MobileDetail label="Verification" value={statusBadge(company.verificationStatus)} /><MobileDetail label="Sites" value={String(companySites.length)} /><MobileDetail label="Jobs" value={String(companyJobs.length)} /></div><label className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-blue-700"><ImagePlus size={14}/>{logoBusy === company.id ? 'Uploading...' : 'Upload Company Logo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div>;
           })}
           {companies.length === 0 && <div className="py-8 text-center text-sm text-gray-400">No companies found</div>}
         </div>
@@ -336,7 +355,7 @@ export default function EmployerManagement() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {['Company', 'Employer', 'GST / PAN', 'Location', 'Verification', 'Account', 'Sites', 'Jobs'].map(header => (
+                {['Company', 'Logo', 'Employer', 'GST / PAN', 'Location', 'Verification', 'Account', 'Sites', 'Jobs'].map(header => (
                   <th key={header} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{header}</th>
                 ))}
               </tr>
@@ -352,6 +371,7 @@ export default function EmployerManagement() {
                       <div className="font-semibold text-gray-900">{company.companyName}</div>
                       <div className="text-xs text-gray-400">{company.id} - {company.businessType}</div>
                     </td>
+                    <td className="px-4 py-3"><div className="flex items-center gap-2">{company.logo ? <img src={previewUrl(company.logo)} alt={`${company.companyName} logo`} className="h-10 w-10 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-400"><Building2 size={17}/></div>}<label className="cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-blue-700">{logoBusy === company.id ? 'Uploading...' : 'Upload'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div></td>
                     <td className="px-4 py-3 text-sm text-gray-700">{owner?.contactPersonName || company.employerId}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{company.gstNumber || '--'} / {company.panNumber || '--'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{company.city}, {company.state}</td>
@@ -376,9 +396,7 @@ export default function EmployerManagement() {
           <motion.div className="mx-auto my-3 flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:my-4 sm:max-h-[calc(100vh-2rem)]" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()}>
             <div className="flex shrink-0 items-start justify-between px-5 py-5 text-white sm:px-6" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                  <Building2 size={26} />
-                </div>
+                {selected.logo ? <img src={previewUrl(selected.logo)} alt="Employer logo" className="h-14 w-14 rounded-full border-2 border-white/60 bg-white object-contain p-0.5" /> : <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}><Building2 size={26} /></div>}
                 <div>
                   <h2 className="text-xl font-bold">{selected.companyName}</h2>
                   <p className="text-xs text-blue-200">{selected.email} · {selected.mobile}</p>
@@ -621,6 +639,10 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState(employer.logo ? previewUrl(employer.logo) : '');
+
+  useEffect(() => () => { if (logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview); }, [logoPreview]);
 
   usePincodeAutofill(form.pincode, result => {
     setForm(current => ({ ...current, city: result.city, state: result.state }));
@@ -648,6 +670,7 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
         verificationStatus: form.verificationStatus as Employer['verificationStatus'],
         profileStatus: form.companyName && form.companyAddress ? 'Complete' : 'Incomplete',
       });
+      if (logoFile) await uploadEmployerLogoFromAdmin(employer.id, logoFile);
       await onSaved();
     } catch (err) {
       const validationErrors = getValidationErrors(err);
@@ -669,6 +692,15 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
           <button onClick={onClose} className="text-white/60 hover:text-white"><XCircle size={22} /></button>
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="font-bold text-gray-900">Employer Login Branding</h3>
+            <p className="mt-1 text-xs text-gray-500">Only Super Admin can set this logo. It appears beside the Granvia logo in the authenticated Employer portal.</p>
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              {logoPreview ? <img src={logoPreview} alt="Employer logo preview" className="h-20 w-20 rounded-full border-2 border-white bg-white object-contain p-1 shadow" /> : <div className="grid h-20 w-20 place-items-center rounded-full bg-white text-slate-400 shadow"><Building2 size={28}/></div>}
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700"><ImagePlus size={17}/>Choose Employer Logo<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={event => { const file = event.target.files?.[0] ?? null; setLogoFile(file); if (file) setLogoPreview(URL.createObjectURL(file)); }}/></label>
+              <span className="text-xs text-gray-500">JPG, PNG or WebP, maximum 5 MB.</span>
+            </div>
+          </section>
           <section>
             <h3 className="font-bold text-gray-900 mb-3">Company Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

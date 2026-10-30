@@ -84,6 +84,7 @@ export type Employer = {
   isAadhaarVerified: boolean;
   aadhaarVerificationStatus: string;
   aadhaarLastFour: string;
+  logo?: string | null;
   accountStatus: AccountStatus;
   createdAt: string;
 };
@@ -102,6 +103,7 @@ export type EmployerCompany = {
   city: string;
   state: string;
   pincode: string;
+  logo?: string | null;
   verificationStatus: VerificationStatus;
   accountStatus: AccountStatus;
   createdAt: string;

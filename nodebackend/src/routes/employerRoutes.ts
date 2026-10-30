@@ -19,6 +19,7 @@ import * as agreement from '../controllers/agreementController';
 import * as payment from '../controllers/paymentController';
 import * as invoice from '../controllers/invoiceController';
 import * as wallet from '../controllers/walletController';
+import * as salary from '../controllers/salaryStructureController';
 import * as aadhaar from '../controllers/employerAadhaarController';
 import * as report from '../controllers/reportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
@@ -38,8 +39,6 @@ router.get('/employer/companies', asyncHandler(company.index));
 router.post('/employer/companies', asyncHandler(company.store));
 router.patch('/employer/companies/:company', asyncHandler(company.update));
 router.delete('/employer/companies/:company', asyncHandler(company.destroy));
-router.post('/employer/companies/:company/logo', upload.single('file'), asyncHandler(company.uploadLogo));
-
 router.get('/employer/companies/:company/sites', asyncHandler(site.index));
 router.post('/employer/sites', asyncHandler(site.store));
 router.patch('/employer/sites/:site', asyncHandler(site.update));
@@ -54,6 +53,12 @@ router.get('/employer/jobs', asyncHandler(job.mine));
 router.post('/employer/jobs', asyncHandler(job.store));
 router.patch('/employer/jobs/:job', asyncHandler(job.update));
 router.delete('/employer/jobs/:job', asyncHandler(job.destroy));
+router.get('/employer/salary-templates', asyncHandler(salary.templates));
+router.post('/employer/salary-templates', asyncHandler(salary.storeTemplate));
+router.patch('/employer/salary-templates/:template', asyncHandler(salary.updateTemplate));
+router.delete('/employer/salary-templates/:template', asyncHandler(salary.deleteTemplate));
+router.get('/employer/salary-statutory-rules', asyncHandler(salary.statutoryRules));
+router.post('/employer/salary-statutory-rules', asyncHandler(salary.saveStatutoryRule));
 
 router.get('/employer/applications', asyncHandler(application.employerIndex));
 router.patch('/employer/applications/:application/status', asyncHandler(application.updateStatus));
@@ -101,7 +106,8 @@ router.get('/employer/invoices', asyncHandler(invoice.index));
 
 router.get('/employer/wallet', asyncHandler(wallet.show));
 router.get('/employer/wallet/transactions', asyncHandler(wallet.transactions));
-router.post('/employer/wallet/recharge', asyncHandler(wallet.recharge));
+router.get('/employer/wallet/recharge-requests', asyncHandler(wallet.rechargeRequests));
+router.post('/employer/wallet/recharge-requests', asyncHandler(wallet.requestRecharge));
 
 router.get('/employer/aadhaar', asyncHandler(aadhaar.status));
 // Automated/self-service verification — gated off until the real Aadhaar API is live.

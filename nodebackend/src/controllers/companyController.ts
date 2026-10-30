@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { snakeKeys } from '../utils/serialize';
-import { storeFile, IncomingFile } from '../utils/fileStorage';
 import { assertActiveCityState } from './locationMasterController';
 import { indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema } from '../utils/validation';
 
@@ -144,33 +143,4 @@ export async function destroy(req: Request, res: Response) {
   ]);
 
   return res.json({ message: 'Company deleted successfully.' });
-}
-
-/** POST /employer/companies/:company/logo */
-export async function uploadLogo(req: Request, res: Response) {
-  await ownedCompanyOrFail(req.params.company, req.user!.id);
-  const file = req.file as IncomingFile | undefined;
-
-  if (!file) {
-    throw new HttpError(422, 'The file field is required.', {
-      errors: { file: ['The file field is required.'] },
-    });
-  }
-  if (!file.mimetype.startsWith('image/')) {
-    throw new HttpError(422, 'The file must be an image.', {
-      errors: { file: ['The file must be an image.'] },
-    });
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    throw new HttpError(422, 'The file must not be greater than 5120 kilobytes.', {
-      errors: { file: ['The file must not be greater than 5120 kilobytes.'] },
-    });
-  }
-
-  const stored = storeFile('company-logos', req.params.company, file);
-  const company = await prisma.employerCompany.update({
-    where: { id: req.params.company },
-    data: { logoUrl: stored.url },
-  });
-  return res.json(snakeKeys(company));
 }

@@ -25,7 +25,7 @@ export async function assignments(req: Request, res: Response) {
 }
 export async function options(_req: Request, res: Response) {
   const companies = await prisma.employerCompany.findMany({ select: { id: true, companyName: true, employerUserId: true, accountStatus: true }, orderBy: { companyName: 'asc' } });
-  const employers = await prisma.user.findMany({ where: { role: 'employer' }, select: { id: true, fullName: true, email: true } });
+  const employers = await prisma.user.findMany({ where: { role: 'employer', accountStatus: 'active' }, select: { id: true, fullName: true, email: true }, orderBy: { fullName: 'asc' } });
   return res.json({ companies, employers, departments: COMPANY_DEPARTMENTS });
 }
 export async function assign(req: Request, res: Response) {
@@ -52,8 +52,18 @@ export async function unassign(req: Request, res: Response) {
 }
 export async function mine(req: Request, res: Response) {
   const employee = await companyEmployee(req);
-  const rows = await prisma.adminCompanyAssignment.findMany({ where: { employeeId: employee.id, company: { accountStatus: 'active' } }, include: { company: { select: { id: true, companyName: true } } }, orderBy: { company: { companyName: 'asc' } } });
-  return res.json(rows.filter(row => effectiveDepartments(parseAdminPermissions(employee.role.permissions), [row.department]).length));
+  const permissions = parseAdminPermissions(employee.role.permissions);
+  const departments = effectiveDepartments(permissions, Object.keys(COMPANY_DEPARTMENTS));
+  const [legacyRows, employerAssignments] = await Promise.all([
+    prisma.adminCompanyAssignment.findMany({ where: { employeeId: employee.id, company: { accountStatus: 'active' } }, include: { company: { select: { id: true, companyName: true } } }, orderBy: { company: { companyName: 'asc' } } }),
+    prisma.adminEmployerAssignment.findMany({ where: { employeeId: employee.id }, select: { employerUserId: true } }),
+  ]);
+  const companies = employerAssignments.length ? await prisma.employerCompany.findMany({ where: { employerUserId: { in: employerAssignments.map(row => row.employerUserId) }, accountStatus: 'active' }, select: { id: true, companyName: true }, orderBy: { companyName: 'asc' } }) : [];
+  const rows = [
+    ...legacyRows.filter(row => effectiveDepartments(permissions, [row.department]).length),
+    ...companies.flatMap(company => departments.map(department => ({ id: `${employee.id}:${company.id}:${department}`, employeeId: employee.id, companyId: company.id, department, createdAt: null, company }))),
+  ];
+  return res.json([...new Map(rows.map(row => [`${row.companyId}:${row.department}`, row])).values()]);
 }
 export async function workspace(req: Request, res: Response) {
   const { company } = await assignedCompany(req);

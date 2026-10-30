@@ -14,6 +14,10 @@ const amountSchema = z.object({
   remarks: z.string().trim().max(500).optional(),
 });
 
+const formatInr = (value: number) => new Intl.NumberFormat('en-IN', {
+  style: 'currency', currency: 'INR', minimumFractionDigits: 2,
+}).format(value);
+
 async function ensureEmployerWallet(db: WalletTx, employerUserId: string) {
   const wallet = await db.employerWallet.findUnique({ where: { employerUserId } });
   if (wallet) return wallet;
@@ -69,9 +73,6 @@ export async function debitEmployerWalletForPayment(
     const remainingBalance = (balancePaise - amountPaise) / 100;
     const requiredBalance = requiredPaise / 100;
     const shortfall = (requiredPaise - balancePaise) / 100;
-    const formatInr = (value: number) => new Intl.NumberFormat('en-IN', {
-      style: 'currency', currency: 'INR', minimumFractionDigits: 2,
-    }).format(value);
     const message = minimumPaise > 0
       ? 'Insufficient employer wallet balance. Current balance: ' + formatInr(balance)
         + '. Attendance payment: ' + formatInr(amount)
@@ -144,46 +145,31 @@ export async function transactions(req: Request, res: Response) {
   return res.json(snakeKeys(rows));
 }
 
-export async function recharge(req: Request, res: Response) {
+export async function requestRecharge(req: Request, res: Response) {
   const data = amountSchema.parse(req.body);
-  const result = await prisma.$transaction(async (tx) => {
-    const wallet = await ensureEmployerWallet(tx, req.user!.id);
-    const updated = await tx.employerWallet.update({
-      where: { id: wallet.id },
-      data: {
-        balance: { increment: data.amount },
-        depositBalance: { increment: data.amount },
-        totalRecharged: { increment: data.amount },
-      } as never,
-    });
-    const txRow = await tx.walletTransaction.create({
-      data: {
-        walletId: wallet.id,
-        employerUserId: req.user!.id,
-        transactionType: 'credit',
-        amount: data.amount,
-        purpose: data.remarks || 'Mock payment gateway recharge',
-        source: 'mock_gateway_recharge',
-        referenceType: 'wallet_recharge',
-        referenceId: wallet.id,
-        balanceAfter: updated.balance,
-        status: 'completed',
-        postedAt: new Date(),
-        metadata: JSON.stringify({ gateway: 'mock', mode: 'temporary' }),
-      } as never,
-    });
-    return { wallet: updated, transaction: txRow };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-
-  return res.status(201).json({
-    wallet: walletSummary(result.wallet as never as Record<string, unknown>),
-    transaction: snakeKeys(result.transaction),
+  const request = await prisma.walletRechargeRequest.create({
+    data: {
+      employerUserId: req.user!.id,
+      amount: data.amount,
+      remarks: data.remarks || null,
+      status: 'pending',
+    },
   });
+  return res.status(201).json(snakeKeys(request));
+}
+
+export async function rechargeRequests(req: Request, res: Response) {
+  const requests = await prisma.walletRechargeRequest.findMany({
+    where: { employerUserId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return res.json(snakeKeys(requests));
 }
 
 export async function adminIndex(req: Request, res: Response) {
   const transactionWhere = buildWalletTransactionWhere(req.query);
-  const [employers, wallets, transactions] = await Promise.all([
+  const [employers, wallets, transactions, rechargeRequests] = await Promise.all([
     prisma.user.findMany({
       where: { role: 'employer' },
       select: { id: true, fullName: true, email: true, mobile: true },
@@ -196,6 +182,14 @@ export async function adminIndex(req: Request, res: Response) {
     prisma.walletTransaction.findMany({
       where: transactionWhere,
       orderBy: { createdAt: 'desc' },
+      take: 250,
+    }),
+    prisma.walletRechargeRequest.findMany({
+      include: {
+        employer: { select: { id: true, fullName: true, email: true, mobile: true } },
+        completedBy: { select: { id: true, fullName: true, email: true } },
+      },
+      orderBy: [{ status: 'desc' }, { createdAt: 'desc' }],
       take: 250,
     }),
   ]);
@@ -247,11 +241,86 @@ export async function adminIndex(req: Request, res: Response) {
       total_debited: summaries.reduce((sum, wallet) => sum + wallet.total_debited, 0),
     },
     wallets: snakeKeys(summaries),
+    recharge_requests: snakeKeys(rechargeRequests),
     transactions: snakeKeys(transactions.map((tx) => ({
       ...tx,
       associate: tx.guardUserId ? guardsById.get(tx.guardUserId) ?? null : null,
       job: tx.jobId ? jobsById.get(tx.jobId) ?? null : null,
     }))),
+  });
+}
+
+export async function adminCompleteRechargeRequest(req: Request, res: Response) {
+  const requestId = req.params.request;
+  const result = await prisma.$transaction(async (tx) => {
+    const rechargeRequest = await tx.walletRechargeRequest.findUnique({ where: { id: requestId } });
+    if (!rechargeRequest) throw new HttpError(404, 'Wallet recharge request not found.');
+    if (rechargeRequest.status !== 'pending') {
+      throw new HttpError(409, 'This wallet recharge request has already been completed.');
+    }
+
+    // Claim the pending request before changing the wallet. The conditional
+    // update makes allocation idempotent even if two admins click together.
+    const claimed = await tx.walletRechargeRequest.updateMany({
+      where: { id: requestId, status: 'pending' },
+      data: {
+        status: 'completed',
+        completedByUserId: req.user!.id,
+        completedAt: new Date(),
+      },
+    });
+    if (claimed.count !== 1) {
+      throw new HttpError(409, 'This wallet recharge request has already been completed.');
+    }
+
+    const amount = Number(rechargeRequest.amount);
+    const wallet = await ensureEmployerWallet(tx, rechargeRequest.employerUserId);
+    const updated = await tx.employerWallet.update({
+      where: { id: wallet.id },
+      data: {
+        balance: { increment: amount },
+        depositBalance: { increment: amount },
+        totalRecharged: { increment: amount },
+      } as never,
+    });
+    const txRow = await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        employerUserId: rechargeRequest.employerUserId,
+        transactionType: 'credit',
+        amount,
+        purpose: rechargeRequest.remarks || 'Wallet recharge allocated by Super Admin',
+        source: 'admin_recharge_allocation',
+        referenceType: 'wallet_recharge_request',
+        referenceId: rechargeRequest.id,
+        balanceAfter: updated.balance,
+        status: 'completed',
+        postedAt: new Date(),
+        metadata: JSON.stringify({
+          recharge_request_id: rechargeRequest.id,
+          admin_user_id: req.user!.id,
+        }),
+      } as never,
+    });
+    const completedRequest = await tx.walletRechargeRequest.update({
+      where: { id: rechargeRequest.id },
+      data: { walletTransactionId: txRow.id },
+    });
+    await tx.notification.create({
+      data: {
+        userId: rechargeRequest.employerUserId,
+        title: 'Wallet recharge completed',
+        message: `Your wallet recharge request of ${formatInr(amount)} has been allocated.`,
+        type: 'wallet_recharge',
+      },
+    });
+    return { request: completedRequest, wallet: updated, transaction: txRow };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  return res.json({
+    request: snakeKeys(result.request),
+    wallet: walletSummary(result.wallet as never as Record<string, unknown>),
+    transaction: snakeKeys(result.transaction),
   });
 }
 

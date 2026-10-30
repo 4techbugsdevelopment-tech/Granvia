@@ -6,8 +6,9 @@ export function assertAdminEmployeeClient() {
   const client = prisma as unknown as {
     adminEmployeeRole?: { findMany?: unknown };
     adminEmployee?: { findMany?: unknown };
+    adminEmployerAssignment?: { findMany?: unknown };
   };
-  if (typeof client.adminEmployeeRole?.findMany !== 'function' || typeof client.adminEmployee?.findMany !== 'function') {
+  if (typeof client.adminEmployeeRole?.findMany !== 'function' || typeof client.adminEmployee?.findMany !== 'function' || typeof client.adminEmployerAssignment?.findMany !== 'function') {
     throw new HttpError(503, 'Super Admin employee management needs an updated backend Prisma Client. Build the backend (npm run build), then restart the API service.');
   }
 }
@@ -20,7 +21,7 @@ export function withAdminEmployeeStorage(handler: (req: Request, res: Response) 
     catch (error) {
       const code = (error as { code?: string })?.code;
       if (code === 'P2021' || code === 'P2022') {
-        throw new HttpError(503, 'Super Admin employee management database setup is incomplete. Apply the 20261023120000_super_admin_employees and 20261026120000_admin_company_assignments migrations, then restart the API service.');
+        throw new HttpError(503, 'Super Admin employee management database setup is incomplete. Apply the 20261023120000_super_admin_employees, 20261026120000_admin_company_assignments, and 20261030120000_admin_employer_assignments migrations, then restart the API service.');
       }
       throw error;
     }

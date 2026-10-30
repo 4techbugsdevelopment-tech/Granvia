@@ -134,6 +134,7 @@ test('employee edit without password preserves hash; resetting password revokes 
   mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
     user: { update: async ({ data }: any) => { userUpdate = data; } },
     adminEmployee: { update: async () => ({}) },
+    adminEmployerAssignment: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({ count: 0 }) },
     personalAccessToken: { deleteMany: async ({ where }: any) => { assert.equal(where.tokenableId, employee.userId); revocations++; } },
   }));
   const req = request('/employees', 'PATCH', owner); req.params.employee = employeeId;
@@ -170,12 +171,13 @@ test('deleting an employee removes tokens, assignment and login in one transacti
   mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
     personalAccessToken: { deleteMany: async () => calls.push('tokens') },
     adminCompanyAssignment: { deleteMany: async () => calls.push('company-assignments') },
+    adminEmployerAssignment: { deleteMany: async () => calls.push('employer-assignments') },
     adminEmployee: { delete: async () => calls.push('assignment') },
     user: { delete: async () => calls.push('user') },
   }));
   const req = request('/employees', 'DELETE', owner); req.params.employee = employeeId;
   await controller.deleteEmployee(req, response() as unknown as Response);
-  assert.deepEqual(calls, ['tokens', 'company-assignments', 'assignment', 'user']);
+  assert.deepEqual(calls, ['tokens', 'company-assignments', 'employer-assignments', 'assignment', 'user']);
 });
 
 test('session exposes effective modules and role name without a password', async t => {
@@ -253,12 +255,39 @@ test('role CRUD retains ownership and normalizes module grants', async t => {
 
 test('employee list queries only owned assignments and public user fields', async t => {
   let query: any;
-  mockMethod(t, prisma.adminEmployee, 'findMany', async (args: any) => { query = args; return [{ ...employee, user: { fullName: 'Employee', email: 'employee@example.com', mobile: '9876543210', accountStatus: 'active' } }]; });
+  mockMethod(t, prisma.adminEmployee, 'findMany', async (args: any) => { query = args; return [{ ...employee, employerAssignments: [{ employerUserId: 'employer-1' }], user: { fullName: 'Employee', email: 'employee@example.com', mobile: '9876543210', accountStatus: 'active' } }]; });
   const res = response();
   await controller.employees(request('/employees', 'GET', owner), res as unknown as Response);
   assert.equal(query.where.ownerUserId, ownerId);
   assert.deepEqual(Object.keys(query.include.user.select).sort(), ['accountStatus', 'email', 'fullName', 'mobile']);
   assert.deepEqual(res.body[0].permissions, ['Attendance']);
+  assert.deepEqual(res.body[0].employer_ids, ['employer-1']);
+});
+
+test('employee edit replaces checked employers as one atomic assignment set', async t => {
+  const employerIds = ['10000000-0000-4000-8000-000000000010', '10000000-0000-4000-8000-000000000011'];
+  let deletedFor = ''; let created: any[] = [];
+  let legacyDeletedFor = '';
+  mockMethod(t, prisma.adminEmployee, 'findFirst', async () => employee);
+  mockMethod(t, prisma.adminEmployeeRole, 'findFirst', async () => role);
+  mockMethod(t, prisma.user, 'findFirst', async () => null);
+  mockMethod(t, prisma.user, 'count', async ({ where }: any) => {
+    assert.deepEqual(where.id.in, employerIds); assert.equal(where.role, 'employer'); assert.equal(where.accountStatus, 'active'); return employerIds.length;
+  });
+  mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
+    user: { update: async () => ({}) }, adminEmployee: { update: async () => ({}) }, personalAccessToken: { deleteMany: async () => ({ count: 0 }) },
+    adminEmployerAssignment: {
+      deleteMany: async ({ where }: any) => { deletedFor = where.employeeId; return { count: 1 }; },
+      createMany: async ({ data }: any) => { created = data; return { count: data.length }; },
+    },
+    adminCompanyAssignment: { deleteMany: async ({ where }: any) => { legacyDeletedFor = where.employeeId; return { count: 1 }; } },
+  }));
+  const req = request('/employees', 'PATCH', owner); req.params.employee = employeeId;
+  req.body = { full_name: 'Assigned Employee', email: 'employee@example.com', mobile: '9876543210', role_id: roleId, account_status: 'active', employer_ids: employerIds };
+  await controller.saveEmployee(req, response() as unknown as Response);
+  assert.equal(deletedFor, employeeId);
+  assert.equal(legacyDeletedFor, employeeId);
+  assert.deepEqual(created, employerIds.map(employerUserId => ({ employeeId, employerUserId })));
 });
 
 test('frontend menu and page guard deny unassigned modules and management screens', () => {

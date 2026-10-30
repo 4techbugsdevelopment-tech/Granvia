@@ -10,6 +10,8 @@ import { getErrorMessage } from '../../services/apiErrors';
 import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { FeedbackBanner } from './_adminUi';
+import SalaryStructurePanel, { validateSalaryDraft } from '../../components/salary/SalaryStructurePanel';
+import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../../services/salaryStructureService';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
 
@@ -47,7 +49,7 @@ function skillList(raw: unknown): string[] {
 }
 
 const EMPTY_JOB_FORM = {
-  company_id: '', site_id: '', title: '', guards_required: '1', salary_amount: '',
+  company_id: '', site_id: '', title: '', guards_required: '1',
   guard_type: '',
   payment_type: 'Monthly', shift_type: 'Day', duty_hours: '8 hours', start_date: '',
   end_date: '', description: '', status: 'pending_approval',
@@ -67,6 +69,7 @@ export default function JobApprovals() {
   const [formOpen, setFormOpen]       = useState(false);
   const [editingJob, setEditingJob]   = useState<any | null>(null);
   const [jobForm, setJobForm]         = useState({ ...EMPTY_JOB_FORM });
+  const [salaryStructure, setSalaryStructure] = useState<SalaryStructureDraft | null>(() => createDefaultSalaryStructure());
   const [formError, setFormError]     = useState('');
   const [applicantsJob, setApplicantsJob] = useState<any | null>(null);
   const [applicants, setApplicants] = useState<any[]>([]);
@@ -97,6 +100,7 @@ export default function JobApprovals() {
   const openCreate = () => {
     const companyId = companies[0]?.id ?? '';
     setEditingJob(null);
+    setSalaryStructure(createDefaultSalaryStructure());
     setJobForm({ ...EMPTY_JOB_FORM, company_id: companyId, site_id: sites.find(site => site.companyId === companyId)?.id ?? '', guard_type: associateTypes[0]?.code ?? '' });
     setFormError('');
     setFormOpen(true);
@@ -104,9 +108,10 @@ export default function JobApprovals() {
 
   const openEdit = (job: any) => {
     setEditingJob(job);
+    setSalaryStructure(salaryDraftFromRecord(job.salary_structure));
     setJobForm({
       company_id: job.employer_companies?.id ?? '', site_id: job.company_sites?.id ?? '', title: job.title ?? '',
-      guards_required: String(job.guards_required ?? 1), salary_amount: String(job.salary_amount ?? ''),
+      guards_required: String(job.guards_required ?? 1),
       guard_type: job.guard_type ?? associateTypes[0]?.code ?? '',
       payment_type: job.payment_type ?? 'Monthly', shift_type: job.shift_type ?? 'Day', duty_hours: job.duty_hours ?? '8 hours',
       start_date: job.start_date ? String(job.start_date).slice(0, 10) : '', end_date: job.end_date ? String(job.end_date).slice(0, 10) : '',
@@ -117,16 +122,21 @@ export default function JobApprovals() {
   };
 
   const saveJob = async () => {
-    if (!jobForm.company_id || !jobForm.title.trim() || !jobForm.guard_type || !jobForm.salary_amount || !jobForm.start_date) {
-      setFormError('Company, job title, associate type, salary and start date are required.');
+    if (!jobForm.company_id || !jobForm.title.trim() || !jobForm.guard_type || !jobForm.start_date) {
+      setFormError('Company, job title, associate type and start date are required.');
       return;
     }
+    const salaryError = validateSalaryDraft(salaryStructure);
+    if (!editingJob || salaryStructure) {
+      if (salaryError) { setFormError(salaryError); return; }
+    }
+    if (salaryStructure && jobForm.payment_type !== 'Monthly') { setFormError('Salary structure amounts require Monthly payment type.'); return; }
     setActing(editingJob?.id ?? 'create');
     setFormError('');
     setNotice('');
     try {
       const wasEditing = Boolean(editingJob);
-      const payload = { ...jobForm, site_id: jobForm.site_id || null, guards_required: Number(jobForm.guards_required) || 1, salary_amount: Number(jobForm.salary_amount), end_date: jobForm.end_date || null };
+      const payload = { ...jobForm, site_id: jobForm.site_id || null, guards_required: Number(jobForm.guards_required) || 1, ...(salaryStructure ? { salary_structure: salaryStructure } : {}), end_date: jobForm.end_date || null };
       if (editingJob) await updateAdminJob(editingJob.id, payload);
       else await createAdminJob(payload);
       setFormOpen(false);
@@ -333,7 +343,7 @@ export default function JobApprovals() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-sm font-bold text-green-700">
-                      ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo' : 'day'}
+                      ₹{job.salary_amount}/{job.salary_structure ? 'mo gross' : job.payment_type === 'Monthly' ? 'mo' : 'day'}
                     </span>
                     <button
                       onClick={() => toggleExpand(job.id)}
@@ -402,6 +412,17 @@ export default function JobApprovals() {
                           </div>
                         ) : null)}
                       </div>
+                      {job.salary_structure ? <div className="mb-3 rounded-xl border border-slate-200 p-3">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Salary Summary</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-5">
+                          {[
+                            ['Gross', job.salary_structure.gross_monthly], ['Deductions', job.salary_structure.deductions_monthly],
+                            ['Estimated Net', job.salary_structure.net_monthly], ['Employer Cost', job.salary_structure.employer_cost_monthly],
+                            ['Annual CTC', job.salary_structure.annual_ctc],
+                          ].map(([label, value]) => <div key={label} className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-500">{label}</span><b>₹{value}</b></div>)}
+                        </div>
+                        <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><thead><tr className="border-b text-left text-slate-500"><th className="p-1.5">Component</th><th className="p-1.5">Category</th><th className="p-1.5 text-right">Monthly</th></tr></thead><tbody>{job.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-1.5">{row.name}</td><td className="p-1.5 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-1.5 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
+                      </div> : <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Legacy gross salary ₹{job.salary_amount}; no component breakdown is stored.</div>}
                       {job.description && (
                         <p className="text-xs text-gray-500 pb-3">{job.description}</p>
                       )}
@@ -503,7 +524,7 @@ export default function JobApprovals() {
           className={editingJob ? 'fixed inset-0 z-[80] flex justify-end bg-black/35' : 'fixed inset-0 z-[80] overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6 sm:py-8'}
           onClick={editingJob ? () => setFormOpen(false) : undefined}
         >
-          <div className={editingJob ? 'h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl' : 'mx-auto min-h-full w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={event => event.stopPropagation()}>
+          <div className={editingJob ? 'h-full w-full max-w-5xl overflow-y-auto bg-white p-6 shadow-2xl' : 'mx-auto min-h-full w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'} onClick={event => event.stopPropagation()}>
             {!editingJob && (
               <button type="button" onClick={() => setFormOpen(false)} className="mb-5 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <ArrowLeft size={18} /> Back to Jobs
@@ -541,8 +562,7 @@ export default function JobApprovals() {
                   {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
                 </select>
               </label>
-              <JobField label="Salary *" value={jobForm.salary_amount} onChange={value => setJobForm(current => ({ ...current, salary_amount: value.replace(/[^\d.]/g, '') }))} />
-              <JobField label="Payment Type" value={jobForm.payment_type} onChange={value => setJobForm(current => ({ ...current, payment_type: value }))} />
+              <label><span className="form-label">Payment Type</span><select value={jobForm.payment_type} onChange={event => setJobForm(current => ({ ...current, payment_type: event.target.value }))} className="form-input">{(salaryStructure ? ['Monthly'] : ['Monthly', 'Daily', 'Contract', 'Shift-based']).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
               <JobField label="Shift" value={jobForm.shift_type} onChange={value => setJobForm(current => ({ ...current, shift_type: value }))} />
               <JobField label="Duty Hours" value={jobForm.duty_hours} onChange={value => setJobForm(current => ({ ...current, duty_hours: value }))} />
               <JobField label="Start Date *" type="date" value={jobForm.start_date} onChange={value => setJobForm(current => ({ ...current, start_date: value }))} />
@@ -554,6 +574,9 @@ export default function JobApprovals() {
                 </select>
               </label>
               <label className="sm:col-span-2"><span className="form-label">Description</span><textarea value={jobForm.description} onChange={event => setJobForm(current => ({ ...current, description: event.target.value }))} className="form-input min-h-24" /></label>
+            </div>
+            <div className="mt-6">
+              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} onChange={value => { if (!salaryStructure) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setFormOpen(false)} className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>

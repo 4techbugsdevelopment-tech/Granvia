@@ -37,6 +37,8 @@ interface MobileChromeProps {
   accent?: string;
   /** Optional element rendered on the right of the top bar (e.g. company switcher). */
   headerRight?: ReactNode;
+  /** Optional account logo shown beside Granvia in the app menu. */
+  brandLogoUrl?: string;
   children: ReactNode;
 }
 
@@ -50,6 +52,7 @@ export default function MobileChrome({
   onLogout,
   accent = '#8b1a1a',
   headerRight,
+  brandLogoUrl,
   children,
 }: MobileChromeProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -175,7 +178,7 @@ export default function MobileChrome({
             >
               <div className="flex justify-center py-3"><div className="h-1 w-10 rounded-full bg-slate-300" /></div>
               <div className="mb-4 flex items-center justify-between">
-                <div><GranviaLogo size={25} accentColor={accent} /><p className="mt-1 text-xs text-slate-500">{brandLabel} options</p></div>
+                <div><div className="flex items-center gap-2"><GranviaLogo size={32} accentColor={accent} />{brandLogoUrl && <img src={brandLogoUrl} alt="Account logo" className="h-8 w-8 rounded-full border border-slate-200 bg-white object-contain p-0.5" />}</div><p className="mt-1 text-xs text-slate-500">{brandLabel} options</p></div>
                 <button onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-500 shadow-sm"><X size={19} /></button>
               </div>
               <div className="grid grid-cols-3 gap-3">

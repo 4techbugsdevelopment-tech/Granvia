@@ -34,6 +34,8 @@ export type GuardRegistrationInput = {
   city?: string;
   state?: string;
   pincode?: string;
+  registrationSessionId?: string;
+  mobileVerificationGrant?: string;
 };
 
 function toAppSession(data: {
@@ -146,9 +148,50 @@ export async function registerGuard(input: GuardRegistrationInput) {
     city: input.city?.trim() || undefined,
     state: input.state?.trim() || undefined,
     pincode: input.pincode?.trim() || undefined,
+    registration_session_id: input.registrationSessionId,
+    mobile_verification_grant: input.mobileVerificationGrant,
   });
 
   return data;
+}
+
+export type RegistrationMobileOtpConfig = {
+  enabled: boolean;
+  otp_expires_in: number;
+  resend_cooldown: number;
+};
+
+export async function getRegistrationMobileOtpConfig() {
+  const { data } = await apiClient.get('/auth/registration/mobile-otp/config');
+  return data as RegistrationMobileOtpConfig;
+}
+
+export async function requestRegistrationMobileOtp(mobile: string, registrationSessionId?: string) {
+  const { data } = await apiClient.post('/auth/registration/mobile-otp/request', {
+    mobile: mobile.trim(),
+    registration_session_id: registrationSessionId,
+  });
+  return data as {
+    message: string;
+    registration_session_id: string;
+    masked_mobile: string;
+    expires_in: number;
+    resend_after: number;
+    dev_otp?: string;
+  };
+}
+
+export async function verifyRegistrationMobileOtp(input: { mobile: string; registrationSessionId: string; otp: string }) {
+  const { data } = await apiClient.post('/auth/registration/mobile-otp/verify', {
+    mobile: input.mobile.trim(),
+    registration_session_id: input.registrationSessionId,
+    otp: input.otp.trim(),
+  });
+  return data as {
+    message: string;
+    mobile_verification_grant: string;
+    grant_expires_in: number;
+  };
 }
 
 export async function resendEmailVerification(email: string) {

@@ -33,56 +33,76 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  employerProfile EmployerProfile?
-  guardProfile    GuardProfile?
-  subAdminProfile SubAdminProfile?
-  employerWallet  EmployerWallet?
-  associateWallet AssociateWallet?
-  associatePartnerAgreements AssociatePartnerAgreement[]
-  adminEmployee AdminEmployee?
+  employerProfile                 EmployerProfile?
+  guardProfile                    GuardProfile?
+  subAdminProfile                 SubAdminProfile?
+  employerWallet                  EmployerWallet?
+  walletRechargeRequests          WalletRechargeRequest[]     @relation("EmployerWalletRechargeRequests")
+  completedWalletRechargeRequests WalletRechargeRequest[]     @relation("CompletedWalletRechargeRequests")
+  associateWallet                 AssociateWallet?
+  associatePartnerAgreements      AssociatePartnerAgreement[]
+  adminEmployee                   AdminEmployee?
+  adminEmployerAssignments        AdminEmployerAssignment[]   @relation("AssignedAdminEmployers")
+  salaryTemplates                 SalaryStructureTemplate[]   @relation("SalaryTemplateOwner")
+  salaryStatutoryRules            SalaryStatutoryRule[]       @relation("SalaryRuleOwner")
 
   @@index([role])
   @@map("users")
 }
 
 model AdminEmployeeRole {
-  id String @id @default(uuid()) @db.NVarChar(36)
-  ownerUserId String @map("owner_user_id") @db.NVarChar(36)
-  name String @db.NVarChar(150)
-  description String? @db.NVarChar(Max)
-  permissions String @db.NVarChar(Max)
-  status String @default("active") @db.NVarChar(20)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  employees AdminEmployee[]
+  id          String          @id @default(uuid()) @db.NVarChar(36)
+  ownerUserId String          @map("owner_user_id") @db.NVarChar(36)
+  name        String          @db.NVarChar(150)
+  description String?         @db.NVarChar(Max)
+  permissions String          @db.NVarChar(Max)
+  status      String          @default("active") @db.NVarChar(20)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at")
+  employees   AdminEmployee[]
 
   @@unique([ownerUserId, name])
   @@map("admin_employee_roles")
 }
 
 model AdminEmployee {
-  id String @id @default(uuid()) @db.NVarChar(36)
-  userId String @unique @map("user_id") @db.NVarChar(36)
-  ownerUserId String @map("owner_user_id") @db.NVarChar(36)
-  roleId String @map("role_id") @db.NVarChar(36)
-  createdAt DateTime @default(now()) @map("created_at")
-  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  role AdminEmployeeRole @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  companyAssignments AdminCompanyAssignment[]
+  id                  String                    @id @default(uuid()) @db.NVarChar(36)
+  userId              String                    @unique @map("user_id") @db.NVarChar(36)
+  ownerUserId         String                    @map("owner_user_id") @db.NVarChar(36)
+  roleId              String                    @map("role_id") @db.NVarChar(36)
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  user                User                      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role                AdminEmployeeRole         @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyAssignments  AdminCompanyAssignment[]
+  employerAssignments AdminEmployerAssignment[]
 
   @@index([ownerUserId])
   @@index([roleId])
   @@map("admin_employees")
 }
 
+model AdminEmployerAssignment {
+  id             String        @id @default(uuid()) @db.NVarChar(36)
+  employeeId     String        @map("employee_id") @db.NVarChar(36)
+  employerUserId String        @map("employer_user_id") @db.NVarChar(36)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  employee       AdminEmployee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employer       User          @relation("AssignedAdminEmployers", fields: [employerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([employeeId, employerUserId])
+  @@index([employerUserId])
+  @@map("admin_employer_assignments")
+}
+
 model AdminCompanyAssignment {
-  id String @id @default(uuid()) @db.NVarChar(36)
-  employeeId String @map("employee_id") @db.NVarChar(36)
-  companyId String @map("company_id") @db.NVarChar(36)
-  department String @db.NVarChar(30)
-  createdAt DateTime @default(now()) @map("created_at")
-  employee AdminEmployee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  company EmployerCompany @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id         String          @id @default(uuid()) @db.NVarChar(36)
+  employeeId String          @map("employee_id") @db.NVarChar(36)
+  companyId  String          @map("company_id") @db.NVarChar(36)
+  department String          @db.NVarChar(30)
+  createdAt  DateTime        @default(now()) @map("created_at")
+  employee   AdminEmployee   @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company    EmployerCompany @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
   @@unique([employeeId, companyId, department])
   @@index([companyId])
   @@map("admin_company_assignments")
@@ -95,11 +115,11 @@ model Role {
   description     String?  @db.NVarChar(Max)
   permissions     String?  @db.NVarChar(Max)
   status          String   @default("active")
-  createdByUserId String? @map("created_by_user_id") @db.NVarChar(36)
+  createdByUserId String?  @map("created_by_user_id") @db.NVarChar(36)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
-  staffMembers    StaffMember[]
+  staffMembers StaffMember[]
 
   @@index([status])
   @@map("roles")
@@ -129,22 +149,22 @@ model StateMaster {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
-  cities          CityMaster[]
+  cities CityMaster[]
 
   @@index([status])
   @@map("state_masters")
 }
 
 model CityMaster {
-  id              String      @id @default(uuid()) @db.NVarChar(36)
-  stateId         String      @map("state_id") @db.NVarChar(36)
-  name            String      @db.NVarChar(150)
-  status          String      @default("active")
-  createdByUserId String?     @map("created_by_user_id") @db.NVarChar(36)
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at")
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  stateId         String   @map("state_id") @db.NVarChar(36)
+  name            String   @db.NVarChar(150)
+  status          String   @default("active")
+  createdByUserId String?  @map("created_by_user_id") @db.NVarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
-  state           StateMaster @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  state StateMaster @relation(fields: [stateId], references: [id], onDelete: Cascade)
 
   @@unique([stateId, name])
   @@index([status])
@@ -184,6 +204,7 @@ model EmployerProfile {
   city                      String?
   state                     String?
   pincode                   String?
+  logoUrl                   String?   @map("logo_url")
   isAadhaarVerified         Boolean   @default(false) @map("is_aadhaar_verified")
   aadhaarVerificationStatus String    @default("pending") @map("aadhaar_verification_status")
   aadhaarVerifiedAt         DateTime? @map("aadhaar_verified_at")
@@ -243,30 +264,30 @@ model GuardProfile {
 }
 
 model EmployerCompany {
-  adminAssignments AdminCompanyAssignment[]
-  id                 String   @id @default(uuid()) @db.NVarChar(36)
-  employerUserId     String   @map("employer_user_id") @db.NVarChar(36)
-  companyName        String   @map("company_name")
-  businessType       String?  @map("business_type")
-  registrationType   String?  @map("registration_type")
-  gstNumber          String?  @map("gst_number")
-  panNumber          String?  @map("pan_number")
-  companyEmail       String?  @map("company_email")
-  companyPhone       String?  @map("company_phone")
+  adminAssignments   AdminCompanyAssignment[]
+  id                 String                   @id @default(uuid()) @db.NVarChar(36)
+  employerUserId     String                   @map("employer_user_id") @db.NVarChar(36)
+  companyName        String                   @map("company_name")
+  businessType       String?                  @map("business_type")
+  registrationType   String?                  @map("registration_type")
+  gstNumber          String?                  @map("gst_number")
+  panNumber          String?                  @map("pan_number")
+  companyEmail       String?                  @map("company_email")
+  companyPhone       String?                  @map("company_phone")
   website            String?
-  logoUrl            String?  @map("logo_url")
-  description        String?  @db.NVarChar(Max)
-  registeredAddress  String?  @map("registered_address")
-  billingAddress     String?  @map("billing_address")
+  logoUrl            String?                  @map("logo_url")
+  description        String?                  @db.NVarChar(Max)
+  registeredAddress  String?                  @map("registered_address")
+  billingAddress     String?                  @map("billing_address")
   city               String?
   state              String?
   pincode            String?
-  verificationStatus String   @default("pending") @map("verification_status")
-  accountStatus      String   @default("active") @map("account_status")
-  adminRemarks       String?  @map("admin_remarks") @db.NVarChar(Max)
-  rejectionReason    String?  @map("rejection_reason") @db.NVarChar(Max)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+  verificationStatus String                   @default("pending") @map("verification_status")
+  accountStatus      String                   @default("active") @map("account_status")
+  adminRemarks       String?                  @map("admin_remarks") @db.NVarChar(Max)
+  rejectionReason    String?                  @map("rejection_reason") @db.NVarChar(Max)
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at")
 
   jobPosts JobPost[]
 
@@ -373,15 +394,17 @@ model JobPost {
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  company           EmployerCompany?   @relation(fields: [companyId], references: [id])
-  site              CompanySite?       @relation(fields: [siteId], references: [id])
-  applications      JobApplication[]
-  attendanceRecords AttendanceRecord[]
-  interviewRequests InterviewRequest[]
-  jobOffers         JobOffer[]
-  agreements        Agreement[]
-  payments          Payment[]
+  company                     EmployerCompany?             @relation(fields: [companyId], references: [id])
+  site                        CompanySite?                 @relation(fields: [siteId], references: [id])
+  applications                JobApplication[]
+  attendanceRecords           AttendanceRecord[]
+  interviewRequests           InterviewRequest[]
+  jobOffers                   JobOffer[]
+  agreements                  Agreement[]
+  payments                    Payment[]
   attendanceExceptionRequests AttendanceExceptionRequest[]
+  salaryStructure             JobSalaryStructure?
+  salaryAuditEvents           JobSalaryAuditEvent[]
 
   @@index([employerUserId])
   @@index([companyId])
@@ -389,22 +412,136 @@ model JobPost {
   @@map("job_posts")
 }
 
+model JobSalaryStructure {
+  id                           String               @id @default(uuid()) @db.NVarChar(36)
+  jobId                        String               @unique @map("job_id") @db.NVarChar(36)
+  grossMonthly                 Decimal              @map("gross_monthly") @db.Decimal(12, 2)
+  deductionsMonthly            Decimal              @map("deductions_monthly") @db.Decimal(12, 2)
+  netMonthly                   Decimal              @map("net_monthly") @db.Decimal(12, 2)
+  employerContributionsMonthly Decimal              @map("employer_contributions_monthly") @db.Decimal(12, 2)
+  employerCostMonthly          Decimal              @map("employer_cost_monthly") @db.Decimal(12, 2)
+  annualCtc                    Decimal              @map("annual_ctc") @db.Decimal(14, 2)
+  calculationVersion           Int                  @default(1) @map("calculation_version")
+  createdAt                    DateTime             @default(now()) @map("created_at")
+  updatedAt                    DateTime             @default(now()) @updatedAt @map("updated_at")
+  job                          JobPost              @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  components                   JobSalaryComponent[]
+
+  @@map("job_salary_structures")
+}
+
+model JobSalaryComponent {
+  id                    String             @id @default(uuid()) @db.NVarChar(36)
+  structureId           String             @map("structure_id") @db.NVarChar(36)
+  code                  String             @db.NVarChar(80)
+  name                  String             @db.NVarChar(150)
+  category              String             @db.NVarChar(30)
+  calculationType       String             @map("calculation_type") @db.NVarChar(20)
+  fixedAmount           Decimal?           @map("fixed_amount") @db.Decimal(12, 2)
+  percentage            Decimal?           @db.Decimal(7, 4)
+  percentageBasis       String?            @map("percentage_basis") @db.NVarChar(40)
+  monthlyAmount         Decimal            @map("monthly_amount") @db.Decimal(12, 2)
+  enabled               Boolean            @default(true)
+  classification        String             @default("optional") @db.NVarChar(20)
+  statutoryCode         String?            @map("statutory_code") @db.NVarChar(50)
+  applicabilityMinGross Decimal?           @map("applicability_min_gross") @db.Decimal(12, 2)
+  applicabilityMaxGross Decimal?           @map("applicability_max_gross") @db.Decimal(12, 2)
+  monthlyCap            Decimal?           @map("monthly_cap") @db.Decimal(12, 2)
+  isCustom              Boolean            @default(false) @map("is_custom")
+  sortOrder             Int                @default(0) @map("sort_order")
+  structure             JobSalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([structureId, code])
+  @@map("job_salary_components")
+}
+
+model SalaryStructureTemplate {
+  id             String                    @id @default(uuid()) @db.NVarChar(36)
+  employerUserId String                    @map("employer_user_id") @db.NVarChar(36)
+  name           String                    @db.NVarChar(150)
+  description    String?                   @db.NVarChar(500)
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @default(now()) @updatedAt @map("updated_at")
+  employer       User                      @relation("SalaryTemplateOwner", fields: [employerUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  components     SalaryTemplateComponent[]
+
+  @@unique([employerUserId, name])
+  @@map("salary_structure_templates")
+}
+
+model SalaryTemplateComponent {
+  id                    String                  @id @default(uuid()) @db.NVarChar(36)
+  templateId            String                  @map("template_id") @db.NVarChar(36)
+  code                  String                  @db.NVarChar(80)
+  name                  String                  @db.NVarChar(150)
+  category              String                  @db.NVarChar(30)
+  calculationType       String                  @map("calculation_type") @db.NVarChar(20)
+  fixedAmount           Decimal?                @map("fixed_amount") @db.Decimal(12, 2)
+  percentage            Decimal?                @db.Decimal(7, 4)
+  percentageBasis       String?                 @map("percentage_basis") @db.NVarChar(40)
+  enabled               Boolean                 @default(true)
+  classification        String                  @default("optional") @db.NVarChar(20)
+  statutoryCode         String?                 @map("statutory_code") @db.NVarChar(50)
+  applicabilityMinGross Decimal?                @map("applicability_min_gross") @db.Decimal(12, 2)
+  applicabilityMaxGross Decimal?                @map("applicability_max_gross") @db.Decimal(12, 2)
+  monthlyCap            Decimal?                @map("monthly_cap") @db.Decimal(12, 2)
+  isCustom              Boolean                 @default(false) @map("is_custom")
+  sortOrder             Int                     @default(0) @map("sort_order")
+  template              SalaryStructureTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([templateId, code])
+  @@map("salary_template_components")
+}
+
+model SalaryStatutoryRule {
+  id                    String   @id @default(uuid()) @db.NVarChar(36)
+  employerUserId        String   @map("employer_user_id") @db.NVarChar(36)
+  code                  String   @db.NVarChar(50)
+  name                  String   @db.NVarChar(150)
+  category              String   @db.NVarChar(30)
+  percentage            Decimal? @db.Decimal(7, 4)
+  percentageBasis       String?  @map("percentage_basis") @db.NVarChar(40)
+  applicabilityMinGross Decimal? @map("applicability_min_gross") @db.Decimal(12, 2)
+  applicabilityMaxGross Decimal? @map("applicability_max_gross") @db.Decimal(12, 2)
+  monthlyCap            Decimal? @map("monthly_cap") @db.Decimal(12, 2)
+  enabled               Boolean  @default(true)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+  employer              User     @relation("SalaryRuleOwner", fields: [employerUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([employerUserId, code])
+  @@map("salary_statutory_rules")
+}
+
+model JobSalaryAuditEvent {
+  id          String   @id @default(uuid()) @db.NVarChar(36)
+  jobId       String   @map("job_id") @db.NVarChar(36)
+  actorUserId String   @map("actor_user_id") @db.NVarChar(36)
+  action      String   @db.NVarChar(40)
+  snapshot    String   @db.NVarChar(Max)
+  createdAt   DateTime @default(now()) @map("created_at")
+  job         JobPost  @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([jobId, createdAt])
+  @@map("job_salary_audit_events")
+}
+
 model JobApplication {
-  releaseAttachments String? @map("release_attachments") @db.NVarChar(Max)
-  id             String    @id @default(uuid()) @db.NVarChar(36)
-  jobId          String    @map("job_id") @db.NVarChar(36)
-  guardUserId    String    @map("guard_user_id") @db.NVarChar(36)
-  employerUserId String?   @map("employer_user_id") @db.NVarChar(36)
-  companyId      String?   @map("company_id") @db.NVarChar(36)
-  siteId         String?   @map("site_id") @db.NVarChar(36)
-  coverNote      String?   @map("cover_note") @db.NVarChar(Max)
-  status         String    @default("pending")
-  appliedAt      DateTime  @default(now()) @map("applied_at")
-  reviewedAt     DateTime? @map("reviewed_at")
-  reviewedBy     String?   @map("reviewed_by") @db.NVarChar(36)
-  notes          String?   @db.NVarChar(Max)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  releaseAttachments String?   @map("release_attachments") @db.NVarChar(Max)
+  id                 String    @id @default(uuid()) @db.NVarChar(36)
+  jobId              String    @map("job_id") @db.NVarChar(36)
+  guardUserId        String    @map("guard_user_id") @db.NVarChar(36)
+  employerUserId     String?   @map("employer_user_id") @db.NVarChar(36)
+  companyId          String?   @map("company_id") @db.NVarChar(36)
+  siteId             String?   @map("site_id") @db.NVarChar(36)
+  coverNote          String?   @map("cover_note") @db.NVarChar(Max)
+  status             String    @default("pending")
+  appliedAt          DateTime  @default(now()) @map("applied_at")
+  reviewedAt         DateTime? @map("reviewed_at")
+  reviewedBy         String?   @map("reviewed_by") @db.NVarChar(36)
+  notes              String?   @db.NVarChar(Max)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
 
   job JobPost @relation(fields: [jobId], references: [id])
 
@@ -472,24 +609,24 @@ model JobOffer {
 }
 
 model Agreement {
-  id                          String    @id @default(uuid()) @db.NVarChar(36)
-  offerId                     String?   @map("offer_id") @db.NVarChar(36)
-  jobId                       String?   @map("job_id") @db.NVarChar(36)
-  guardUserId                 String?   @map("guard_user_id") @db.NVarChar(36)
-  employerUserId              String?   @map("employer_user_id") @db.NVarChar(36)
-  siteId                      String?   @map("site_id") @db.NVarChar(36)
-  agreementNumber             String    @unique @map("agreement_number") @db.NVarChar(255)
-  title                       String
-  terms                       String?   @db.NVarChar(Max)
-  effectiveFrom               DateTime? @map("effective_from") @db.Date
-  effectiveUntil              DateTime? @map("effective_until") @db.Date
-  signedAt                    DateTime? @map("signed_at")
-  status                      String    @default("draft")
-  employerConfirmationStatus  String    @default("pending") @map("employer_confirmation_status")
-  guardConfirmationStatus     String    @default("pending") @map("guard_confirmation_status")
-  platformConfirmationStatus  String    @default("pending") @map("platform_confirmation_status")
-  createdAt                   DateTime  @default(now()) @map("created_at")
-  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at")
+  id                         String    @id @default(uuid()) @db.NVarChar(36)
+  offerId                    String?   @map("offer_id") @db.NVarChar(36)
+  jobId                      String?   @map("job_id") @db.NVarChar(36)
+  guardUserId                String?   @map("guard_user_id") @db.NVarChar(36)
+  employerUserId             String?   @map("employer_user_id") @db.NVarChar(36)
+  siteId                     String?   @map("site_id") @db.NVarChar(36)
+  agreementNumber            String    @unique @map("agreement_number") @db.NVarChar(255)
+  title                      String
+  terms                      String?   @db.NVarChar(Max)
+  effectiveFrom              DateTime? @map("effective_from") @db.Date
+  effectiveUntil             DateTime? @map("effective_until") @db.Date
+  signedAt                   DateTime? @map("signed_at")
+  status                     String    @default("draft")
+  employerConfirmationStatus String    @default("pending") @map("employer_confirmation_status")
+  guardConfirmationStatus    String    @default("pending") @map("guard_confirmation_status")
+  platformConfirmationStatus String    @default("pending") @map("platform_confirmation_status")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at")
 
   job JobPost? @relation(fields: [jobId], references: [id])
 
@@ -498,30 +635,30 @@ model Agreement {
 }
 
 model AttendanceRecord {
-  id             String    @id @default(uuid()) @db.NVarChar(36)
-  guardUserId    String    @map("guard_user_id") @db.NVarChar(36)
-  employerUserId String?   @map("employer_user_id") @db.NVarChar(36)
-  companyId      String?   @map("company_id") @db.NVarChar(36)
-  jobId          String?   @map("job_id") @db.NVarChar(36)
-  siteId         String?   @map("site_id") @db.NVarChar(36)
-  attendanceDate DateTime  @map("attendance_date") @db.Date
-  inTime         DateTime? @map("in_time")
-  outTime        DateTime? @map("out_time")
-  scheduledOutTime DateTime? @map("scheduled_out_time")
-  totalHours     Decimal?  @map("total_hours") @db.Decimal(6, 2)
-  checkInLatitude  Decimal? @map("check_in_latitude") @db.Decimal(10, 6)
-  checkInLongitude Decimal? @map("check_in_longitude") @db.Decimal(10, 6)
-  checkInLocationName String? @map("check_in_location_name") @db.NVarChar(500)
-  checkOutLatitude  Decimal? @map("check_out_latitude") @db.Decimal(10, 6)
-  checkOutLongitude Decimal? @map("check_out_longitude") @db.Decimal(10, 6)
-  checkOutLocationName String? @map("check_out_location_name") @db.NVarChar(500)
-  entryMode      String    @default("live") @map("entry_mode")
-  checkoutMethod String?   @map("checkout_method")
-  status         String    @default("pending_verification")
-  employerRemarks String?  @map("employer_remarks") @db.NVarChar(Max)
-  guardRemarks   String?   @map("guard_remarks") @db.NVarChar(Max)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid()) @db.NVarChar(36)
+  guardUserId          String    @map("guard_user_id") @db.NVarChar(36)
+  employerUserId       String?   @map("employer_user_id") @db.NVarChar(36)
+  companyId            String?   @map("company_id") @db.NVarChar(36)
+  jobId                String?   @map("job_id") @db.NVarChar(36)
+  siteId               String?   @map("site_id") @db.NVarChar(36)
+  attendanceDate       DateTime  @map("attendance_date") @db.Date
+  inTime               DateTime? @map("in_time")
+  outTime              DateTime? @map("out_time")
+  scheduledOutTime     DateTime? @map("scheduled_out_time")
+  totalHours           Decimal?  @map("total_hours") @db.Decimal(6, 2)
+  checkInLatitude      Decimal?  @map("check_in_latitude") @db.Decimal(10, 6)
+  checkInLongitude     Decimal?  @map("check_in_longitude") @db.Decimal(10, 6)
+  checkInLocationName  String?   @map("check_in_location_name") @db.NVarChar(500)
+  checkOutLatitude     Decimal?  @map("check_out_latitude") @db.Decimal(10, 6)
+  checkOutLongitude    Decimal?  @map("check_out_longitude") @db.Decimal(10, 6)
+  checkOutLocationName String?   @map("check_out_location_name") @db.NVarChar(500)
+  entryMode            String    @default("live") @map("entry_mode")
+  checkoutMethod       String?   @map("checkout_method")
+  status               String    @default("pending_verification")
+  employerRemarks      String?   @map("employer_remarks") @db.NVarChar(Max)
+  guardRemarks         String?   @map("guard_remarks") @db.NVarChar(Max)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
 
   job JobPost? @relation(fields: [jobId], references: [id])
 
@@ -556,29 +693,29 @@ model AttendanceLocationAttempt {
 }
 
 model AttendanceExceptionRequest {
-  id                  String    @id @default(uuid()) @db.NVarChar(36)
-  guardUserId          String    @map("guard_user_id") @db.NVarChar(36)
-  employerUserId       String?   @map("employer_user_id") @db.NVarChar(36)
-  companyId            String?   @map("company_id") @db.NVarChar(36)
-  jobId                String    @map("job_id") @db.NVarChar(36)
-  siteId               String?   @map("site_id") @db.NVarChar(36)
-  attendanceRecordId   String?   @map("attendance_record_id") @db.NVarChar(36)
-  requestType          String    @map("request_type") @db.NVarChar(30)
-  status               String    @default("pending") @db.NVarChar(30)
-  message              String    @db.NVarChar(Max)
-  employerRemarks      String?   @map("employer_remarks") @db.NVarChar(Max)
-  deviceLatitude       Decimal?  @map("device_latitude") @db.Decimal(10, 6)
-  deviceLongitude      Decimal?  @map("device_longitude") @db.Decimal(10, 6)
-  deviceLocationName   String?   @map("device_location_name") @db.NVarChar(500)
-  siteLatitude         Decimal?  @map("site_latitude") @db.Decimal(10, 6)
-  siteLongitude        Decimal?  @map("site_longitude") @db.Decimal(10, 6)
-  distanceMeters       Decimal?  @map("distance_meters") @db.Decimal(10, 2)
-  radiusMeters         Int?      @map("radius_meters")
-  failureReason        String?   @map("failure_reason") @db.NVarChar(Max)
-  decidedAt            DateTime? @map("decided_at")
-  decidedBy            String?   @map("decided_by") @db.NVarChar(36)
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid()) @db.NVarChar(36)
+  guardUserId        String    @map("guard_user_id") @db.NVarChar(36)
+  employerUserId     String?   @map("employer_user_id") @db.NVarChar(36)
+  companyId          String?   @map("company_id") @db.NVarChar(36)
+  jobId              String    @map("job_id") @db.NVarChar(36)
+  siteId             String?   @map("site_id") @db.NVarChar(36)
+  attendanceRecordId String?   @map("attendance_record_id") @db.NVarChar(36)
+  requestType        String    @map("request_type") @db.NVarChar(30)
+  status             String    @default("pending") @db.NVarChar(30)
+  message            String    @db.NVarChar(Max)
+  employerRemarks    String?   @map("employer_remarks") @db.NVarChar(Max)
+  deviceLatitude     Decimal?  @map("device_latitude") @db.Decimal(10, 6)
+  deviceLongitude    Decimal?  @map("device_longitude") @db.Decimal(10, 6)
+  deviceLocationName String?   @map("device_location_name") @db.NVarChar(500)
+  siteLatitude       Decimal?  @map("site_latitude") @db.Decimal(10, 6)
+  siteLongitude      Decimal?  @map("site_longitude") @db.Decimal(10, 6)
+  distanceMeters     Decimal?  @map("distance_meters") @db.Decimal(10, 2)
+  radiusMeters       Int?      @map("radius_meters")
+  failureReason      String?   @map("failure_reason") @db.NVarChar(Max)
+  decidedAt          DateTime? @map("decided_at")
+  decidedBy          String?   @map("decided_by") @db.NVarChar(36)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
 
   job JobPost @relation(fields: [jobId], references: [id])
 
@@ -625,22 +762,43 @@ model AttendanceAuditEvent {
 }
 
 model EmployerWallet {
-  id              String   @id @default(uuid()) @db.NVarChar(36)
-  employerUserId  String   @unique @map("employer_user_id") @db.NVarChar(36)
-  balance         Decimal  @default(0) @db.Decimal(12, 2)
-  depositBalance  Decimal  @default(0) @map("deposit_balance") @db.Decimal(12, 2)
-  creditBalance   Decimal  @default(0) @map("credit_balance") @db.Decimal(12, 2)
-  totalRecharged  Decimal  @default(0) @map("total_recharged") @db.Decimal(12, 2)
-  totalCredited   Decimal  @default(0) @map("total_credited") @db.Decimal(12, 2)
-  totalDebited    Decimal  @default(0) @map("total_debited") @db.Decimal(12, 2)
-  currency        String   @default("INR")
-  status          String   @default("active")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.NVarChar(36)
+  employerUserId String   @unique @map("employer_user_id") @db.NVarChar(36)
+  balance        Decimal  @default(0) @db.Decimal(12, 2)
+  depositBalance Decimal  @default(0) @map("deposit_balance") @db.Decimal(12, 2)
+  creditBalance  Decimal  @default(0) @map("credit_balance") @db.Decimal(12, 2)
+  totalRecharged Decimal  @default(0) @map("total_recharged") @db.Decimal(12, 2)
+  totalCredited  Decimal  @default(0) @map("total_credited") @db.Decimal(12, 2)
+  totalDebited   Decimal  @default(0) @map("total_debited") @db.Decimal(12, 2)
+  currency       String   @default("INR")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [employerUserId], references: [id], onDelete: Cascade)
 
   @@map("employer_wallets")
+}
+
+model WalletRechargeRequest {
+  id                  String    @id @default(uuid()) @db.NVarChar(36)
+  employerUserId      String    @map("employer_user_id") @db.NVarChar(36)
+  amount              Decimal   @db.Decimal(12, 2)
+  remarks             String?   @db.NVarChar(500)
+  status              String    @default("pending") @db.NVarChar(20)
+  completedByUserId   String?   @map("completed_by_user_id") @db.NVarChar(36)
+  completedAt         DateTime? @map("completed_at")
+  walletTransactionId String?   @map("wallet_transaction_id") @db.NVarChar(36)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  employer    User  @relation("EmployerWalletRechargeRequests", fields: [employerUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  completedBy User? @relation("CompletedWalletRechargeRequests", fields: [completedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([employerUserId, createdAt])
+  @@index([status, createdAt])
+  @@index([completedByUserId])
+  @@map("wallet_recharge_requests")
 }
 
 model Payment {
@@ -812,23 +970,23 @@ model AssociateWalletTransaction {
 }
 
 model WithdrawalRequest {
-  id                 String    @id @default(uuid()) @db.NVarChar(36)
-  guardUserId        String    @map("guard_user_id") @db.NVarChar(36)
-  walletId           String    @map("wallet_id") @db.NVarChar(36)
-  amount             Decimal   @db.Decimal(12, 2)
-  feeAmount          Decimal   @default(0) @map("fee_amount") @db.Decimal(12, 2)
-  netAmount          Decimal   @map("net_amount") @db.Decimal(12, 2)
-  status             String    @default("requested") @db.NVarChar(30)
-  rejectionReason    String?   @map("rejection_reason") @db.NVarChar(Max)
-  reviewedByUserId   String?   @map("reviewed_by_user_id") @db.NVarChar(36)
-  reviewedAt         DateTime? @map("reviewed_at")
-  gatewayProvider    String?   @map("gateway_provider") @db.NVarChar(100)
-  gatewayReference   String?   @map("gateway_reference") @db.NVarChar(255)
-  gatewayStatus      String?   @map("gateway_status") @db.NVarChar(80)
-  gatewayResponse    String?   @map("gateway_response") @db.NVarChar(Max)
-  idempotencyKey     String    @unique @map("idempotency_key") @db.NVarChar(100)
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  id               String    @id @default(uuid()) @db.NVarChar(36)
+  guardUserId      String    @map("guard_user_id") @db.NVarChar(36)
+  walletId         String    @map("wallet_id") @db.NVarChar(36)
+  amount           Decimal   @db.Decimal(12, 2)
+  feeAmount        Decimal   @default(0) @map("fee_amount") @db.Decimal(12, 2)
+  netAmount        Decimal   @map("net_amount") @db.Decimal(12, 2)
+  status           String    @default("requested") @db.NVarChar(30)
+  rejectionReason  String?   @map("rejection_reason") @db.NVarChar(Max)
+  reviewedByUserId String?   @map("reviewed_by_user_id") @db.NVarChar(36)
+  reviewedAt       DateTime? @map("reviewed_at")
+  gatewayProvider  String?   @map("gateway_provider") @db.NVarChar(100)
+  gatewayReference String?   @map("gateway_reference") @db.NVarChar(255)
+  gatewayStatus    String?   @map("gateway_status") @db.NVarChar(80)
+  gatewayResponse  String?   @map("gateway_response") @db.NVarChar(Max)
+  idempotencyKey   String    @unique @map("idempotency_key") @db.NVarChar(100)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
 
   @@index([guardUserId, createdAt])
   @@index([status, createdAt])
@@ -890,17 +1048,17 @@ model GuardAadhaarVerification {
 }
 
 model SubAdminProfile {
-  id                String   @id @default(uuid()) @db.NVarChar(36)
-  userId            String   @unique @map("user_id") @db.NVarChar(36)
-  employerUserId    String?  @map("employer_user_id") @db.NVarChar(36)
-  branchName        String   @map("branch_name")
-  registrationNo    String?  @map("registration_no")
-  gstNumber         String?  @map("gst_number")
-  address           String?
-  contactEmail      String?  @map("contact_email")
-  phone             String?
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.NVarChar(36)
+  userId         String   @unique @map("user_id") @db.NVarChar(36)
+  employerUserId String?  @map("employer_user_id") @db.NVarChar(36)
+  branchName     String   @map("branch_name")
+  registrationNo String?  @map("registration_no")
+  gstNumber      String?  @map("gst_number")
+  address        String?
+  contactEmail   String?  @map("contact_email")
+  phone          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -912,46 +1070,46 @@ model SubAdminProfile {
 // Versioned onboarding agreement signed by an Associate Partner. This is
 // intentionally separate from Agreement, which is the employer/job agreement.
 model AssociatePartnerAgreement {
-  id                         String    @id @default(uuid()) @db.NVarChar(36)
-  associatePartnerId         String    @map("associate_partner_id") @db.NVarChar(36)
-  currentKey                 String?   @map("current_key") @db.NVarChar(36)
-  agreementNumber            String    @unique @map("agreement_number") @db.NVarChar(100)
-  agreementVersion           String    @map("agreement_version") @db.NVarChar(50)
-  templateVersion            String    @map("template_version") @db.NVarChar(50)
-  status                     String    @default("DRAFT") @db.NVarChar(40)
-  agreementGeneratedAt       DateTime? @map("agreement_generated_at")
-  originalDocumentPath       String?   @map("original_document_path") @db.NVarChar(Max)
-  originalDocumentHash       String?   @map("original_document_hash") @db.NVarChar(64)
-  signedDocumentPath         String?   @map("signed_document_path") @db.NVarChar(Max)
-  signedDocumentHash         String?   @map("signed_document_hash") @db.NVarChar(64)
-  esignProvider              String?   @map("esign_provider") @db.NVarChar(100)
-  esignTransactionId         String?   @map("esign_transaction_id") @db.NVarChar(255)
-  esignRequestId             String?   @map("esign_request_id") @db.NVarChar(255)
-  signerName                 String?   @map("signer_name")
-  signerReference            String?   @map("signer_reference")
-  certificateSerialNumber    String?   @map("certificate_serial_number")
-  certificateIssuer          String?   @map("certificate_issuer")
-  certificateSubject         String?   @map("certificate_subject")
-  consentGiven               Boolean   @default(false) @map("consent_given")
-  consentGivenAt             DateTime? @map("consent_given_at")
-  consentIpAddress           String?   @map("consent_ip_address") @db.NVarChar(100)
-  consentUserAgent           String?   @map("consent_user_agent") @db.NVarChar(1000)
-  esignInitiatedAt           DateTime? @map("esign_initiated_at")
-  esignCompletedAt           DateTime? @map("esign_completed_at")
-  signatureVerifiedAt        DateTime? @map("signature_verified_at")
-  transactionExpiresAt       DateTime? @map("transaction_expires_at")
-  callbackProcessedAt        DateTime? @map("callback_processed_at")
-  correlationHash            String?   @map("correlation_hash") @db.NVarChar(64)
-  failureCode                String?   @map("failure_code") @db.NVarChar(100)
-  failureReason              String?   @map("failure_reason") @db.NVarChar(2000)
-  providerResponseReference  String?   @map("provider_response_reference") @db.NVarChar(500)
-  productionVerified         Boolean   @default(false) @map("production_verified")
-  lockedAt                   DateTime? @map("locked_at")
-  createdAt                  DateTime  @default(now()) @map("created_at")
-  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at")
+  id                        String    @id @default(uuid()) @db.NVarChar(36)
+  associatePartnerId        String    @map("associate_partner_id") @db.NVarChar(36)
+  currentKey                String?   @map("current_key") @db.NVarChar(36)
+  agreementNumber           String    @unique @map("agreement_number") @db.NVarChar(100)
+  agreementVersion          String    @map("agreement_version") @db.NVarChar(50)
+  templateVersion           String    @map("template_version") @db.NVarChar(50)
+  status                    String    @default("DRAFT") @db.NVarChar(40)
+  agreementGeneratedAt      DateTime? @map("agreement_generated_at")
+  originalDocumentPath      String?   @map("original_document_path") @db.NVarChar(Max)
+  originalDocumentHash      String?   @map("original_document_hash") @db.NVarChar(64)
+  signedDocumentPath        String?   @map("signed_document_path") @db.NVarChar(Max)
+  signedDocumentHash        String?   @map("signed_document_hash") @db.NVarChar(64)
+  esignProvider             String?   @map("esign_provider") @db.NVarChar(100)
+  esignTransactionId        String?   @map("esign_transaction_id") @db.NVarChar(255)
+  esignRequestId            String?   @map("esign_request_id") @db.NVarChar(255)
+  signerName                String?   @map("signer_name")
+  signerReference           String?   @map("signer_reference")
+  certificateSerialNumber   String?   @map("certificate_serial_number")
+  certificateIssuer         String?   @map("certificate_issuer")
+  certificateSubject        String?   @map("certificate_subject")
+  consentGiven              Boolean   @default(false) @map("consent_given")
+  consentGivenAt            DateTime? @map("consent_given_at")
+  consentIpAddress          String?   @map("consent_ip_address") @db.NVarChar(100)
+  consentUserAgent          String?   @map("consent_user_agent") @db.NVarChar(1000)
+  esignInitiatedAt          DateTime? @map("esign_initiated_at")
+  esignCompletedAt          DateTime? @map("esign_completed_at")
+  signatureVerifiedAt       DateTime? @map("signature_verified_at")
+  transactionExpiresAt      DateTime? @map("transaction_expires_at")
+  callbackProcessedAt       DateTime? @map("callback_processed_at")
+  correlationHash           String?   @map("correlation_hash") @db.NVarChar(64)
+  failureCode               String?   @map("failure_code") @db.NVarChar(100)
+  failureReason             String?   @map("failure_reason") @db.NVarChar(2000)
+  providerResponseReference String?   @map("provider_response_reference") @db.NVarChar(500)
+  productionVerified        Boolean   @default(false) @map("production_verified")
+  lockedAt                  DateTime? @map("locked_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  associatePartner User                         @relation(fields: [associatePartnerId], references: [id], onDelete: NoAction)
-  auditEvents       AssociatePartnerAgreementAudit[]
+  associatePartner User                             @relation(fields: [associatePartnerId], references: [id], onDelete: NoAction)
+  auditEvents      AssociatePartnerAgreementAudit[]
 
   @@index([associatePartnerId, status])
   @@index([esignTransactionId])
@@ -959,15 +1117,15 @@ model AssociatePartnerAgreement {
 }
 
 model AssociatePartnerAgreementAudit {
-  id                  String   @id @default(uuid()) @db.NVarChar(36)
-  agreementId         String   @map("agreement_id") @db.NVarChar(36)
-  associatePartnerId  String   @map("associate_partner_id") @db.NVarChar(36)
-  eventType           String   @map("event_type") @db.NVarChar(80)
-  transactionId       String?  @map("transaction_id") @db.NVarChar(255)
-  ipAddress            String?  @map("ip_address") @db.NVarChar(100)
-  userAgent            String?  @map("user_agent") @db.NVarChar(1000)
-  metadata             String?  @db.NVarChar(Max)
-  createdAt            DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(uuid()) @db.NVarChar(36)
+  agreementId        String   @map("agreement_id") @db.NVarChar(36)
+  associatePartnerId String   @map("associate_partner_id") @db.NVarChar(36)
+  eventType          String   @map("event_type") @db.NVarChar(80)
+  transactionId      String?  @map("transaction_id") @db.NVarChar(255)
+  ipAddress          String?  @map("ip_address") @db.NVarChar(100)
+  userAgent          String?  @map("user_agent") @db.NVarChar(1000)
+  metadata           String?  @db.NVarChar(Max)
+  createdAt          DateTime @default(now()) @map("created_at")
 
   agreement AssociatePartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
 
@@ -989,7 +1147,7 @@ model StaffMember {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
-  roleMaster    Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleMaster Role? @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
   @@index([subAdminUserId])
   @@index([roleId])
@@ -997,16 +1155,16 @@ model StaffMember {
 }
 
 model Discount {
-  id                  String   @id @default(uuid()) @db.NVarChar(36)
-  salesExecutiveUserId String  @map("sales_executive_user_id") @db.NVarChar(36)
-  employerUserId      String?  @map("employer_user_id") @db.NVarChar(36)
-  label               String
-  discountType        String   @default("percentage") @map("discount_type")
-  value               Decimal  @default(0) @db.Decimal(8, 2)
-  appliesTo           String?  @map("applies_to")
-  status              String   @default("Active")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid()) @db.NVarChar(36)
+  salesExecutiveUserId String   @map("sales_executive_user_id") @db.NVarChar(36)
+  employerUserId       String?  @map("employer_user_id") @db.NVarChar(36)
+  label                String
+  discountType         String   @default("percentage") @map("discount_type")
+  value                Decimal  @default(0) @db.Decimal(8, 2)
+  appliesTo            String?  @map("applies_to")
+  status               String   @default("Active")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([salesExecutiveUserId])
   @@map("discounts")
@@ -1030,35 +1188,95 @@ model EmailOtp {
 }
 
 model EmailDeliveryLog {
-  id            String   @id @default(uuid()) @db.NVarChar(36)
-  kind          String   @db.NVarChar(100)
-  status        String   @default("sent") @db.NVarChar(20)
-  toEmail       String   @map("to_email") @db.NVarChar(255)
-  subject       String   @db.NVarChar(255)
-  sourceUrl     String?  @map("source_url") @db.NVarChar(Max)
-  requestUrl    String?  @map("request_url") @db.NVarChar(Max)
-  origin        String?  @db.NVarChar(Max)
-  referer       String?  @db.NVarChar(Max)
-  environment   String?  @db.NVarChar(50)
-  providerHost  String?  @map("provider_host") @db.NVarChar(255)
-  providerPort  Int?     @map("provider_port")
+  id             String   @id @default(uuid()) @db.NVarChar(36)
+  kind           String   @db.NVarChar(100)
+  status         String   @default("sent") @db.NVarChar(20)
+  toEmail        String   @map("to_email") @db.NVarChar(255)
+  subject        String   @db.NVarChar(255)
+  sourceUrl      String?  @map("source_url") @db.NVarChar(Max)
+  requestUrl     String?  @map("request_url") @db.NVarChar(Max)
+  origin         String?  @db.NVarChar(Max)
+  referer        String?  @db.NVarChar(Max)
+  environment    String?  @db.NVarChar(50)
+  providerHost   String?  @map("provider_host") @db.NVarChar(255)
+  providerPort   Int?     @map("provider_port")
   providerSecure Boolean? @map("provider_secure")
-  fromEmail     String?  @map("from_email") @db.NVarChar(255)
-  fromName      String?  @map("from_name") @db.NVarChar(255)
-  messageId     String?  @map("message_id") @db.NVarChar(255)
-  response      String?  @db.NVarChar(Max)
-  accepted      String?  @db.NVarChar(Max)
-  rejected      String?  @db.NVarChar(Max)
-  pending       String?  @db.NVarChar(Max)
-  envelopeFrom  String?  @map("envelope_from") @db.NVarChar(255)
-  envelopeTo    String?  @map("envelope_to") @db.NVarChar(Max)
-  errorMessage  String?  @map("error_message") @db.NVarChar(Max)
-  details       String?  @db.NVarChar(Max)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  fromEmail      String?  @map("from_email") @db.NVarChar(255)
+  fromName       String?  @map("from_name") @db.NVarChar(255)
+  messageId      String?  @map("message_id") @db.NVarChar(255)
+  response       String?  @db.NVarChar(Max)
+  accepted       String?  @db.NVarChar(Max)
+  rejected       String?  @db.NVarChar(Max)
+  pending        String?  @db.NVarChar(Max)
+  envelopeFrom   String?  @map("envelope_from") @db.NVarChar(255)
+  envelopeTo     String?  @map("envelope_to") @db.NVarChar(Max)
+  errorMessage   String?  @map("error_message") @db.NVarChar(Max)
+  details        String?  @db.NVarChar(Max)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@index([kind])
   @@index([status])
   @@map("email_delivery_logs")
+}
+
+model SmsMessage {
+  id                String   @id @default(uuid()) @db.NVarChar(36)
+  recipientMasked   String   @map("recipient_masked") @db.NVarChar(30)
+  recipientDigest   String   @map("recipient_digest") @db.NVarChar(64)
+  templateKey       String   @map("template_key") @db.NVarChar(100)
+  provider          String   @db.NVarChar(40)
+  providerMessageId String?  @map("provider_message_id") @db.NVarChar(255)
+  status            String   @default("pending") @db.NVarChar(30)
+  attemptCount      Int      @default(0) @map("attempt_count")
+  correlationId     String?  @map("correlation_id") @db.NVarChar(100)
+  purpose           String?  @db.NVarChar(80)
+  errorCode         String?  @map("error_code") @db.NVarChar(80)
+  errorMessage      String?  @map("error_message") @db.NVarChar(500)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([recipientDigest, createdAt])
+  @@index([status, createdAt])
+  @@index([correlationId])
+  @@map("sms_messages")
+}
+
+model SmsOtpChallenge {
+  id                String    @id @default(uuid()) @db.NVarChar(36)
+  mobileDigest      String    @map("mobile_digest") @db.NVarChar(64)
+  otpHash           String    @map("otp_hash") @db.NVarChar(64)
+  purpose           String    @db.NVarChar(50)
+  sessionId         String    @map("session_id") @db.NVarChar(36)
+  requestIpDigest   String    @map("request_ip_digest") @db.NVarChar(64)
+  expiresAt         DateTime  @map("expires_at")
+  resendAvailableAt DateTime  @map("resend_available_at")
+  attempts          Int       @default(0)
+  consumedAt        DateTime? @map("consumed_at")
+  invalidatedAt     DateTime? @map("invalidated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([mobileDigest, purpose, sessionId, createdAt])
+  @@index([requestIpDigest, createdAt])
+  @@index([expiresAt])
+  @@map("sms_otp_challenges")
+}
+
+model SmsVerificationGrant {
+  id            String    @id @default(uuid()) @db.NVarChar(36)
+  mobileDigest  String    @map("mobile_digest") @db.NVarChar(64)
+  sessionId     String    @map("session_id") @db.NVarChar(36)
+  purpose       String    @db.NVarChar(50)
+  tokenHash     String    @map("token_hash") @db.NVarChar(64)
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  invalidatedAt DateTime? @map("invalidated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@unique([tokenHash])
+  @@index([mobileDigest, purpose, sessionId, createdAt])
+  @@index([expiresAt])
+  @@map("sms_verification_grants")
 }

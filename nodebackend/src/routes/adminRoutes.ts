@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { createExtendedReportRouter } from './extendedReportRoutes';
 import { createAdminReportRouter } from './adminReportRoutes';
 import { prisma } from '../prisma';
@@ -23,8 +24,10 @@ import * as internalStaff from '../controllers/internalStaffController';
 import * as application from '../controllers/applicationController';
 import * as wallet from '../controllers/walletController';
 import * as attendance from '../controllers/attendanceController';
+import * as salary from '../controllers/salaryStructureController';
 
 const router = Router();
+const brandUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // mirrors routes/api/admin.php — all under auth:sanctum + role:super_admin
 router.use('/admin', requireAuth, asyncHandler(requireAdminPanel));
@@ -58,6 +61,7 @@ router.patch('/admin/attendance/:record/status', asyncHandler(attendance.adminUp
 router.get('/admin/hiring', asyncHandler(adminReport.hiring));
 router.get('/admin/email-logs', asyncHandler(emailLog.index));
 router.get('/admin/wallets', asyncHandler(wallet.adminIndex));
+router.post('/admin/wallet-recharge-requests/:request/complete', asyncHandler(wallet.adminCompleteRechargeRequest));
 
 router.get('/admin/roles', asyncHandler(roles.index));
 router.post('/admin/roles', asyncHandler(roles.store));
@@ -81,6 +85,12 @@ router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 router.get('/admin/jobs/pending', asyncHandler(job.pending));
 router.get('/admin/jobs/options', asyncHandler(job.adminOptions));
 router.get('/admin/jobs', asyncHandler(job.all));
+router.get('/admin/jobs/salary-templates', asyncHandler(salary.templates));
+router.post('/admin/jobs/salary-templates', asyncHandler(salary.storeTemplate));
+router.patch('/admin/jobs/salary-templates/:template', asyncHandler(salary.updateTemplate));
+router.delete('/admin/jobs/salary-templates/:template', asyncHandler(salary.deleteTemplate));
+router.get('/admin/jobs/salary-statutory-rules', asyncHandler(salary.statutoryRules));
+router.post('/admin/jobs/salary-statutory-rules', asyncHandler(salary.saveStatutoryRule));
 router.post('/admin/jobs', asyncHandler(job.adminStore));
 router.patch('/admin/jobs/:job', asyncHandler(job.adminUpdate));
 router.patch('/admin/jobs/:job/approve', asyncHandler(job.approve));
@@ -92,6 +102,8 @@ router.patch('/admin/applications/:application/status', asyncHandler(application
 router.post('/admin/applications/:application/schedule-interview', asyncHandler(application.scheduleInterview));
 
 router.get('/admin/employers', asyncHandler(adminEmployer.index));
+router.post('/admin/employers/:employer/logo', brandUpload.single('file'), asyncHandler(adminEmployer.uploadEmployerLogo));
+router.post('/admin/employers/:employer/companies/:company/logo', brandUpload.single('file'), asyncHandler(adminEmployer.uploadCompanyLogo));
 router.patch('/admin/company-documents/:document', asyncHandler(adminEmployer.updateCompanyDocumentStatus));
 router.post('/admin/employers', asyncHandler(adminEmployer.store));
 router.patch('/admin/employers/:employer', asyncHandler(adminEmployer.update));

@@ -23,9 +23,29 @@ export async function listWalletTransactions(companyId?: string) {
   return data;
 }
 
-export async function rechargeEmployerWallet(amount: number, remarks?: string) {
-  const { data } = await apiClient.post('/employer/wallet/recharge', { amount, remarks });
-  return data as { wallet: EmployerWallet; transaction: Record<string, unknown> };
+export type WalletRechargeRequest = {
+  id: string;
+  employer_user_id: string;
+  amount: number | string;
+  remarks?: string | null;
+  status: 'pending' | 'completed';
+  completed_by_user_id?: string | null;
+  completed_at?: string | null;
+  wallet_transaction_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  employer?: { id: string; full_name?: string; email?: string; mobile?: string };
+  completed_by?: { id: string; full_name?: string; email?: string } | null;
+};
+
+export async function listEmployerWalletRechargeRequests() {
+  const { data } = await apiClient.get('/employer/wallet/recharge-requests');
+  return (data ?? []) as WalletRechargeRequest[];
+}
+
+export async function createEmployerWalletRechargeRequest(amount: number, remarks?: string) {
+  const { data } = await apiClient.post('/employer/wallet/recharge-requests', { amount, remarks });
+  return data as WalletRechargeRequest;
 }
 
 export type AdminWalletFilters = Partial<{
@@ -53,8 +73,14 @@ export async function listAdminWallets(params?: AdminWalletFilters) {
       total_debited: number;
     };
     wallets: Array<EmployerWallet & { employer?: { id: string; full_name?: string; email?: string; mobile?: string } }>;
+    recharge_requests: WalletRechargeRequest[];
     transactions: Array<Record<string, any>>;
   };
+}
+
+export async function completeWalletRechargeRequest(requestId: string) {
+  const { data } = await apiClient.post(`/admin/wallet-recharge-requests/${requestId}/complete`, {});
+  return data as { request: WalletRechargeRequest; wallet: EmployerWallet; transaction: Record<string, unknown> };
 }
 
 export async function grantEmployerWalletCredit(employerId: string, amount: number, remarks?: string) {

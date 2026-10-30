@@ -84,7 +84,7 @@ export default function FlipCard({ icon, label, value, color, onTap, small = fal
         <img
           src="/granvia-logo.png"
           alt="Granvia Logo"
-          className={`w-auto object-contain ${small ? 'h-16' : 'h-20'}`}
+          className={`aspect-square rounded-full bg-white p-1 object-contain ${small ? 'h-16' : 'h-20'}`}
         />
       </motion.div>
     </div>

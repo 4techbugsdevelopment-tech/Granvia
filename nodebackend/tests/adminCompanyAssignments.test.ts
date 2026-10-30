@@ -21,10 +21,12 @@ const company = { id: ids.company, employerUserId: employer.id, accountStatus: '
 function mock(t: { after: (fn: () => void) => void }, object: any, method: string, fn: any) {
   const previous = object[method]; object[method] = fn; t.after(() => { object[method] = previous; });
 }
-function fixtures(t: any, changes: { employee?: any; assignment?: any; employer?: any; owner?: any } = {}) {
+function fixtures(t: any, changes: { employee?: any; assignment?: any; employerAssignment?: any; employer?: any; owner?: any } = {}) {
   mock(t, prisma.adminEmployee, 'findUnique', async () => changes.employee ?? employee);
   mock(t, prisma.user, 'findUnique', async ({ where }: any) => where.id === owner.id ? changes.owner ?? owner : changes.employer ?? employer);
-  mock(t, prisma.adminCompanyAssignment, 'findFirst', async ({ where }: any) => changes.assignment ?? (where.companyId === company.id && where.department === 'hr' ? { company } : null));
+  mock(t, prisma.adminCompanyAssignment, 'findFirst', async ({ where }: any) => Object.prototype.hasOwnProperty.call(changes, 'assignment') ? changes.assignment : (where.companyId === company.id && where.department === 'hr' ? { company } : null));
+  mock(t, prisma.employerCompany, 'findUnique', async ({ where }: any) => where.id === company.id ? company : null);
+  mock(t, prisma.adminEmployerAssignment, 'findUnique', async () => changes.employerAssignment ?? null);
 }
 const req = (department = 'hr', companyId = company.id) => ({ user: { ...user }, params: { company: companyId, department }, body: {} }) as unknown as Request;
 function response() { return { body: null as any, statusCode: 200, json(body: any) { this.body = body; return this; }, status(code: number) { this.statusCode = code; return this; }, once() {} } as unknown as Response & { body: any }; }
@@ -48,6 +50,32 @@ test('assignment is required for every company and department request', async t 
 test('removing role permission revokes an existing assignment', async t => {
   fixtures(t, { employee: { ...employee, role: { ...role, permissions: '[]' } } });
   await assert.rejects(assignedCompany(req()), /permission required/);
+});
+
+test('checked employer grants every company area allowed by the employee role', async t => {
+  fixtures(t, {
+    employee: { ...employee, role: { ...role, permissions: '["Company Sales"]' } },
+    assignment: null,
+    employerAssignment: { id: 'employer-assignment', employeeId: employee.id, employerUserId: employer.id },
+  });
+  const result = await assignedCompany(req('sales'));
+  assert.equal(result.company.id, company.id);
+  assert.equal(result.employer.id, employer.id);
+  await assert.rejects(assignedCompany(req('accounts')), /permission required/);
+});
+
+test('employee company list automatically includes every current company for checked employers', async t => {
+  fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["Company Sales"]' } } });
+  mock(t, prisma.adminCompanyAssignment, 'findMany', async () => []);
+  mock(t, prisma.adminEmployerAssignment, 'findMany', async ({ where }: any) => {
+    assert.equal(where.employeeId, employee.id); return [{ employerUserId: employer.id }];
+  });
+  mock(t, prisma.employerCompany, 'findMany', async ({ where }: any) => {
+    assert.deepEqual(where, { employerUserId: { in: [employer.id] }, accountStatus: 'active' });
+    return [company, { ...company, id: 'future-company', companyName: 'Future Company' }];
+  });
+  const res = response(); await controller.mine(req('sales'), res);
+  assert.deepEqual(res.body.map((row: any) => [row.companyId, row.department]), [[company.id, 'sales'], ['future-company', 'sales']]);
 });
 
 for (const [label, changes] of [

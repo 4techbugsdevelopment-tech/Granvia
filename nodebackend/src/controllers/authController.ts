@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { env } from '../config/env';
 import { hashPassword, verifyPassword } from '../utils/password';
@@ -12,6 +13,7 @@ import { meResponse } from '../serializers/userSerializer';
 import { adminEmployeeSession } from '../services/adminEmployeeSession';
 import { assertActiveCityState } from './locationMasterController';
 import { humanNameSchema, indianMobileSchema, normalizedEmailSchema, optionalHttpUrlSchema, strongPasswordSchema } from '../utils/validation';
+import { consumeRegistrationMobileGrant } from '../services/sms/registrationOtpService';
 
 const frontend = () => env.frontendUrl.replace(/\/$/, '');
 
@@ -57,6 +59,8 @@ const registerGuardSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z.string().optional(),
+  registration_session_id: z.string().uuid().optional(),
+  mobile_verification_grant: z.string().min(32).max(200).optional(),
 });
 
 const loginSchema = z.object({
@@ -218,6 +222,11 @@ export async function registerGuard(req: Request, res: Response) {
   let user;
   try {
     user = await prisma.$transaction(async (tx) => {
+      await consumeRegistrationMobileGrant(tx, {
+        mobile: data.mobile,
+        sessionId: data.registration_session_id,
+        grantToken: data.mobile_verification_grant,
+      });
       const created = await tx.user.create({
         data: {
           fullName: data.full_name,
@@ -244,7 +253,7 @@ export async function registerGuard(req: Request, res: Response) {
       });
 
       return created;
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     const mapped = uniqueViolationToHttpError(err);
     if (mapped) throw mapped;

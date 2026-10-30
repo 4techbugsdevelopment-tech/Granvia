@@ -15,6 +15,7 @@ const employeeSchema = z.object({
   full_name: humanNameSchema('Full name'), email: normalizedEmailSchema,
   mobile: indianMobileSchema, role_id: z.string().uuid(),
   account_status: z.enum(['active', 'inactive', 'blocked']), password: strongPasswordSchema,
+  employer_ids: z.array(z.string().uuid()).max(500).optional(),
 });
 const ownerId = (req: Request) => req.user!.id;
 const roleOut = (role: { permissions: string } & Record<string, any>) => ({ ...role, permissions: parseAdminPermissions(role.permissions) });
@@ -62,15 +63,21 @@ export async function deleteRole(req: Request, res: Response) {
 }
 export async function employees(req: Request, res: Response) {
   const rows = await prisma.adminEmployee.findMany({
-    where: { ownerUserId: ownerId(req) }, include: { role: true, user: { select: { fullName: true, email: true, mobile: true, accountStatus: true } } }, orderBy: { createdAt: 'desc' },
+    where: { ownerUserId: ownerId(req) }, include: { role: true, employerAssignments: { select: { employerUserId: true } }, user: { select: { fullName: true, email: true, mobile: true, accountStatus: true } } }, orderBy: { createdAt: 'desc' },
   });
   res.set('Cache-Control', 'no-store');
-  return res.json(rows.map(row => ({ id: row.id, full_name: row.user.fullName, email: row.user.email, mobile: row.user.mobile, account_status: row.user.accountStatus, role_id: row.roleId, role_name: row.role.name, role_status: row.role.status, permissions: parseAdminPermissions(row.role.permissions) })));
+  return res.json(rows.map(row => ({ id: row.id, full_name: row.user.fullName, email: row.user.email, mobile: row.user.mobile, account_status: row.user.accountStatus, role_id: row.roleId, role_name: row.role.name, role_status: row.role.status, permissions: parseAdminPermissions(row.role.permissions), employer_ids: row.employerAssignments.map(item => item.employerUserId) })));
 }
 export async function saveEmployee(req: Request, res: Response) {
   const existing = req.params.employee ? await ownedEmployee(req) : null;
   const data = (existing ? employeeSchema.omit({ password: true }).extend({ password: strongPasswordSchema.optional() }) : employeeSchema).parse(req.body);
   await ownedRole(data.role_id, ownerId(req), true);
+  const employerIds = [...new Set(data.employer_ids ?? [])];
+  const replaceEmployerAssignments = data.employer_ids !== undefined;
+  if (employerIds.length) {
+    const activeEmployers = await prisma.user.count({ where: { id: { in: employerIds }, role: 'employer', accountStatus: 'active' } });
+    if (activeEmployers !== employerIds.length) throw new HttpError(422, 'Select only active employers.');
+  }
   const duplicate = await prisma.user.findFirst({ where: { OR: [{ email: data.email }, { mobile: data.mobile }], ...(existing ? { NOT: { id: existing.userId } } : {}) } });
   if (duplicate) throw new HttpError(422, 'The email or mobile is already in use.');
   const password = data.password ? await hashPassword(data.password) : undefined;
@@ -80,10 +87,18 @@ export async function saveEmployee(req: Request, res: Response) {
       if (existing) {
         await tx.user.update({ where: { id: existing.userId }, data: userData });
         await tx.adminEmployee.update({ where: { id: existing.id }, data: { roleId: data.role_id } });
+        if (replaceEmployerAssignments) {
+          // The checkbox list becomes authoritative after the first edited save;
+          // remove old per-company grants so an unchecked employer is revoked.
+          await tx.adminCompanyAssignment.deleteMany({ where: { employeeId: existing.id } });
+          await tx.adminEmployerAssignment.deleteMany({ where: { employeeId: existing.id } });
+          if (employerIds.length) await tx.adminEmployerAssignment.createMany({ data: employerIds.map(employerUserId => ({ employeeId: existing.id, employerUserId })) });
+        }
         if (password || data.account_status !== 'active') await tx.personalAccessToken.deleteMany({ where: { tokenableId: existing.userId } });
       } else {
         const user = await tx.user.create({ data: { ...userData, password: password!, role: 'admin_employee', profileType: 'admin_employee', emailVerifiedAt: new Date() } });
-        await tx.adminEmployee.create({ data: { userId: user.id, ownerUserId: ownerId(req), roleId: data.role_id } });
+        const employee = await tx.adminEmployee.create({ data: { userId: user.id, ownerUserId: ownerId(req), roleId: data.role_id } });
+        if (employerIds.length) await tx.adminEmployerAssignment.createMany({ data: employerIds.map(employerUserId => ({ employeeId: employee.id, employerUserId })) });
       }
     });
   } catch (error) { conflict(error); }
@@ -94,6 +109,7 @@ export async function deleteEmployee(req: Request, res: Response) {
   await prisma.$transaction(async tx => {
     await tx.personalAccessToken.deleteMany({ where: { tokenableId: employee.userId } });
     await tx.adminCompanyAssignment.deleteMany({ where: { employeeId: employee.id } });
+    await tx.adminEmployerAssignment.deleteMany({ where: { employeeId: employee.id } });
     await tx.adminEmployee.delete({ where: { id: employee.id } });
     await tx.user.delete({ where: { id: employee.userId } });
   });

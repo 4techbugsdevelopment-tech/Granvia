@@ -36,10 +36,3 @@ export async function deleteCompany(companyId: string) {
   const { data } = await apiClient.delete(`/employer/companies/${companyId}`);
   return data;
 }
-
-export async function uploadCompanyLogo(companyId: string, file: File) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const { data } = await apiClient.post(`/employer/companies/${companyId}/logo`, formData);
-  return data;
-}
