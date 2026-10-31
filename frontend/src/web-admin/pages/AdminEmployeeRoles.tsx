@@ -3,6 +3,8 @@ import { ADMIN_EMPLOYEE_MODULES, AdminEmployeeRole, listAdminEmployeeRoles, save
 import { Card, PageHeader, Table } from './_adminUi';
 
 const empty = { name: '', description: '', permissions: [] as string[], status: 'active' as 'active' | 'inactive' };
+type ApiError = { response?: { data?: { message?: string } } };
+const errorMessage = (error: unknown, fallback: string) => (error as ApiError)?.response?.data?.message || fallback;
 export default function AdminEmployeeRoles() {
   const [rows, setRows] = useState<AdminEmployeeRole[]>([]);
   const [draft, setDraft] = useState(empty);
@@ -17,14 +19,14 @@ export default function AdminEmployeeRoles() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('');
     try { await saveAdminEmployeeRole(editing, draft); setOpen(false); await load(); setNotice('Role saved. Employees inherit these module permissions.'); }
-    catch (e: any) { setError(e?.response?.data?.message || 'Unable to save role.'); }
+    catch (e: unknown) { setError(errorMessage(e, 'Unable to save role.')); }
     finally { setBusy(false); }
   };
   const remove = async (row: AdminEmployeeRole) => {
     if (!window.confirm(`Delete ${row.name}? Roles assigned to employees must be reassigned first.`)) return;
     setBusy(true); setError('');
     try { await deleteAdminEmployeeRole(row.id); await load(); setNotice('Role deleted.'); }
-    catch (e: any) { setError(e?.response?.data?.message || 'Unable to delete role.'); }
+    catch (e: unknown) { setError(errorMessage(e, 'Unable to delete role.')); }
     finally { setBusy(false); }
   };
   return <div className="p-6 space-y-5">
@@ -41,8 +43,8 @@ export default function AdminEmployeeRoles() {
       <label className="block">Role name<input required minLength={2} maxLength={150} className="form-input mt-1" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
       <label className="block">Description<textarea className="form-input mt-1" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
       <label className="block">Status<select className="form-input mt-1" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as typeof draft.status })}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-      <p className="text-sm text-gray-500">Company HR, Sales, Operations and Accounts require individual company allocations. Use only Company permissions for these roles. Other modules grant platform-wide access and must use a separate role. An inactive role blocks employee access. Employee and role management remain with Super Admin.</p>
-      <div className="flex gap-4"><button type="button" className="text-blue-700" onClick={() => setDraft({ ...draft, permissions: ADMIN_EMPLOYEE_MODULES.filter(item => item.startsWith('Company ')) })}>All company departments</button><button type="button" className="text-blue-700" onClick={() => setDraft({ ...draft, permissions: ADMIN_EMPLOYEE_MODULES.filter(item => !item.startsWith('Company ')) })}>All platform modules</button><button type="button" onClick={() => setDraft({ ...draft, permissions: [] })}>Clear</button></div>
+      <p className="text-sm text-gray-500">Customize the role with any combination of permissions. Company HR, Sales, Operations and Accounts apply only to assigned employers and their companies; other modules grant platform-wide access. An inactive role blocks employee access. Employee and role management remain with Super Admin.</p>
+      <div className="flex flex-wrap gap-4"><button type="button" className="text-blue-700" onClick={() => setDraft({ ...draft, permissions: [...ADMIN_EMPLOYEE_MODULES] })}>All permissions</button><button type="button" className="text-blue-700" onClick={() => setDraft({ ...draft, permissions: ADMIN_EMPLOYEE_MODULES.filter(item => item.startsWith('Company ')) })}>All company departments</button><button type="button" className="text-blue-700" onClick={() => setDraft({ ...draft, permissions: ADMIN_EMPLOYEE_MODULES.filter(item => !item.startsWith('Company ')) })}>All platform modules</button><button type="button" onClick={() => setDraft({ ...draft, permissions: [] })}>Clear</button></div>
       <div className="grid sm:grid-cols-2 gap-3">{ADMIN_EMPLOYEE_MODULES.map(module => <label key={module} className="flex items-center gap-2 border rounded-lg p-3"><input type="checkbox" checked={draft.permissions.includes(module)} onChange={e => setDraft({ ...draft, permissions: e.target.checked ? [...draft.permissions, module] : draft.permissions.filter(item => item !== module) })} />{module}</label>)}</div>
       <div className="flex justify-end gap-4"><button type="button" disabled={busy} onClick={() => setOpen(false)}>Cancel</button><button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" disabled={busy}>{busy ? 'Saving...' : 'Save Role'}</button></div>
     </form></div>}

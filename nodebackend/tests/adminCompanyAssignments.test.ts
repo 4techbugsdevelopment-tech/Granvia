@@ -124,8 +124,17 @@ test('Sales cannot alter ownership, status or billing fields', async t => {
   await assert.rejects(controller.action(request, response()));
 });
 
-test('company roles cannot combine scoped and platform-wide permissions', async () => {
-  await assert.rejects(saveRole({ user: owner, body: { name: 'HR', permissions: ['Company HR', 'Hiring Workflow'], status: 'active' } } as Request, response()), /only Company permissions/);
+test('roles can combine scoped company and platform-wide permissions', async t => {
+  let savedPermissions = '';
+  mock(t, prisma.adminEmployeeRole, 'create', async ({ data }: any) => {
+    savedPermissions = data.permissions;
+    return { id: 'mixed-role', description: null, createdAt: new Date(), updatedAt: new Date(), ...data };
+  });
+  const res = response();
+  await saveRole({ user: owner, params: {}, body: { name: 'HR and Hiring', permissions: ['Company HR', 'Hiring Workflow'], status: 'active' } } as unknown as Request, res);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(JSON.parse(savedPermissions), ['Company HR', 'Hiring Workflow']);
+  assert.deepEqual(res.body.permissions, ['Company HR', 'Hiring Workflow']);
 });
 
 test('Sales updates reuse company validation and preserve the true employee actor', async t => {

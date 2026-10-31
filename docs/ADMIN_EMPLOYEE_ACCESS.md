@@ -1,6 +1,6 @@
 # Super Admin roles and employees
 
-2026-10-26 extension: [Granvia managed company departments](GRANVIA_MANAGED_COMPANY_DEPARTMENTS.md) adds Company HR/Sales/Operations/Accounts permissions, per-company staff allocations and a scoped department workspace. These permissions must use separate roles from the platform-wide modules described below. The extension adds its own migration and has not been installed in the configured database.
+2026-10-26 extension: [Granvia managed company departments](GRANVIA_MANAGED_COMPANY_DEPARTMENTS.md) adds Company HR/Sales/Operations/Accounts permissions, employer/company staff allocations and a scoped department workspace. Roles may combine these scoped permissions with the platform-wide modules described below. The extension adds its own migrations; review their deployment status in the target environment.
 
 Implemented locally on 2026-10-23. The configured database tables and list queries are now verified. Deployed backend restart and real-account browser acceptance remain unverified.
 
@@ -16,8 +16,9 @@ Implemented locally on 2026-10-23. The configured database tables and list queri
 
 - New `admin_employee_roles` and `admin_employees` tables isolate these definitions from the existing employer/sub-admin `roles` and `staff_members` flow. Existing Role Master is labelled **Employer Staff Roles** in the admin menu.
 - Each Super Admin manages their own roles and employees. Backend queries scope both by the authenticated Super Admin ID. An employee can only be assigned an active role owned by the same Super Admin.
-- Modules: Dashboard, Associate Management, Employer Management, Job Management, Attendance, Hiring Workflow, Wallet & Payments, Reports, Email Logs, Associate Types, City & State Master.
+- Modules: Dashboard, Associate Management, Employer Management, Job Management, Attendance, Hiring Workflow, Wallet & Payments, Reports, Email Logs, Associate Types, City & State Master, Company HR, Company Sales, Company Operations and Company Accounts. Any combination may be saved in one role.
 - A selected module grants the existing module's viewing and management operations. These are not separate View/Add/Edit/Delete grants. Reports include the platform reports and exports exposed by that module; Dashboard includes platform summary counts.
+- Company permissions remain limited to assigned employers and their active companies. Platform permissions retain their normal platform-wide scope when combined with Company permissions.
 - Employees cannot manage Super Admin roles/employees, employer staff role definitions, internal staff accounts, or platform Settings. These remain Super Admin functions.
 - Every admin API request checks the stored account status, active assigned role, active owning Super Admin, ownership consistency and current module permissions. Unknown API resource groups fail closed. Permission edits apply to the next API request. Menu changes appear after a session/profile refresh.
 - Only after this check does the `/admin` guard project the employee's role to the existing admin handlers' expected `super_admin` value for that request. The database/session login role stays `admin_employee`. Other portals are not granted access.

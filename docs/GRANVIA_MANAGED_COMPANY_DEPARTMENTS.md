@@ -31,7 +31,7 @@ This workspace exposes the operations above. It does not implement a new sales C
 - Effective access requires both the current role's Company department permission and the employee-company-department allocation. Neither the role name nor a company ID supplied by the browser grants access.
 - Assignment administration uses the real authenticated Super Admin identity. Only employees owned by that Super Admin may be assigned or unassigned. Company selection is platform-wide for Super Admin, consistent with existing employer administration.
 - Each workspace request verifies the stored employee, owning Super Admin, role status/owner, department permission, allocation, company status and actual employer status/role. Every record mutation also checks both company and employer ownership. HR applications additionally require their job to belong to that same company/employer.
-- Company permissions provide no access to existing platform-wide admin modules. Saving a role that mixes Company permissions and platform permissions is rejected; separate roles preserve the distinction. Existing platform module roles keep their established behavior.
+- Company permissions alone provide no access to existing platform-wide admin modules. A role may combine Company and platform permissions; each permission keeps its own scope, so Company actions still require an assigned employer/company while selected platform modules retain their normal platform-wide access.
 - Employee login identity remains `admin_employee`. The selected existing business controller receives the employer identity only after company/department/record authorization, within that request. This does not issue an employer token or grant the staff account general employer access.
 - Hiring review/status-log records preserve the actual Granvia employee ID. Attendance audit records identify the actual employee actor when the existing audit delegate is available. Site/contact/billing actions emit `[managed-company-action]` server logs containing actor, employer, company, department, record and HTTP response status; those actions have no new durable database audit table.
 - Employee deletion removes allocations in the same transaction as token/login removal. Company deletion cascades its allocations. Permission or employee-role changes retain historical allocations, which are ineffective unless the current role permits the department; restoring that permission makes retained allocations effective again.
@@ -52,7 +52,7 @@ APIs:
 
 ## Local verification
 
-- `npm.cmd run test:company-assignments`: 20 tests, including real HTTP authentication/authorization against mocked Prisma delegates, scoped HR/invoice reads, ownership checks, permission/assignment revocation, department action isolation, role separation and a successful Sales update through the existing company controller.
+- `npm.cmd run test:company-assignments`: focused tests include real HTTP authentication/authorization against mocked Prisma delegates, scoped HR/invoice reads, ownership checks, permission/assignment revocation, department action isolation, mixed role permissions and a successful Sales update through the existing company controller.
 - Existing tests: 19 admin-employee, nine direct-employer-access and 60 reporting tests pass.
 - Backend and frontend production builds pass. Full frontend typechecking still reports existing errors elsewhere; the new feature files have no remaining typecheck errors.
 
