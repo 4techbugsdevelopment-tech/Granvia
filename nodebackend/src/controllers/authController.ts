@@ -47,6 +47,8 @@ const registerEmployerSchema = z.object({
   gst_number: z.string().optional(),
   pan_number: z.string().optional(),
   website: optionalHttpUrlSchema,
+  registration_session_id: z.string().uuid().optional(),
+  mobile_verification_grant: z.string().min(32).max(200).optional(),
 });
 
 const registerGuardSchema = z.object({
@@ -132,6 +134,11 @@ export async function registerEmployer(req: Request, res: Response) {
   let user;
   try {
     user = await prisma.$transaction(async (tx) => {
+      await consumeRegistrationMobileGrant(tx, {
+        mobile: data.mobile,
+        sessionId: data.registration_session_id,
+        grantToken: data.mobile_verification_grant,
+      });
       const created = await tx.user.create({
         data: {
           fullName: data.contact_person_name,
@@ -177,7 +184,7 @@ export async function registerEmployer(req: Request, res: Response) {
       }
 
       return created;
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     const mapped = uniqueViolationToHttpError(err);
     if (mapped) throw mapped;

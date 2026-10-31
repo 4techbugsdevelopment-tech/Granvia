@@ -23,6 +23,8 @@ export type EmployerRegistrationInput = {
   gstNumber?: string;
   panNumber?: string;
   website?: string;
+  registrationSessionId?: string;
+  mobileVerificationGrant?: string;
 };
 
 export type GuardRegistrationInput = {
@@ -133,6 +135,8 @@ export async function registerEmployer(input: EmployerRegistrationInput) {
     gst_number: input.gstNumber?.trim().toUpperCase() || undefined,
     pan_number: input.panNumber?.trim().toUpperCase() || undefined,
     website: input.website?.trim() || undefined,
+    registration_session_id: input.registrationSessionId,
+    mobile_verification_grant: input.mobileVerificationGrant,
   });
 
   return data;

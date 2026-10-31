@@ -1,10 +1,10 @@
-import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
 import { parseJsonField, snakeKeys, toPrismaData } from '../utils/serialize';
+import { generateStrongPassword, strongPasswordSchema } from '../utils/validation';
 
 async function activeRole(roleId?: string | null, roleName?: string | null) {
   if (roleId) {
@@ -31,10 +31,6 @@ async function uniqueEmailMobile(email?: string, mobile?: string, ignoreId?: str
     const found = await prisma.user.findFirst({ where });
     if (found) throw new HttpError(422, 'The mobile has already been taken.');
   }
-}
-
-function makeTempPassword() {
-  return crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) || 'Temp1234';
 }
 
 const staffSchema = z.object({
@@ -114,7 +110,7 @@ const subAdminSchema = z.object({
   full_name: z.string().min(2),
   email: z.string().email(),
   mobile: z.string().nullish(),
-  password: z.string().min(6).nullish(),
+  password: strongPasswordSchema.nullish(),
   branch_name: z.string().nullish(),
   status: z.enum(['active', 'inactive']).nullish(),
 });
@@ -147,7 +143,7 @@ export async function storeSubAdmin(req: Request, res: Response) {
   const data = subAdminSchema.parse(req.body);
   await uniqueEmailMobile(data.email, data.mobile ?? undefined);
 
-  const tempPassword = data.password ?? makeTempPassword();
+  const tempPassword = data.password ?? generateStrongPassword(12);
   const created = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {

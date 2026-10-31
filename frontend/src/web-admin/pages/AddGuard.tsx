@@ -254,7 +254,7 @@ export default function AddGuard({ onSuccess }: AddGuardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FloatingInput label="Mobile Number" value={form.mobile} onChange={set('mobile')} required error={errors.mobile} placeholder="10-digit mobile" />
           <FloatingInput label="Email Address" value={form.email} onChange={set('email')} type="email" required error={errors.email} placeholder="email@example.com" />
-          <FloatingInput label="Login Password" value={form.password} onChange={set('password')} type="password" required error={errors.password} placeholder="12+ chars with upper, lower, number and special" />
+          <FloatingInput label="Login Password" value={form.password} onChange={set('password')} type="password" required error={errors.password} placeholder="6+ chars with upper, lower, number and special" />
         </div>
       ),
     },

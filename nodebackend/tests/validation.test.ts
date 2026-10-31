@@ -21,12 +21,12 @@ function accepts(schema: z.ZodTypeAny, value: unknown, label: string) {
 }
 
 test('strong password policy rejects direct API bypass values', () => {
-  rejects(strongPasswordSchema, 'Abcdef1!234', '11 characters');
+  rejects(strongPasswordSchema, 'Aa1!x', '5 characters');
   rejects(strongPasswordSchema, 'abcdefabcdef1!', 'missing uppercase');
   rejects(strongPasswordSchema, 'ABCDEFABCDEF1!', 'missing lowercase');
   rejects(strongPasswordSchema, 'Abcdefghijkl!', 'missing number');
   rejects(strongPasswordSchema, 'Abcdefghijk1', 'missing special');
-  accepts(strongPasswordSchema, 'ValidPass123!', 'valid 12+ password');
+  accepts(strongPasswordSchema, 'Aa1!xy', 'valid 6-character password');
 });
 
 test('mobile and email validators normalize but reject malformed values', () => {

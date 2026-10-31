@@ -4,17 +4,15 @@ import { Building2, CheckCircle, Eye, EyeOff, Lock, Mail, RefreshCw, Shield, Use
 import GranviaLogo from '../components/GranviaLogo';
 import {
   LoginOtpRequiredError,
-  getRegistrationMobileOtpConfig,
   registerEmployer,
   registerGuard,
-  requestRegistrationMobileOtp,
   signIn,
-  verifyRegistrationMobileOtp,
 } from '../services/authService';
 import { getErrorMessage } from '../services/apiErrors';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import { ForgotPasswordDialog, LoginOtpDialog, VerifyEmailDialog } from '../components/auth/OtpDialogs';
 import CityStateSelect from '../components/CityStateSelect';
+import RegistrationMobileVerification, { type RegistrationMobileVerificationValue } from '../components/auth/RegistrationMobileVerification';
 import { addError, emailError, humanNameError, indianMobileError, normalizeIndianMobile, passwordError, pincodeError, type ValidationMap } from '../lib/formValidation';
 
 interface UniversalLoginProps {
@@ -196,16 +194,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
   const [registerOtp, setRegisterOtp] = useState<{ email: string; devOtp?: string } | null>(null);
   const [register, setRegister] = useState(emptyRegister);
   const [associateTypes, setAssociateTypes] = useState<AssociateTypeOption[]>([]);
-  const [mobileOtpConfig, setMobileOtpConfig] = useState<'loading' | 'enabled' | 'disabled' | 'error'>('loading');
-  const [mobileOtp, setMobileOtp] = useState('');
-  const [mobileOtpSessionId, setMobileOtpSessionId] = useState('');
-  const [mobileOtpGrant, setMobileOtpGrant] = useState('');
-  const [mobileOtpVerifiedFor, setMobileOtpVerifiedFor] = useState('');
-  const [mobileOtpBusy, setMobileOtpBusy] = useState<'request' | 'verify' | ''>('');
-  const [mobileOtpError, setMobileOtpError] = useState('');
-  const [mobileOtpMessage, setMobileOtpMessage] = useState('');
-  const [mobileOtpResendAt, setMobileOtpResendAt] = useState(0);
-  const [mobileOtpCountdown, setMobileOtpCountdown] = useState(0);
+  const [mobileVerification, setMobileVerification] = useState<RegistrationMobileVerificationValue | null>(null);
 
   useEffect(() => {
     listActiveAssociateTypes()
@@ -216,31 +205,8 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       .catch(() => setAssociateTypes([]));
   }, []);
 
-  useEffect(() => {
-    getRegistrationMobileOtpConfig()
-      .then(config => setMobileOtpConfig(config.enabled ? 'enabled' : 'disabled'))
-      .catch(() => setMobileOtpConfig('error'));
-  }, []);
-
-  useEffect(() => {
-    if (!mobileOtpResendAt) {
-      setMobileOtpCountdown(0);
-      return;
-    }
-    const update = () => setMobileOtpCountdown(Math.max(0, Math.ceil((mobileOtpResendAt - Date.now()) / 1000)));
-    update();
-    const timer = window.setInterval(update, 1000);
-    return () => window.clearInterval(timer);
-  }, [mobileOtpResendAt]);
-
   const resetMobileVerification = () => {
-    setMobileOtp('');
-    setMobileOtpSessionId('');
-    setMobileOtpGrant('');
-    setMobileOtpVerifiedFor('');
-    setMobileOtpError('');
-    setMobileOtpMessage('');
-    setMobileOtpResendAt(0);
+    setMobileVerification(null);
   };
 
   const triggerShake = () => {
@@ -264,54 +230,6 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       delete next[key];
       return next;
     });
-  };
-
-  const sendMobileOtp = async () => {
-    const mobile = normalizeIndianMobile(register.mobile);
-    const validationMessage = indianMobileError(mobile);
-    if (validationMessage) {
-      setRegisterFieldErrors(current => ({ ...current, mobile: validationMessage }));
-      setMobileOtpError(validationMessage);
-      return;
-    }
-    setMobileOtpBusy('request');
-    setMobileOtpError('');
-    setMobileOtpMessage('');
-    try {
-      const result = await requestRegistrationMobileOtp(mobile, mobileOtpSessionId || undefined);
-      setMobileOtpSessionId(result.registration_session_id);
-      setMobileOtpResendAt(Date.now() + result.resend_after * 1000);
-      setMobileOtpMessage(result.dev_otp
-        ? `Code sent to ${result.masked_mobile}. Development code: ${result.dev_otp}`
-        : `Code sent to ${result.masked_mobile}.`);
-    } catch (err) {
-      setMobileOtpError(getErrorMessage(err, 'Unable to send the verification code.'));
-      const retryAfter = Number(authApiErrorData(err)?.retry_after ?? 0);
-      if (retryAfter > 0) setMobileOtpResendAt(Date.now() + retryAfter * 1000);
-    } finally {
-      setMobileOtpBusy('');
-    }
-  };
-
-  const verifyMobileOtp = async () => {
-    const mobile = normalizeIndianMobile(register.mobile);
-    if (!mobileOtpSessionId || !/^\d{6}$/.test(mobileOtp)) {
-      setMobileOtpError('Enter the 6-digit verification code.');
-      return;
-    }
-    setMobileOtpBusy('verify');
-    setMobileOtpError('');
-    try {
-      const result = await verifyRegistrationMobileOtp({ mobile, registrationSessionId: mobileOtpSessionId, otp: mobileOtp });
-      setMobileOtpGrant(result.mobile_verification_grant);
-      setMobileOtpVerifiedFor(mobile);
-      setMobileOtpMessage('Mobile number verified. You can complete registration.');
-      setMobileOtp('');
-    } catch (err) {
-      setMobileOtpError(getErrorMessage(err, 'The verification code is invalid or expired.'));
-    } finally {
-      setMobileOtpBusy('');
-    }
   };
 
   const finishLogin = () => {
@@ -383,17 +301,8 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
       if (!register.state.trim()) validationErrors.state = 'State is required when city is selected.';
     }
     addError(validationErrors, 'pincode', pincodeError(register.pincode));
-    if (registerRole === 'guard' && mobileOtpConfig === 'loading') {
-      setRegisterError('Loading mobile verification settings. Please wait a moment.');
-      return;
-    }
-    if (registerRole === 'guard' && mobileOtpConfig === 'error') {
-      setRegisterError('Unable to load mobile verification settings. Please refresh and try again.');
-      return;
-    }
-    if (registerRole === 'guard' && mobileOtpConfig === 'enabled' && (mobileOtpVerifiedFor !== mobileValue || !mobileOtpGrant || !mobileOtpSessionId)) {
+    if (!mobileVerification || mobileVerification.mobile !== mobileValue) {
       validationErrors.mobile = 'Verify this mobile number before registering.';
-      setMobileOtpError('Request and verify the mobile OTP before registering.');
     }
     if (Object.keys(validationErrors).length > 0) {
       setRegisterFieldErrors(validationErrors);
@@ -413,6 +322,8 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
           state: register.state.trim(),
           pincode: register.pincode.trim(),
           companyName: register.companyName.trim(),
+          registrationSessionId: mobileVerification?.registrationSessionId,
+          mobileVerificationGrant: mobileVerification?.mobileVerificationGrant,
         });
       } else {
         await registerGuard({
@@ -424,8 +335,8 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
           city: register.city.trim(),
           state: register.state.trim(),
           pincode: register.pincode.trim(),
-          registrationSessionId: mobileOtpSessionId || undefined,
-          mobileVerificationGrant: mobileOtpGrant || undefined,
+          registrationSessionId: mobileVerification?.registrationSessionId,
+          mobileVerificationGrant: mobileVerification?.mobileVerificationGrant,
         });
       }
 
@@ -657,79 +568,24 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
                     icon={registerRole === 'employer' ? <UserCheck size={14} /> : <User size={14} />}
                     error={registerFieldErrors.fullName}
                   />
-                  <Input
-                    label="Mobile *"
+                  <RegistrationMobileVerification
+                    key={registerRole}
                     value={register.mobile}
-                    onChange={value => updateRegister('mobile', normalizeIndianMobile(value).slice(0, 10))}
-                    icon={<UserCheck size={14} />}
-                    inputMode="numeric"
-                    maxLength={10}
+                    onChange={value => updateRegister('mobile', value)}
+                    onVerificationChange={verification => {
+                      setMobileVerification(verification);
+                      if (verification) {
+                        setRegisterFieldErrors(current => {
+                          if (!current.mobile) return current;
+                          const next = { ...current };
+                          delete next.mobile;
+                          return next;
+                        });
+                        setRegisterError('');
+                      }
+                    }}
                     error={registerFieldErrors.mobile}
                   />
-                  {registerRole === 'guard' && mobileOtpConfig === 'loading' && (
-                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                      Loading secure mobile verification…
-                    </div>
-                  )}
-                  {registerRole === 'guard' && mobileOtpConfig === 'error' && (
-                    <div className="sm:col-span-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600" role="alert">
-                      Mobile verification settings could not be loaded. Refresh the page before registering.
-                    </div>
-                  )}
-                  {registerRole === 'guard' && mobileOtpConfig === 'enabled' && (
-                    <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-700">Mobile verification *</p>
-                          <p className="text-[11px] text-slate-500">A six-digit code expires after five minutes.</p>
-                        </div>
-                        {mobileOtpVerifiedFor === normalizeIndianMobile(register.mobile) && mobileOtpGrant ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-semibold text-green-700">
-                            <CheckCircle size={13} /> Verified
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void sendMobileOtp()}
-                            disabled={mobileOtpBusy !== '' || mobileOtpCountdown > 0}
-                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {mobileOtpBusy === 'request'
-                              ? 'Sending…'
-                              : mobileOtpCountdown > 0
-                                ? `Resend in ${mobileOtpCountdown}s`
-                                : mobileOtpSessionId ? 'Resend OTP' : 'Send OTP'}
-                          </button>
-                        )}
-                      </div>
-                      {mobileOtpSessionId && mobileOtpVerifiedFor !== normalizeIndianMobile(register.mobile) && (
-                        <div className="flex gap-2">
-                          <label className="min-w-0 flex-1">
-                            <span className="sr-only">Six-digit mobile verification code</span>
-                            <input
-                              value={mobileOtp}
-                              onChange={event => setMobileOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                              inputMode="numeric"
-                              autoComplete="one-time-code"
-                              maxLength={6}
-                              placeholder="6-digit OTP"
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tracking-[0.2em] outline-none focus:border-slate-500"
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => void verifyMobileOtp()}
-                            disabled={mobileOtpBusy !== '' || mobileOtp.length !== 6}
-                            className="rounded-xl bg-green-700 px-4 py-2.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {mobileOtpBusy === 'verify' ? 'Verifying…' : 'Verify'}
-                          </button>
-                        </div>
-                      )}
-                      {mobileOtpMessage && <p className="text-xs text-green-700" aria-live="polite">{mobileOtpMessage}</p>}
-                      {mobileOtpError && <p className="text-xs text-red-600" role="alert">{mobileOtpError}</p>}
-                    </div>
-                  )}
                   <Input label="Email *" value={register.email} onChange={value => updateRegister('email', value)} type="email" icon={<Mail size={14} />} error={registerFieldErrors.email} />
                   <div className="sm:col-span-2">
                     <Input
@@ -815,7 +671,7 @@ export default function UniversalLogin({ onLogin }: UniversalLoginProps) {
 
                 <ActionButton
                   label={registerLoading ? 'Submitting...' : `Register ${registerRole === 'employer' ? 'Employer' : 'Associate Partner'}`}
-                  disabled={registerLoading || (registerRole === 'guard' && mobileOtpConfig === 'loading')}
+                  disabled={registerLoading}
                 />
               </motion.form>
             )}

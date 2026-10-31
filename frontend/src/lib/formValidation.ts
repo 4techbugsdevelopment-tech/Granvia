@@ -38,7 +38,7 @@ export function indianMobileError(value: string, required = true) {
 
 export function passwordErrors(value: string) {
   const errors: string[] = [];
-  if (value.length < 12) errors.push('Password must be at least 12 characters.');
+  if (value.length < 6) errors.push('Password must be at least 6 characters.');
   if (!/[A-Z]/.test(value)) errors.push('Password must include at least one uppercase letter.');
   if (!/[a-z]/.test(value)) errors.push('Password must include at least one lowercase letter.');
   if (!/\d/.test(value)) errors.push('Password must include at least one number.');

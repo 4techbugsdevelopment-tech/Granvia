@@ -277,7 +277,7 @@ export function ForgotPasswordDialog({ initialEmail = '', onClose }: { initialEm
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-3 rounded-lg text-sm outline-none"
               style={inputStyle}
-              placeholder="12+ chars with upper, lower, number and special"
+              placeholder="6+ chars with upper, lower, number and special"
             />
             {error && <p className="text-red-600 text-xs bg-red-50 px-3 py-2 rounded-lg border border-red-100">{error}</p>}
             <button onClick={reset} disabled={busy} className={primaryBtn} style={{ background: 'linear-gradient(135deg, #166534, #15803d)' }}>

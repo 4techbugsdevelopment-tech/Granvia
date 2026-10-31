@@ -16,6 +16,7 @@ import {
 } from '../services/teamService';
 import type { ReactNode } from 'react';
 import { useAppLayout } from '../subadmin/ui';
+import { passwordError } from '../lib/formValidation';
 
 type Tab = 'staff' | 'subadmins';
 type Modal = { kind: 'staff' | 'subadmin'; id?: string } | null;
@@ -122,6 +123,10 @@ export default function TeamPage() {
         if (modal.id) await updateEmployerStaff(modal.id, staffDraft);
         else await createEmployerStaff(staffDraft as any);
       } else {
+        if (!modal.id && subAdminDraft.password) {
+          const passwordMessage = passwordError(subAdminDraft.password);
+          if (passwordMessage) throw new Error(passwordMessage);
+        }
         if (modal.id) await updateEmployerSubAdmin(modal.id, subAdminDraft);
         else {
           const result = await createEmployerSubAdmin(subAdminDraft);
@@ -366,6 +371,7 @@ export default function TeamPage() {
             <label className="block mb-4">
               <span className="text-xs font-semibold text-gray-500">Temporary Password</span>
               <input value={subAdminDraft.password} onChange={(e) => setSubAdminDraft((cur) => ({ ...cur, password: e.target.value }))} className="form-input mt-1" placeholder="Leave blank to auto-generate" />
+              <span className="mt-1.5 block text-xs text-gray-500">If entered, use at least 6 characters with uppercase, lowercase, a number, and a symbol.</span>
             </label>
           )}
           <label className="block mb-4">

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BadgeCheck, Briefcase, Building2, ClipboardList, Eye, EyeOff, HardHat, Lock, Mail, MapPin, Phone, Shield, User, UserCheck, Users, Wallet } from 'lucide-react';
 import GranviaLogo from '../components/GranviaLogo';
+import RegistrationMobileVerification, { type RegistrationMobileVerificationValue } from '../components/auth/RegistrationMobileVerification';
+import { indianMobileError, normalizeIndianMobile, passwordError } from '../lib/formValidation';
 import { EmployerFieldKind, getInputMode, sanitizeEmployerInput } from '../lib/inputSanitizers';
 import EmailVerificationPending from '../pages/auth/EmailVerificationPending';
 import { registerEmployer, signInWithRole, LoginOtpRequiredError } from '../services/authService';
@@ -32,10 +34,6 @@ const initialRegister = {
   panNumber: '',
   website: '',
 };
-
-function validatePassword(password: string) {
-  return password.length >= 8 && Boolean(password.match(/[A-Z]/)) && Boolean(password.match(/\d/));
-}
 
 function PasswordInput({
   label,
@@ -89,8 +87,12 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
   const [otpChallenge, setOtpChallenge] = useState<{ email: string; devOtp?: string } | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const [verify, setVerify] = useState<{ email: string; devOtp?: string } | null>(null);
+  const [mobileVerification, setMobileVerification] = useState<RegistrationMobileVerificationValue | null>(null);
 
   const updateRegister = (key: keyof typeof initialRegister, value: string, kind: EmployerFieldKind = 'text') => {
+    if (key === 'mobile' && normalizeIndianMobile(value) !== normalizeIndianMobile(register.mobile)) {
+      setMobileVerification(null);
+    }
     setRegister(current => ({ ...current, [key]: sanitizeEmployerInput(value, kind) }));
   };
 
@@ -121,8 +123,19 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
     setError('');
     setSuccess('');
 
-    if (register.password && !validatePassword(register.password)) {
-      setError('Password must be at least 8 characters and include one uppercase letter and one number.');
+    const mobile = normalizeIndianMobile(register.mobile);
+    const mobileMessage = indianMobileError(mobile);
+    if (mobileMessage) {
+      setError(mobileMessage);
+      return;
+    }
+    if (!mobileVerification || mobileVerification.mobile !== mobile) {
+      setError('Verify this mobile number before registering.');
+      return;
+    }
+    const passwordMessage = passwordError(register.password);
+    if (passwordMessage) {
+      setError(passwordMessage);
       return;
     }
     if (register.password !== register.confirmPassword) {
@@ -145,6 +158,8 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
         gstNumber: register.gstNumber,
         panNumber: register.panNumber,
         website: register.website,
+        registrationSessionId: mobileVerification.registrationSessionId,
+        mobileVerificationGrant: mobileVerification.mobileVerificationGrant,
       });
       // Verify the email via the code we just sent, then the user signs in.
       setVerify({ email: register.email });
@@ -266,7 +281,15 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
                   <TextInput label="Company Name *" kind="name" value={register.companyName} onChange={value => updateRegister('companyName', value, 'name')} />
                   <TextInput label="Business Type *" kind="name" value={register.businessType} onChange={value => updateRegister('businessType', value, 'name')} />
                   <TextInput label="Contact Person *" kind="name" value={register.contactPersonName} onChange={value => updateRegister('contactPersonName', value, 'name')} />
-                  <TextInput label="Mobile *" kind="mobile" value={register.mobile} onChange={value => updateRegister('mobile', value, 'mobile')} />
+                  <RegistrationMobileVerification
+                    value={register.mobile}
+                    onChange={value => updateRegister('mobile', value, 'mobile')}
+                    onVerificationChange={verification => {
+                      setMobileVerification(verification);
+                      if (verification) setError('');
+                    }}
+                    background="#f7f8fa"
+                  />
                   <TextInput label="Email *" value={register.email} onChange={value => updateRegister('email', value)} />
                   <TextInput label="Pincode *" kind="pincode" value={register.pincode} onChange={value => updateRegister('pincode', value, 'pincode')} />
                   <div className="col-span-2">
@@ -300,6 +323,7 @@ export default function EmployerAuth({ onLogin, onBackToLanding }: EmployerAuthP
                     visible={showRegisterConfirmPassword}
                     onToggle={() => setShowRegisterConfirmPassword(current => !current)}
                   />
+                  <p className="col-span-2 -mt-2 text-xs text-gray-500">Use at least 6 characters with uppercase, lowercase, a number, and a symbol.</p>
                 </div>
                 <Message error={error} success={success} />
                 <SubmitButton label={submitting ? 'Submitting...' : 'Register Company'} disabled={submitting} />

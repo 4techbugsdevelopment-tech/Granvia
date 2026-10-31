@@ -31,7 +31,7 @@ export const indianMobileSchema = z.string()
 
 export const strongPasswordSchema = z.string().superRefine((value, ctx) => {
   const checks: Array<[boolean, string]> = [
-    [value.length >= 12, 'Password must be at least 12 characters.'],
+    [value.length >= 6, 'Password must be at least 6 characters.'],
     [/[A-Z]/.test(value), 'Password must include at least one uppercase letter.'],
     [/[a-z]/.test(value), 'Password must include at least one lowercase letter.'],
     [/\d/.test(value), 'Password must include at least one number.'],
