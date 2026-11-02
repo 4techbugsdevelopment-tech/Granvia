@@ -31,7 +31,7 @@ import {
   pincodeError,
   type ValidationMap,
 } from '../../lib/formValidation';
-import { previewUrl } from '../../lib/fileUrls';
+import { employerLogoUrl, previewUrl } from '../../lib/fileUrls';
 import { useAuth } from '../../hooks/useAuth';
 import { adminEmployerUrl } from '../../lib/adminEmployerAccess';
 
@@ -255,7 +255,7 @@ export default function EmployerManagement() {
           const employerSites = sites.filter(site => site.employerId === employer.id);
           return (
             <div key={employer.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employer.logo && <img src={previewUrl(employer.logo)} alt="Employer logo" className="h-11 w-11 shrink-0 rounded-full border bg-white object-contain p-0.5" />}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employerName(employer)}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div></div>{statusBadge(employer.accountStatus)}</div>
+              <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employer.logo && <img src={employerLogoUrl(employer.logo)} alt="Employer logo" className="h-11 w-11 shrink-0 rounded-full border bg-white object-contain p-0.5" />}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{employerName(employer)}</p><p className="break-words text-xs text-gray-500">{employer.companyName || 'No company added'}</p><p className="break-all text-xs text-gray-500">{employer.email}</p><p className="text-xs text-gray-400">{employer.mobile}</p></div></div>{statusBadge(employer.accountStatus)}</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                 <MobileDetail label="Location" value={`${employer.city}, ${employer.state}`} />
                 <MobileDetail label="Aadhaar" value={statusBadge(employer.aadhaarVerificationStatus)} />
@@ -293,8 +293,7 @@ export default function EmployerManagement() {
                 return (
                   <tr key={employer.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">{employer.logo && <img src={previewUrl(employer.logo)} alt="Employer logo" className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div className="font-semibold text-gray-900">{employerName(employer)}</div></div>
-                      <div className="text-xs text-gray-400">{employer.id} · {employer.businessType}</div>
+                      <div className="flex items-center gap-2">{employer.logo && <img src={employerLogoUrl(employer.logo)} alt="Employer logo" className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div><div className="font-semibold text-gray-900">{employerName(employer)}</div><div className="text-xs text-gray-400">{employer.companyName || 'No company added'}</div></div></div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {employer.contactPersonName}
@@ -396,7 +395,7 @@ export default function EmployerManagement() {
           <motion.div className="mx-auto my-3 flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:my-4 sm:max-h-[calc(100vh-2rem)]" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()}>
             <div className="flex shrink-0 items-start justify-between px-5 py-5 text-white sm:px-6" style={{ background: 'linear-gradient(135deg, #0f1e3c, #1a2d50)' }}>
               <div className="flex items-center gap-4">
-                {selected.logo ? <img src={previewUrl(selected.logo)} alt="Employer logo" className="h-14 w-14 rounded-full border-2 border-white/60 bg-white object-contain p-0.5" /> : <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}><Building2 size={26} /></div>}
+                {selected.logo ? <img src={employerLogoUrl(selected.logo)} alt="Employer logo" className="h-14 w-14 rounded-full border-2 border-white/60 bg-white object-contain p-0.5" /> : <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}><Building2 size={26} /></div>}
                 <div>
                   <h2 className="text-xl font-bold">{selected.companyName}</h2>
                   <p className="text-xs text-blue-200">{selected.email} · {selected.mobile}</p>
@@ -640,7 +639,7 @@ function EditEmployerDialog({ employer, onClose, onSaved }: { employer: Employer
   const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState(employer.logo ? previewUrl(employer.logo) : '');
+  const [logoPreview, setLogoPreview] = useState(employer.logo ? employerLogoUrl(employer.logo) : '');
 
   useEffect(() => () => { if (logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview); }, [logoPreview]);
 

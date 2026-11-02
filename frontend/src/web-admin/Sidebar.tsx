@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Briefcase, Clock, GitBranch,
-  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail, MapPin
+  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail, MapPin, Landmark
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { canOpenAdminPage } from './adminAccess';
@@ -26,6 +26,7 @@ export type AdminPage =
   | 'roles'
   | 'associate-types'
   | 'locations'
+  | 'lwf-master'
   | 'settings';
 
 interface SidebarProps {
@@ -61,6 +62,7 @@ export const adminNavItems: NavItem[] = [
   { id: 'roles', label: 'Employer Staff Roles', icon: <Shield size={18} /> },
   { id: 'associate-types', label: 'Associate Types', icon: <Briefcase size={18} /> },
   { id: 'locations', label: 'City & State Master', icon: <MapPin size={18} /> },
+  { id: 'lwf-master', label: 'LWF Master', icon: <Landmark size={18} /> },
   { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 

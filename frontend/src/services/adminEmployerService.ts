@@ -169,7 +169,10 @@ function mapSite(row: Row): CompanySite {
 export async function listEmployerManagementData(): Promise<EmployerManagementData> {
   const { data } = await apiClient.get('/admin/employers');
 
-  const companies = (data.companies as Row[]).map(mapCompany);
+  const companies = (data.companies as Row[]).map(mapCompany).sort((left, right) => {
+    const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
+    return createdAtOrder || left.id.localeCompare(right.id);
+  });
   const companiesByEmployerId = new Map<string, EmployerCompany[]>();
   companies.forEach((company) => {
     const list = companiesByEmployerId.get(company.employerId) || [];

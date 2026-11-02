@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { HttpError } from '../utils/http';
+import { applyEffectiveLwfSetting, resolveEffectiveLwfSetting } from './lwfService';
 
 const decimalInput = (label: string, max = '9999999999.99') => z.union([z.string(), z.number()]).transform((raw, context) => {
   try {
@@ -110,12 +111,21 @@ export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = 
 export const salaryStructureInclude = { salaryStructure: { include: { components: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }] } } } };
 
 export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId: string, employerUserId: string, actorUserId: string, raw: unknown) {
-  const rules = await tx.salaryStatutoryRule.findMany({ where: { employerUserId } });
-  const result = calculateSalaryStructure(raw, rules);
+  const [rules, effectiveLwf] = await Promise.all([
+    tx.salaryStatutoryRule.findMany({ where: { employerUserId } }),
+    resolveEffectiveLwfSetting(tx, employerUserId),
+  ]);
+  const managedLwf = applyEffectiveLwfSetting(raw, effectiveLwf);
+  const calculated = calculateSalaryStructure(managedLwf.input, rules);
+  const result = {
+    ...calculated,
+    lwf_source: managedLwf.setting?.source ?? null,
+    lwf_setting_id: managedLwf.setting?.id ?? null,
+  };
   const structure = await tx.jobSalaryStructure.upsert({
     where: { jobId },
-    create: { jobId, grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version },
-    update: { grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version },
+    create: { jobId, grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id },
+    update: { grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id },
   });
   await tx.jobSalaryComponent.deleteMany({ where: { structureId: structure.id } });
   await tx.jobSalaryComponent.createMany({ data: result.components.map(component => ({ structureId: structure.id, code: component.code, name: component.name, category: component.category, calculationType: component.calculation_type, fixedAmount: component.fixed_amount, percentage: component.percentage, percentageBasis: component.percentage_basis, monthlyAmount: component.monthly_amount, enabled: component.enabled, classification: component.classification, statutoryCode: component.statutory_code, applicabilityMinGross: component.applicability_min_gross, applicabilityMaxGross: component.applicability_max_gross, monthlyCap: component.monthly_cap, isCustom: component.is_custom, sortOrder: component.sort_order })) });

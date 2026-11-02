@@ -25,6 +25,7 @@ import * as application from '../controllers/applicationController';
 import * as wallet from '../controllers/walletController';
 import * as attendance from '../controllers/attendanceController';
 import * as salary from '../controllers/salaryStructureController';
+import * as lwf from '../controllers/lwfController';
 
 const router = Router();
 const brandUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -79,6 +80,9 @@ router.get('/admin/location/cities', asyncHandler(locationMaster.adminCities));
 router.post('/admin/location/cities', asyncHandler(locationMaster.storeCity));
 router.patch('/admin/location/cities/:city', asyncHandler(locationMaster.updateCity));
 router.delete('/admin/location/cities/:city', asyncHandler(locationMaster.destroyCity));
+router.get('/admin/lwf-master', asyncHandler(lwf.master));
+router.post('/admin/lwf-master', asyncHandler(lwf.saveMaster));
+router.get('/admin/lwf-effective/:employer', asyncHandler(lwf.adminEffective));
 router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
 router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 

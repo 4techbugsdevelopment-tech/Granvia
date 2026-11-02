@@ -8,6 +8,9 @@ import { store as storeJob, update as updateJob } from '../src/controllers/jobCo
 import { requireRole } from '../src/middleware/role';
 import { prisma } from '../src/prisma';
 import { HttpError } from '../src/utils/http';
+import { applyEffectiveLwfSetting, resolveEffectiveLwfSetting } from '../src/services/lwfService';
+import { saveEmployerSetting, saveMaster } from '../src/controllers/lwfController';
+import { adminEmployeeModules } from '../src/utils/adminEmployeeAccess';
 
 const component = (code: string, name: string, category: 'earning' | 'deduction' | 'employer_contribution', changes: Record<string, unknown> = {}) => ({
   code, name, category, calculation_type: 'fixed', fixed_amount: '0', percentage: null,
@@ -81,6 +84,8 @@ test('saving a job structure replaces normalized components and writes an audit 
   const writes: Record<string, any>[] = []; let deleted = false;
   const tx = {
     salaryStatutoryRule: { findMany: async () => [] },
+    employerLwfSetting: { findUnique: async () => null },
+    lwfMasterSetting: { findUnique: async () => null },
     jobSalaryStructure: { upsert: async ({ create }: any) => ({ id: 'structure-1', ...create }) },
     jobSalaryComponent: {
       deleteMany: async () => { deleted = true; },
@@ -123,6 +128,8 @@ test('Add Job persists server-calculated gross salary and returns the normalized
   mock(t, prisma.employerCompany, 'findFirst', async () => ({ id: companyId, employerUserId: 'employer-1' }));
   const fakeTx = {
     salaryStatutoryRule: { findMany: async () => [] },
+    employerLwfSetting: { findUnique: async () => null },
+    lwfMasterSetting: { findUnique: async () => null },
     jobPost: {
       create: async ({ data }: any) => ({ id: 'job-1', ...data }),
       update: async ({ data }: any) => { legacyGross = data.salaryAmount; },
@@ -155,6 +162,68 @@ test('editing a historical job without a structure preserves its legacy salary a
   mock(t, prisma, '$transaction', async (callback: any) => callback(fakeTx));
   await updateJob({ user: { id: 'employer-1' }, params: { job: 'job-1' }, body: { title: 'Updated' } } as unknown as Request, responseCapture().response);
   assert.equal(updateData.salaryAmount, undefined);
+});
+
+test('employer LWF override wins over the Super Admin master and is injected server-side', async () => {
+  const client = {
+    employerLwfSetting: { findUnique: async () => ({ id: 'override-1', employeeAmount: new Prisma.Decimal(40), employerAmount: new Prisma.Decimal(80), status: 'active' }) },
+    lwfMasterSetting: { findUnique: async () => ({ id: 'master-1', employeeAmount: new Prisma.Decimal(35), employerAmount: new Prisma.Decimal(70), status: 'active' }) },
+  } as any;
+  const setting = await resolveEffectiveLwfSetting(client, 'employer-1');
+  assert.equal(setting?.source, 'employer');
+  const applied = applyEffectiveLwfSetting({ components: [component('BASIC_SALARY', 'Basic', 'earning', { fixed_amount: '10000' })] }, setting);
+  const calculated = calculateSalaryStructure(applied.input);
+  assert.equal(calculated.deductions_monthly, '40.00');
+  assert.equal(calculated.employer_contributions_monthly, '80.00');
+});
+
+test('Super Admin LWF master applies when the employer has no override', async () => {
+  const client = {
+    employerLwfSetting: { findUnique: async () => null },
+    lwfMasterSetting: { findUnique: async () => ({ id: 'master-1', employeeAmount: new Prisma.Decimal(35), employerAmount: new Prisma.Decimal(70), status: 'active' }) },
+  } as any;
+  const setting = await resolveEffectiveLwfSetting(client, 'employer-1');
+  assert.equal(setting?.source, 'master');
+  const applied = applyEffectiveLwfSetting({ components: [component('BASIC_SALARY', 'Basic', 'earning', { fixed_amount: '10000' })] }, setting);
+  const calculated = calculateSalaryStructure(applied.input);
+  assert.equal(calculated.net_monthly, '9965.00');
+  assert.equal(calculated.employer_cost_monthly, '10070.00');
+});
+
+test('client-supplied LWF is discarded when no managed LWF setting exists', () => {
+  const applied = applyEffectiveLwfSetting({ components: [
+    component('BASIC_SALARY', 'Basic', 'earning', { fixed_amount: '10000' }),
+    component('EMPLOYEE_LWF', 'Client supplied LWF', 'deduction', { fixed_amount: '9999' }),
+  ] }, null);
+  const calculated = calculateSalaryStructure(applied.input);
+  assert.equal(calculated.deductions_monthly, '0.00');
+  assert.equal(calculated.components.some(row => row.code === 'EMPLOYEE_LWF'), false);
+});
+
+test('Job Management employees may read effective LWF but cannot manage the master', () => {
+  assert.deepEqual(adminEmployeeModules('/lwf-effective/employer-1', 'GET'), ['Job Management']);
+  assert.deepEqual(adminEmployeeModules('/lwf-master', 'POST'), []);
+});
+
+test('delegated admin employees cannot change the Super Admin LWF master', async t => {
+  let writes = 0;
+  mock(t, prisma.user, 'findUnique', async () => ({ role: 'admin_employee', accountStatus: 'active' }));
+  mock(t, prisma.lwfMasterSetting, 'upsert', async () => { writes += 1; return {}; });
+  await assert.rejects(
+    () => saveMaster({ user: { id: 'employee-1' }, body: { employee_amount: '10', employer_amount: '20', status: 'active' } } as unknown as Request, responseCapture().response),
+    (error) => error instanceof HttpError && error.status === 403,
+  );
+  assert.equal(writes, 0);
+});
+
+test('employer LWF changes are scoped to the authenticated employer', async t => {
+  let write: any;
+  mock(t, prisma.lwfMasterSetting, 'findUnique', async () => ({ id: 'master-1' }));
+  mock(t, prisma.employerLwfSetting, 'upsert', async (args: any) => { write = args; return { id: 'override-1', ...args.create }; });
+  await saveEmployerSetting({ user: { id: 'employer-1' }, body: { employee_amount: '45', employer_amount: '90', status: 'active' } } as unknown as Request, responseCapture().response);
+  assert.deepEqual(write.where, { employerUserId: 'employer-1' });
+  assert.equal(write.create.employerUserId, 'employer-1');
+  assert.equal(write.create.employeeAmount.toFixed(2), '45.00');
 });
 
 test('salary routes reject missing, wrong-role and inactive users', () => {

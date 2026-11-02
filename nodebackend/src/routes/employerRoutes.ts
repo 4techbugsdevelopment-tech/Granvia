@@ -20,6 +20,7 @@ import * as payment from '../controllers/paymentController';
 import * as invoice from '../controllers/invoiceController';
 import * as wallet from '../controllers/walletController';
 import * as salary from '../controllers/salaryStructureController';
+import * as lwf from '../controllers/lwfController';
 import * as aadhaar from '../controllers/employerAadhaarController';
 import * as report from '../controllers/reportController';
 import * as aadhaarManual from '../controllers/aadhaarManualController';
@@ -59,6 +60,9 @@ router.patch('/employer/salary-templates/:template', asyncHandler(salary.updateT
 router.delete('/employer/salary-templates/:template', asyncHandler(salary.deleteTemplate));
 router.get('/employer/salary-statutory-rules', asyncHandler(salary.statutoryRules));
 router.post('/employer/salary-statutory-rules', asyncHandler(salary.saveStatutoryRule));
+router.get('/employer/lwf-setting', asyncHandler(lwf.employerSetting));
+router.post('/employer/lwf-setting', asyncHandler(lwf.saveEmployerSetting));
+router.delete('/employer/lwf-setting', asyncHandler(lwf.resetEmployerSetting));
 
 router.get('/employer/applications', asyncHandler(application.employerIndex));
 router.patch('/employer/applications/:application/status', asyncHandler(application.updateStatus));

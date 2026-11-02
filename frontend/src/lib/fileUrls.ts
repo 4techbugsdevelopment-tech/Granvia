@@ -1,5 +1,7 @@
 import { API_BASE_URL } from './apiClient';
 
+const EMPLOYER_LOGO_PUBLIC_BASE = 'https://aip.granvia.llc/storage/public/employer-logos/';
+
 function apiOrigin(): string {
   if (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')) {
     return new URL(API_BASE_URL).origin;
@@ -19,6 +21,25 @@ export function previewUrl(url?: string | null): string {
       return `${apiOrigin()}${parsed.pathname}${parsed.search}`;
     }
     return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function employerLogoUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+
+  try {
+    const parsed = new URL(url, apiOrigin());
+    const marker = '/employer-logos/';
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex === -1) return previewUrl(url);
+
+    const storedPath = parsed.pathname.slice(markerIndex + marker.length).replace(/^\/+/, '');
+    return storedPath
+      ? `${EMPLOYER_LOGO_PUBLIC_BASE}${storedPath}${parsed.search}${parsed.hash}`
+      : EMPLOYER_LOGO_PUBLIC_BASE;
   } catch {
     return url;
   }

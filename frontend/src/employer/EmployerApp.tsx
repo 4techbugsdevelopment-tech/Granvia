@@ -38,12 +38,13 @@ import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../
 import { AssociateTypeOption, listActiveAssociateTypes } from '../services/associateTypeService';
 import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
+import LwfSettingsPage from './LwfSettingsPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
-import { previewUrl } from '../lib/fileUrls';
+import { employerLogoUrl, previewUrl } from '../lib/fileUrls';
 import SalaryStructurePanel, { validateSalaryDraft } from '../components/salary/SalaryStructurePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../services/salaryStructureService';
 
@@ -143,7 +144,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
     isAadhaarVerified: Boolean(employerProfile?.is_aadhaar_verified),
     aadhaarVerificationStatus: employerProfile?.aadhaar_verification_status || 'pending',
     aadhaarLastFour: employerProfile?.aadhaar_last_four || '',
-    logoUrl: previewUrl(employerProfile?.logo_url),
+    logoUrl: employerLogoUrl(employerProfile?.logo_url),
   };
 
   const activeCompany = companies.find(c => c.id === activeCompanyId) ?? companies[0] ?? null;
@@ -198,6 +199,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'reports':     return <EmployerReportingHub company={activeCompany} key={activeCompany?.id ?? 'account'} onSelectCompany={() => setPage('companies')} />;
       case 'available-guards': return <AvailableGuardsPage />;
       case 'feedback':    return <FeedbackPage />;
+      case 'settings':    return <LwfSettingsPage />;
       default:            return <StaticInfoPage title={pageTitles[page]} />;
     }
   };
