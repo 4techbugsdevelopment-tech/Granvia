@@ -9,7 +9,7 @@ function display(value: unknown, key = ''): string {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split('-').reverse().join('/');
-  if (typeof value === 'string' && /^-?\d+\.\d{2}$/.test(value) && !key.endsWith('_id')) return `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (typeof value === 'string' && /^-?\d+\.\d{2}$/.test(value) && !key.endsWith('_id') && !key.includes('hours')) return `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return String(value);
 }
 function Summary({ values }: { values: Record<string, unknown> }) {
@@ -35,6 +35,7 @@ function Summary({ values }: { values: Record<string, unknown> }) {
 }
 const control = 'rounded-lg border border-[#dfd2c7] bg-white px-3 py-2 text-sm text-[#342523]';
 type Filters = Record<string, string>;
+const filterLabel = (field: string) => ({ employer_id: 'Employer', guard_id: 'Associate', company_id: 'Company', site_id: 'Site', job_id: 'Job' }[field] ?? title(field));
 
 export default function ExtendedReports({ role }: { role: ReportingRole }) {
   const [definitions, setDefinitions] = useState<ExtendedReportDefinition[]>([]);
@@ -96,14 +97,14 @@ export default function ExtendedReports({ role }: { role: ReportingRole }) {
   };
 
   return <section className="space-y-4 p-4 md:p-6 text-[#342523]">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold">{role === 'guard' ? 'My Reports & Statements' : role === 'employer' ? 'Master Trackers & Reports' : 'Extended Reports'}</h1><p className="text-sm text-[#6b5046]">{role === 'super_admin' ? 'Platform-wide' : role === 'finance' ? 'Finance withdrawal scope' : 'Your authorised account and assignments'} · IST dates · CSV download</p></div><button className={control} onClick={() => setRefresh(value => value + 1)} aria-label="Refresh reports"><RefreshCw size={17}/></button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold">{role === 'guard' ? 'My Reports & Statements' : role === 'employer' || role === 'super_admin' ? 'Master Trackers & Reports' : 'Extended Reports'}</h1><p className="text-sm text-[#6b5046]">{role === 'super_admin' ? 'Platform-wide' : role === 'finance' ? 'Finance withdrawal scope' : 'Your authorised account and assignments'} · IST dates · CSV download</p></div><button className={control} onClick={() => setRefresh(value => value + 1)} aria-label="Refresh reports"><RefreshCw size={17}/></button></div>
     <label className="block text-sm font-semibold">Report<select className={`${control} mt-1 block w-full sm:max-w-xl`} value={kind} onChange={event => select(event.target.value)}>{definitions.map(report => <option key={report.kind} value={report.kind}>{report.label}</option>)}</select></label>
     {definition && <form onSubmit={event => { event.preventDefault(); apply(); }} className="flex flex-wrap items-end gap-3 rounded-xl bg-[#faf6f0] p-3">
       {definition.dates && <><label className="text-xs">From<input className={`${control} mt-1 block`} type="date" value={draft.date_from ?? ''} onChange={event => change('date_from', event.target.value)}/></label><label className="text-xs">Through<input className={`${control} mt-1 block`} type="date" value={draft.date_to ?? ''} onChange={event => change('date_to', event.target.value)}/></label></>}
-      {definition.filters.includes('status') && <label className="text-xs">Status<input autoComplete="off" className={`${control} mt-1 block`} placeholder="All statuses" value={draft.status ?? ''} onChange={event => change('status', event.target.value)}/></label>}
+      {definition.filters.includes('status') && <label className="text-xs">{kind === 'associate-work-history' ? 'Employment status' : kind === 'associate-attendance-history' ? 'Attendance status' : 'Status'}<input autoComplete="off" className={`${control} mt-1 block`} placeholder="All statuses" value={draft.status ?? ''} onChange={event => change('status', event.target.value)}/></label>}
       {definition.filters.includes('source') && <label className="text-xs">Credit source<select className={`${control} mt-1 block`} value={draft.source ?? ''} onChange={event => change('source', event.target.value)}><option value="">All sources</option><option value="admin_credit">Admin credit</option><option value="mock_gateway_recharge">Mock recharge</option></select></label>}
-      {Object.entries(options.options).map(([field, choices]) => <label key={field} className="text-xs">{field === 'employer_id' ? 'Employer' : field === 'guard_id' ? 'Associate' : 'Company'}<select className={`${control} mt-1 block max-w-xs`} value={draft[field] ?? ''} onChange={event => change(field, event.target.value)}><option value="">All</option>{draft[field] && !choices.some(choice => choice.id === draft[field]) && <option value={draft[field]}>Selected account / company</option>}{choices.map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</select></label>)}
-      {Object.keys(options.options).length > 0 && <label className="text-xs">Find account / company<input autoComplete="off" className={`${control} mt-1 block`} value={optionSearch} onChange={event => setOptionSearch(event.target.value)} placeholder="Search selector names"/></label>}
+      {Object.entries(options.options).map(([field, choices]) => <label key={field} className="text-xs">{filterLabel(field)}<select className={`${control} mt-1 block max-w-xs`} value={draft[field] ?? ''} onChange={event => change(field, event.target.value)}><option value="">All</option>{draft[field] && !choices.some(choice => choice.id === draft[field]) && <option value={draft[field]}>Selected {filterLabel(field).toLowerCase()}</option>}{choices.map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</select></label>)}
+      {Object.keys(options.options).length > 0 && <label className="text-xs">Find filter option<input autoComplete="off" className={`${control} mt-1 block`} value={optionSearch} onChange={event => setOptionSearch(event.target.value)} placeholder="Search names"/></label>}
       <button type="submit" className="rounded-lg bg-[#6f3427] px-4 py-2 text-sm font-semibold text-white">Apply</button><button type="button" className={control} onClick={() => { setDraft({}); setFilters({}); setPage(1); }}>Clear</button>
       <button type="button" disabled={loading || exporting || !visible || !!error} onClick={() => void exportRows()} className={`${control} flex items-center gap-2 disabled:opacity-40`}><Download size={16}/>{exporting ? 'Exporting…' : 'Export CSV'}</button>
     </form>}

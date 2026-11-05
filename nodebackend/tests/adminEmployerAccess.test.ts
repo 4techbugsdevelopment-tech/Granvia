@@ -38,7 +38,7 @@ test('active Super Admin gets employer scope and keeps the true actor separately
   mockMethod(t, prisma.user, 'findFirst', async (args: any) => { lookup = args; return employer; });
   const request = req();
   await applyAdminEmployerAccess(request);
-  assert.deepEqual(lookup.where, { id: employer.id, role: 'employer' });
+  assert.deepEqual(lookup.where, { id: employer.id, role: 'employer', accountStatus: { not: 'deleted' } });
   assert.equal(request.user!.id, employer.id); assert.equal(request.user!.role, 'employer');
   assert.equal(request.adminEmployerAccess!.actor_id, actor.id);
   assert.equal(request.adminEmployerAccess!.employer_id, employer.id);

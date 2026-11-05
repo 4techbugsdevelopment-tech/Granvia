@@ -50,6 +50,18 @@ test('earnings, deductions, net salary and employer costs are calculated indepen
   assert.equal(result.annual_ctc, '160805.40');
 });
 
+test('daily salary structures calculate deductions for one daily payment period', () => {
+  const result = calculateSalaryStructure({ components: [
+    component('BASIC_SALARY', 'Basic Daily Pay', 'earning', { fixed_amount: '1000.00' }),
+    component('OTHER_DEDUCTION', 'Daily Deduction', 'deduction', { fixed_amount: '125.50' }),
+  ] }, [], 'Daily');
+  assert.equal(result.payment_frequency, 'Daily');
+  assert.equal(result.gross_per_period, '1000.00');
+  assert.equal(result.deductions_per_period, '125.50');
+  assert.equal(result.net_per_period, '874.50');
+  assert.equal(result.annual_ctc, '0.00');
+});
+
 test('percentage components use their configured basis with decimal-safe half-up rounding', () => {
   const result = calculateSalaryStructure({ components: [
     component('BASIC_SALARY', 'Basic Salary', 'earning', { fixed_amount: '100.00' }),
@@ -122,7 +134,7 @@ test('templates are employer-scoped and persist reusable normalized components',
   assert.equal(result().body.components[0].fixed_amount, '18000.00');
 });
 
-test('Add Job persists server-calculated gross salary and returns the normalized structure', async t => {
+test('Add Job accepts a Daily structure and persists its server-calculated gross pay', async t => {
   const companyId = '10000000-0000-4000-8000-000000000001';
   let legacyGross: unknown;
   mock(t, prisma.associateType, 'findFirst', async () => ({ id: 'associate-type-1' }));
@@ -145,7 +157,7 @@ test('Add Job persists server-calculated gross salary and returns the normalized
   mock(t, prisma, '$transaction', async (callback: any) => callback(fakeTx));
   const { response, result } = responseCapture();
   await storeJob({ user: { id: 'employer-1' }, body: {
-    company_id: companyId, title: 'Guard', guard_type: 'SECURITY_GUARD', payment_type: 'Monthly',
+    company_id: companyId, title: 'Guard', guard_type: 'SECURITY_GUARD', payment_type: 'Daily',
     salary_structure: { components: [component('BASIC_SALARY', 'Basic Salary', 'earning', { fixed_amount: '22000.50' })] },
   } } as unknown as Request, response);
   assert.equal(result().statusCode, 201);
@@ -213,6 +225,18 @@ test('daily and hourly attendance settlement behavior remains unchanged', () => 
     job: { salaryAmount: new Prisma.Decimal(125), paymentType: 'Hourly' },
     guardProfile: { dailyRate: null, hourlyRate: new Prisma.Decimal(120) },
   }), 900);
+});
+
+test('structured daily attendance settles the job daily net after its deductions', () => {
+  assert.equal(payableAmount({
+    totalHours: new Prisma.Decimal(8),
+    job: {
+      salaryAmount: new Prisma.Decimal(1000),
+      paymentType: 'Daily',
+      salaryStructure: { netMonthly: new Prisma.Decimal(875), deductionsMonthly: new Prisma.Decimal(125) },
+    },
+    guardProfile: { dailyRate: new Prisma.Decimal(950), hourlyRate: null },
+  }), 875);
 });
 
 test('editing a historical job without a structure preserves its legacy salary amount', async t => {

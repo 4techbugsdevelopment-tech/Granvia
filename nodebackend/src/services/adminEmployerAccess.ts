@@ -18,7 +18,7 @@ export async function applyAdminEmployerAccess(req: Request) {
     throw new HttpError(403, 'Employer management access is limited to the employer workspace.');
   }
   const employerId = z.string().uuid().parse(target);
-  const employer = await prisma.user.findFirst({ where: { id: employerId, role: 'employer' } });
+  const employer = await prisma.user.findFirst({ where: { id: employerId, role: 'employer', accountStatus: { not: 'deleted' } } });
   if (!employer) throw new HttpError(404, 'Employer account not found.');
   req.adminEmployerAccess = {
     actor_id: actor.id, actor_name: actor.fullName, employer_id: employer.id,

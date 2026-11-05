@@ -52,7 +52,7 @@ const jobFields = {
 
 const createSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).superRefine((data, context) => {
   if (data.salary_amount == null && data.salary_structure == null) context.addIssue({ code: z.ZodIssueCode.custom, path: ['salary_structure'], message: 'Enter a salary structure.' });
-  if (data.salary_structure != null && data.payment_type !== 'Monthly') context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_type'], message: 'Salary structures use monthly amounts; select Monthly payment type.' });
+  if (data.salary_structure != null && !['Monthly', 'Daily'].includes(String(data.payment_type))) context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_type'], message: 'Salary structures require a Monthly or Daily payment type.' });
 });
 const updateSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).partial();
 
@@ -107,7 +107,7 @@ export async function store(req: Request, res: Response) {
       status: data.status === 'draft' ? 'draft' : 'active',
     } as never });
     if (salary_structure) {
-      const calculated = await saveJobSalaryStructure(tx, created.id, req.user!.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure);
+      const calculated = await saveJobSalaryStructure(tx, created.id, req.user!.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure, data.payment_type);
       await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
     }
     return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
@@ -123,13 +123,13 @@ export async function update(req: Request, res: Response) {
 
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
-  if (data.salary_structure && (data.payment_type ?? job.paymentType) !== 'Monthly') throw new HttpError(422, 'Salary structures use monthly amounts; select Monthly payment type.');
-  if (job.salaryStructure && data.payment_type !== undefined && data.payment_type !== 'Monthly') throw new HttpError(422, 'A structured salary must use Monthly payment type.');
+  if (data.salary_structure && !['Monthly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly or Daily payment type.');
   const { salary_structure, salary_amount, ...jobData } = data;
   if (job.salaryStructure && salary_amount != null && !new Prisma.Decimal(salary_amount).equals(job.salaryAmount ?? 0)) throw new HttpError(422, 'This job uses a salary structure. Update the structure instead of the legacy salary amount.');
   const updated = await prisma.$transaction(async tx => {
     let grossSalary: string | undefined;
-    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, job.employerUserId, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure)).gross_monthly;
+    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, job.employerUserId, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure, data.payment_type ?? job.paymentType)).gross_monthly;
     await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
     return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });
@@ -238,7 +238,7 @@ export async function adminStore(req: Request, res: Response) {
   const job = await prisma.$transaction(async tx => {
     const created = await tx.jobPost.create({ data: { ...toPrismaData(jobData, JSON_FIELDS), employerUserId: company.employerUserId, status: data.status ?? 'pending_approval' } as never });
     if (salary_structure) {
-      const calculated = await saveJobSalaryStructure(tx, created.id, company.employerUserId, req.user!.id, salary_structure);
+      const calculated = await saveJobSalaryStructure(tx, created.id, company.employerUserId, req.user!.id, salary_structure, data.payment_type);
       await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
     }
     return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
@@ -252,8 +252,8 @@ export async function adminUpdate(req: Request, res: Response) {
   if (!job) throw new HttpError(404, 'Not found.');
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
-  if (data.salary_structure && (data.payment_type ?? job.paymentType) !== 'Monthly') throw new HttpError(422, 'Salary structures use monthly amounts; select Monthly payment type.');
-  if (job.salaryStructure && data.payment_type !== undefined && data.payment_type !== 'Monthly') throw new HttpError(422, 'A structured salary must use Monthly payment type.');
+  if (data.salary_structure && !['Monthly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly or Daily payment type.');
   let employerUserId: string | undefined;
 
   if (data.company_id || data.site_id) {
@@ -272,7 +272,7 @@ export async function adminUpdate(req: Request, res: Response) {
   if (job.salaryStructure && salary_amount != null && !new Prisma.Decimal(salary_amount).equals(job.salaryAmount ?? 0)) throw new HttpError(422, 'This job uses a salary structure. Update the structure instead of the legacy salary amount.');
   const updated = await prisma.$transaction(async tx => {
     let grossSalary: string | undefined;
-    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, employerUserId ?? job.employerUserId, req.user!.id, salary_structure)).gross_monthly;
+    if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, employerUserId ?? job.employerUserId, req.user!.id, salary_structure, data.payment_type ?? job.paymentType)).gross_monthly;
     await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(employerUserId ? { employerUserId } : {}), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
     return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });

@@ -81,6 +81,7 @@ export default function MobileChrome({
           minHeight: 52,
         }}
       >
+        {brandLogoUrl && <GranviaLogo size={30} showText={false} accentColor={accent} />}
         <motion.button
           onClick={() => setMenuOpen(true)}
           whileTap={{ scale: 0.9 }}
@@ -97,6 +98,7 @@ export default function MobileChrome({
           </div>
         </div>
         {headerRight}
+        {brandLogoUrl && <img src={brandLogoUrl} alt="Employer logo" className="h-9 w-9 shrink-0 rounded-full border border-slate-200 bg-white object-contain p-0.5" />}
       </header>
 
       {/* Scrollable content area */}
@@ -177,9 +179,9 @@ export default function MobileChrome({
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
               <div className="flex justify-center py-3"><div className="h-1 w-10 rounded-full bg-slate-300" /></div>
-              <div className="mb-4 flex items-center justify-between">
-                <div><div className="flex items-center gap-2"><GranviaLogo size={32} accentColor={accent} />{brandLogoUrl && <img src={brandLogoUrl} alt="Account logo" className="h-8 w-8 rounded-full border border-slate-200 bg-white object-contain p-0.5" />}</div><p className="mt-1 text-xs text-slate-500">{brandLabel} options</p></div>
-                <button onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-500 shadow-sm"><X size={19} /></button>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div><GranviaLogo size={32} accentColor={accent} /><p className="mt-1 text-xs text-slate-500">{brandLabel} options</p></div>
+                <div className="flex items-center gap-2">{brandLogoUrl && <img src={brandLogoUrl} alt="Employer logo" className="h-10 w-10 rounded-full border border-slate-200 bg-white object-contain p-0.5" />}<button onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-slate-500 shadow-sm"><X size={19} /></button></div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {menuItems.map(item => {

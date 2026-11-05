@@ -58,12 +58,20 @@ export const salaryStructureInputSchema = z.object({ components: z.array(salaryC
 });
 
 export type SalaryStructureInput = z.infer<typeof salaryStructureInputSchema>;
+export type SalaryPaymentFrequency = 'Monthly' | 'Daily';
 type Rule = { code: string; category: string; percentage: Prisma.Decimal | null; percentageBasis: string | null; applicabilityMinGross: Prisma.Decimal | null; applicabilityMaxGross: Prisma.Decimal | null; monthlyCap: Prisma.Decimal | null; enabled: boolean };
 const zero = () => new Prisma.Decimal(0);
 const round = (value: Prisma.Decimal) => value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 const sum = (values: Prisma.Decimal[]) => round(values.reduce((total, value) => total.add(value), zero()));
 
-export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = []) {
+export function normalizeSalaryPaymentFrequency(value: unknown): SalaryPaymentFrequency {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'monthly') return 'Monthly';
+  if (normalized === 'daily') return 'Daily';
+  throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
+}
+
+export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = [], paymentFrequency: SalaryPaymentFrequency = 'Monthly') {
   const input = salaryStructureInputSchema.parse(raw);
   const ruleMap = new Map(statutoryRules.map(rule => [rule.code.toUpperCase(), rule]));
   const configured = input.components.map(component => {
@@ -103,31 +111,52 @@ export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = 
   const employerContributions = sum(components.filter(component => component.category === 'employer_contribution').map(component => new Prisma.Decimal(component.monthly_amount)));
   const netMonthly = round(grossMonthly.sub(deductionsMonthly));
   const employerCostMonthly = round(grossMonthly.add(employerContributions));
-  const annualCtc = round(employerCostMonthly.mul(12));
-  if (grossMonthly.lessThanOrEqualTo(0)) throw new HttpError(422, 'Gross monthly salary must be greater than zero.');
-  return { components, gross_monthly: grossMonthly.toFixed(2), deductions_monthly: deductionsMonthly.toFixed(2), net_monthly: netMonthly.toFixed(2), employer_contributions_monthly: employerContributions.toFixed(2), employer_cost_monthly: employerCostMonthly.toFixed(2), annual_ctc: annualCtc.toFixed(2), calculation_version: 1 };
+  const annualCtc = paymentFrequency === 'Monthly' ? round(employerCostMonthly.mul(12)) : zero();
+  if (grossMonthly.lessThanOrEqualTo(0)) throw new HttpError(422, `Gross ${paymentFrequency.toLowerCase()} pay must be greater than zero.`);
+  return {
+    components,
+    payment_frequency: paymentFrequency,
+    gross_per_period: grossMonthly.toFixed(2),
+    deductions_per_period: deductionsMonthly.toFixed(2),
+    net_per_period: netMonthly.toFixed(2),
+    employer_contributions_per_period: employerContributions.toFixed(2),
+    employer_cost_per_period: employerCostMonthly.toFixed(2),
+    // Keep the established API/database names for compatibility. For Daily jobs these
+    // columns contain one daily payment period and payment_frequency disambiguates them.
+    gross_monthly: grossMonthly.toFixed(2),
+    deductions_monthly: deductionsMonthly.toFixed(2),
+    net_monthly: netMonthly.toFixed(2),
+    employer_contributions_monthly: employerContributions.toFixed(2),
+    employer_cost_monthly: employerCostMonthly.toFixed(2),
+    annual_ctc: annualCtc.toFixed(2),
+    calculation_version: 3,
+  };
 }
 
 export const salaryStructureInclude = { salaryStructure: { include: { components: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }] } } } };
 
-export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId: string, employerUserId: string, actorUserId: string, raw: unknown) {
+export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId: string, employerUserId: string, actorUserId: string, raw: unknown, requestedPaymentType?: unknown) {
   const [rules, job] = await Promise.all([
     tx.salaryStatutoryRule.findMany({ where: { employerUserId } }),
     tx.jobPost.findUnique({ where: { id: jobId }, include: { site: { select: { state: true } }, company: { select: { state: true, businessType: true } } } }),
   ]);
   if (!job) throw new HttpError(404, 'Job not found while saving its salary structure.');
+  const paymentFrequency = normalizeSalaryPaymentFrequency(requestedPaymentType ?? job.paymentType ?? 'Monthly');
   const withoutClientLwf = applyEffectiveLwfSetting(raw, null);
-  const base = calculateSalaryStructure(withoutClientLwf.input, rules);
+  const applicableRules = paymentFrequency === 'Monthly' ? rules : [];
+  const base = calculateSalaryStructure(withoutClientLwf.input, applicableRules, paymentFrequency);
   const effectiveDate = job.startDate ?? new Date();
   const stateText = job.site?.state ?? job.company?.state ?? null;
-  const stateResolution = stateText ? await resolveLwfPolicy(tx, {
+  // LWF policies and their schedules are monthly. Never inject them into a daily
+  // payment period; daily custom deductions still follow the job's Daily frequency.
+  const stateResolution = paymentFrequency === 'Monthly' && stateText ? await resolveLwfPolicy(tx, {
     stateText,
     establishmentType: job.company?.businessType,
     effectiveDate,
     grossAmount: base.gross_monthly,
     employeeCategory: job.guardType ?? job.category,
   }) : null;
-  const legacySetting = stateResolution ? null : await resolveEffectiveLwfSetting(tx, employerUserId);
+  const legacySetting = paymentFrequency === 'Monthly' && !stateResolution ? await resolveEffectiveLwfSetting(tx, employerUserId) : null;
   const policySetting = stateResolution?.status === 'applied' && stateResolution.policy ? {
     id: stateResolution.policy.id,
     source: 'state_policy' as const,
@@ -136,7 +165,7 @@ export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId
     status: 'active',
   } : null;
   const managedLwf = applyEffectiveLwfSetting(withoutClientLwf.input, policySetting ?? legacySetting);
-  const calculated = calculateSalaryStructure(managedLwf.input, rules);
+  const calculated = calculateSalaryStructure(managedLwf.input, applicableRules, paymentFrequency);
   if (stateResolution?.status === 'applied' && stateResolution.policy) {
     const annualBase = new Prisma.Decimal(base.gross_monthly).add(base.employer_contributions_monthly).mul(12);
     const occurrences = scheduledMonths(stateResolution.policy.frequency, stateResolution.policy.scheduleMonths).length;
@@ -152,14 +181,14 @@ export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId
     lwf_frequency: stateResolution?.policy?.frequency ?? null,
     lwf_contribution_schedule: stateResolution?.policy?.scheduleMonths ?? null,
     lwf_effective_date: stateResolution ? effectiveDate : null,
-    lwf_resolution_status: stateResolution?.status ?? (legacySetting ? 'legacy_compatibility' : 'not_configured'),
-    lwf_resolution_reason: stateResolution?.reason ?? (legacySetting ? 'legacy_global_or_employer_setting' : 'jurisdiction_state_unresolved'),
+    lwf_resolution_status: stateResolution?.status ?? (legacySetting ? 'legacy_compatibility' : paymentFrequency === 'Daily' ? 'not_applicable' : 'not_configured'),
+    lwf_resolution_reason: stateResolution?.reason ?? (legacySetting ? 'legacy_global_or_employer_setting' : paymentFrequency === 'Daily' ? 'daily_payment_frequency' : 'jurisdiction_state_unresolved'),
     lwf_policy_snapshot: snapshot ? JSON.stringify(snapshot) : null,
   };
   const structure = await tx.jobSalaryStructure.upsert({
     where: { jobId },
-    create: { jobId, grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: 2, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id, lwfPolicyVersionId: result.lwf_policy_version_id, lwfStateId: result.lwf_state_id, lwfFrequency: result.lwf_frequency, lwfContributionSchedule: result.lwf_contribution_schedule, lwfEffectiveDate: result.lwf_effective_date, lwfResolutionStatus: result.lwf_resolution_status, lwfResolutionReason: result.lwf_resolution_reason, lwfPolicySnapshot: result.lwf_policy_snapshot },
-    update: { grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: 2, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id, lwfPolicyVersionId: result.lwf_policy_version_id, lwfStateId: result.lwf_state_id, lwfFrequency: result.lwf_frequency, lwfContributionSchedule: result.lwf_contribution_schedule, lwfEffectiveDate: result.lwf_effective_date, lwfResolutionStatus: result.lwf_resolution_status, lwfResolutionReason: result.lwf_resolution_reason, lwfPolicySnapshot: result.lwf_policy_snapshot },
+    create: { jobId, grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id, lwfPolicyVersionId: result.lwf_policy_version_id, lwfStateId: result.lwf_state_id, lwfFrequency: result.lwf_frequency, lwfContributionSchedule: result.lwf_contribution_schedule, lwfEffectiveDate: result.lwf_effective_date, lwfResolutionStatus: result.lwf_resolution_status, lwfResolutionReason: result.lwf_resolution_reason, lwfPolicySnapshot: result.lwf_policy_snapshot },
+    update: { grossMonthly: result.gross_monthly, deductionsMonthly: result.deductions_monthly, netMonthly: result.net_monthly, employerContributionsMonthly: result.employer_contributions_monthly, employerCostMonthly: result.employer_cost_monthly, annualCtc: result.annual_ctc, calculationVersion: result.calculation_version, lwfSource: result.lwf_source, lwfSettingId: result.lwf_setting_id, lwfPolicyVersionId: result.lwf_policy_version_id, lwfStateId: result.lwf_state_id, lwfFrequency: result.lwf_frequency, lwfContributionSchedule: result.lwf_contribution_schedule, lwfEffectiveDate: result.lwf_effective_date, lwfResolutionStatus: result.lwf_resolution_status, lwfResolutionReason: result.lwf_resolution_reason, lwfPolicySnapshot: result.lwf_policy_snapshot },
   });
   await tx.jobSalaryComponent.deleteMany({ where: { structureId: structure.id } });
   await tx.jobSalaryComponent.createMany({ data: result.components.map(component => ({ structureId: structure.id, code: component.code, name: component.name, category: component.category, calculationType: component.calculation_type, fixedAmount: component.fixed_amount, percentage: component.percentage, percentageBasis: component.percentage_basis, monthlyAmount: component.monthly_amount, enabled: component.enabled, classification: component.classification, statutoryCode: component.statutory_code, applicabilityMinGross: component.applicability_min_gross, applicabilityMaxGross: component.applicability_max_gross, monthlyCap: component.monthly_cap, isCustom: component.is_custom, sortOrder: component.sort_order })) });

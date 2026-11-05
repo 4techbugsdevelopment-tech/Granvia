@@ -30,6 +30,19 @@ test('registration counts distinguish period, pre-period and cumulative using IS
   assert.ok(!JSON.stringify(result).includes('PRIVATE BANK'));
 });
 
+test('Super Admin Employer master covers every registered Employer and workforce evidence', async () => {
+  const { db, tables } = fixture();
+  Object.assign(tables.user[0], { email: 'employer@example.test', mobile: '9000000001' });
+  tables.payment.push({ ...tables.payment[0], id: id(82), paymentStatus: 'completed', amount: new Prisma.Decimal('500.25') });
+  const result = await extendedReport(db, admin, 'super_admin', 'employer-master', {});
+  assert.ok('items' in result); assert.equal(result.pagination.total, 1);
+  const row = result.items[0];
+  assert.equal(row.employer, 'Employer A'); assert.equal(row.companies, 1); assert.equal(row.jobs, 301);
+  assert.equal(row.hired_associates, 1); assert.equal(row.work_history_records, 3); assert.equal(row.attendance_records, 1);
+  assert.equal(row.recorded_hours, '8.00'); assert.equal(row.completed_earnings, '500.25'); assert.equal(row.processing_earnings, '987.65');
+  assert.ok(!JSON.stringify(result).includes('NEVER EXPOSE'));
+});
+
 test('Sub Admin and Sales registration counts respect current assigned profiles', async () => {
   const { db, tables } = fixture();
   tables.employerProfile[0].subAdminId = id(8000);
@@ -146,6 +159,8 @@ test('Filter options enforce role and portfolio scope, expose safe labels and su
   tables.employerProfile[0].subAdminId = id(8000);
   const own = await extendedReportOptions(db, owner, 'employer', { kind: 'sites' });
   assert.equal(own.options.company_id.length, 1);
+  const workOptions = await extendedReportOptions(db, owner, 'employer', { kind: 'associate-work-history' });
+  assert.equal(workOptions.options.guard_id.length, 1); assert.equal(workOptions.options.company_id.length, 1); assert.equal(workOptions.options.site_id.length, 1); assert.equal(workOptions.options.job_id.length, 301);
   const assigned = await extendedReportOptions(db, actor('sub_admin'), 'sub_admin', { kind: 'recruitment-pipeline' });
   assert.equal(assigned.options.employer_id.length, 1);
   const unrelated = await extendedReportOptions(db, actor('sales_executive'), 'sales_executive', { kind: 'recruitment-pipeline' });
@@ -189,6 +204,51 @@ test('Employer Associate master is deduplicated, scoped and downloadable with wo
   assert.ok(!JSON.stringify(result).includes('PRIVATE BANK')); assert.ok(!JSON.stringify(result).includes('Foreign Associate'));
   const exported = await extendedReport(db, owner, 'employer', 'associates', {}, true);
   assert.ok('csv' in exported); assert.match(exported.csv, /Associate A/);
+});
+
+test('Super Admin Associate master includes every registered Associate with lifetime work metrics', async () => {
+  const { db, tables } = fixture();
+  tables.user.push({ id: id(310), role: 'guard', fullName: 'Never Hired', email: 'new@example.test', mobile: '9000000310', accountStatus: 'active', createdAt: new Date('2026-10-12T06:00:00Z') });
+  tables.guardProfile.push({ id: id(311), userId: id(310), city: 'Pune', state: 'Maharashtra', verificationStatus: 'pending' });
+  const result = await extendedReport(db, admin, 'super_admin', 'associates', {});
+  assert.ok('items' in result); assert.equal(result.pagination.total, 2);
+  assert.equal(result.items.find(row => row.id === id(310))?.work_history_records, 0);
+  const working = result.items.find(row => row.id === id(4));
+  assert.equal(working?.work_history_records, 3); assert.equal(working?.attendance_records, 1);
+  assert.equal(working?.processing_earnings, '987.65');
+  assert.ok(!JSON.stringify(result).includes('PRIVATE BANK'));
+});
+
+test('Associate work history combines scoped job, site, attendance, agreement and recorded earnings', async () => {
+  const { db, tables } = fixture();
+  Object.assign(tables.jobPost[0], { salaryAmount: new Prisma.Decimal('25000.00'), paymentType: 'Monthly', shiftType: 'Day', dutyHours: '8', startDate: new Date('2026-10-01T00:00:00Z') });
+  Object.assign(tables.agreement[0], { effectiveFrom: new Date('2026-10-01T00:00:00Z'), effectiveUntil: new Date('2027-09-30T00:00:00Z'), signedAt: new Date('2026-09-30T12:00:00Z') });
+  tables.payment.push({ ...tables.payment[0], id: id(312), paymentStatus: 'completed', amount: new Prisma.Decimal('500.25') });
+  const employerResult = await extendedReport(db, owner, 'employer', 'associate-work-history', {});
+  assert.ok('items' in employerResult); assert.equal(employerResult.pagination.total, 3);
+  const row = employerResult.items[0];
+  assert.equal(row.company, 'Company A'); assert.equal(row.site, 'Site A'); assert.match(String(row.work_location), /Site address/);
+  assert.equal(row.attendance_records, 1); assert.equal(row.approved_attendance, 1); assert.equal(row.recorded_hours, '8.00');
+  assert.equal(row.completed_earnings, '500.25'); assert.equal(row.processing_earnings, '987.65'); assert.equal(row.agreement_number, 'AGR-1');
+  const adminResult = await extendedReport(db, admin, 'super_admin', 'associate-work-history', { employer_id: owner.id });
+  assert.ok('items' in adminResult); assert.equal(adminResult.pagination.total, 3); assert.equal(adminResult.items[0].employer, 'Employer A');
+  const csv = await extendedReport(db, owner, 'employer', 'associate-work-history', {}, true);
+  assert.ok('csv' in csv); assert.match(csv.csv, /Recorded completed earnings/);
+  assert.ok(!JSON.stringify(employerResult).includes('PRIVATE'));
+});
+
+test('Daily attendance history exposes exact work evidence and linked settlement within role scope', async () => {
+  const { db, tables } = fixture();
+  tables.payment.push({ ...tables.payment[0], id: id(313), paymentStatus: 'completed', amount: new Prisma.Decimal('500.25'), createdAt: new Date('2026-10-13T00:00:00Z') });
+  const employerResult = await extendedReport(db, owner, 'employer', 'associate-attendance-history', range);
+  assert.ok('items' in employerResult); assert.equal(employerResult.pagination.total, 1);
+  const row = employerResult.items[0];
+  assert.equal(row.attendance_date, '2026-10-12'); assert.equal(row.job, '=Unsafe title'); assert.equal(row.site, 'Site A');
+  assert.equal(row.hours, '8.00'); assert.equal(row.status, 'approved'); assert.equal(row.settlement_amount, '500.25'); assert.equal(row.settlement_status, 'completed');
+  assert.equal(employerResult.summary.recorded_hours, '8.00');
+  const adminResult = await extendedReport(db, admin, 'super_admin', 'associate-attendance-history', { ...range, employer_id: owner.id, guard_id: id(4) });
+  assert.ok('items' in adminResult); assert.equal(adminResult.pagination.total, 1); assert.equal(adminResult.items[0].employer, 'Employer A');
+  assert.ok(!JSON.stringify(employerResult).includes('PRIVATE GPS'));
 });
 
 test('Employer Employee master combines regular staff and Sub Admin accounts', async () => {

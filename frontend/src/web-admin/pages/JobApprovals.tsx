@@ -126,11 +126,11 @@ export default function JobApprovals() {
       setFormError('Company, job title, associate type and start date are required.');
       return;
     }
-    const salaryError = validateSalaryDraft(salaryStructure);
+    const salaryError = validateSalaryDraft(salaryStructure, jobForm.payment_type === 'Daily' ? 'Daily' : 'Monthly');
     if (!editingJob || salaryStructure) {
       if (salaryError) { setFormError(salaryError); return; }
     }
-    if (salaryStructure && jobForm.payment_type !== 'Monthly') { setFormError('Salary structure amounts require Monthly payment type.'); return; }
+    if (salaryStructure && !['Monthly', 'Daily'].includes(jobForm.payment_type)) { setFormError('Salary structures require Monthly or Daily payment type.'); return; }
     setActing(editingJob?.id ?? 'create');
     setFormError('');
     setNotice('');
@@ -343,7 +343,7 @@ export default function JobApprovals() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-sm font-bold text-green-700">
-                      ₹{job.salary_amount}/{job.salary_structure ? 'mo gross' : job.payment_type === 'Monthly' ? 'mo' : 'day'}
+                      ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo gross' : job.payment_type === 'Daily' ? 'day gross' : job.payment_type}
                     </span>
                     <button
                       onClick={() => toggleExpand(job.id)}
@@ -416,12 +416,12 @@ export default function JobApprovals() {
                         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Salary Summary</p>
                         <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-5">
                           {[
-                            ['Gross', job.salary_structure.gross_monthly], ['Deductions', job.salary_structure.deductions_monthly],
-                            ['Estimated Net', job.salary_structure.net_monthly], ['Employer Cost', job.salary_structure.employer_cost_monthly],
-                            ['Annual CTC', job.salary_structure.annual_ctc],
+                            [`Gross ${job.payment_type}`, job.salary_structure.gross_monthly], [`${job.payment_type} Deductions`, job.salary_structure.deductions_monthly],
+                            [`Estimated Net ${job.payment_type}`, job.salary_structure.net_monthly], [`${job.payment_type} Employer Cost`, job.salary_structure.employer_cost_monthly],
+                            ...(job.payment_type === 'Monthly' ? [['Annual CTC', job.salary_structure.annual_ctc]] : []),
                           ].map(([label, value]) => <div key={label} className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-500">{label}</span><b>₹{value}</b></div>)}
                         </div>
-                        <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><thead><tr className="border-b text-left text-slate-500"><th className="p-1.5">Component</th><th className="p-1.5">Category</th><th className="p-1.5 text-right">Monthly</th></tr></thead><tbody>{job.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-1.5">{row.name}</td><td className="p-1.5 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-1.5 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
+                        <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><thead><tr className="border-b text-left text-slate-500"><th className="p-1.5">Component</th><th className="p-1.5">Category</th><th className="p-1.5 text-right">{job.payment_type}</th></tr></thead><tbody>{job.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-1.5">{row.name}</td><td className="p-1.5 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-1.5 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
                       </div> : <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Legacy gross salary ₹{job.salary_amount}; no component breakdown is stored.</div>}
                       {job.description && (
                         <p className="text-xs text-gray-500 pb-3">{job.description}</p>
@@ -562,7 +562,7 @@ export default function JobApprovals() {
                   {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
                 </select>
               </label>
-              <label><span className="form-label">Payment Type</span><select value={jobForm.payment_type} onChange={event => setJobForm(current => ({ ...current, payment_type: event.target.value }))} className="form-input">{(salaryStructure ? ['Monthly'] : ['Monthly', 'Daily', 'Contract', 'Shift-based']).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label><span className="form-label">Payment Type</span><select value={jobForm.payment_type} onChange={event => setJobForm(current => ({ ...current, payment_type: event.target.value }))} className="form-input">{(salaryStructure ? ['Monthly', 'Daily'] : ['Monthly', 'Daily', 'Contract', 'Shift-based']).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
               <JobField label="Shift" value={jobForm.shift_type} onChange={value => setJobForm(current => ({ ...current, shift_type: value }))} />
               <JobField label="Duty Hours" value={jobForm.duty_hours} onChange={value => setJobForm(current => ({ ...current, duty_hours: value }))} />
               <JobField label="Start Date *" type="date" value={jobForm.start_date} onChange={value => setJobForm(current => ({ ...current, start_date: value }))} />
@@ -576,7 +576,7 @@ export default function JobApprovals() {
               <label className="sm:col-span-2"><span className="form-label">Description</span><textarea value={jobForm.description} onChange={event => setJobForm(current => ({ ...current, description: event.target.value }))} className="form-input min-h-24" /></label>
             </div>
             <div className="mt-6">
-              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} onChange={value => { if (!salaryStructure) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
+              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} paymentFrequency={jobForm.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!salaryStructure && !['Monthly', 'Daily'].includes(jobForm.payment_type)) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setFormOpen(false)} className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>

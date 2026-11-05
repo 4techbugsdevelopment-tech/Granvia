@@ -2,7 +2,7 @@
 //   - LoginOtpDialog      - 2FA step after password (AUTH_LOGIN_2FA)
 //   - VerifyEmailDialog   - activate a new account with the signup code
 //   - ForgotPasswordDialog - request a reset code and set a new password
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Loader2, ShieldCheck, KeyRound } from 'lucide-react';
 import {
   verifyLoginOtp,
@@ -10,6 +10,7 @@ import {
   resendEmailOtp,
   requestPasswordOtp,
   resetPassword,
+  clearLocalSessionForPasswordReset,
 } from '../../services/authService';
 import { getErrorMessage } from '../../services/apiErrors';
 import { UserRole } from '../../lib/apiTypes';
@@ -195,6 +196,12 @@ export function ForgotPasswordDialog({ initialEmail = '', onClose }: { initialEm
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    // A user who chooses Forgot Password must never retain a previous mobile
+    // WebView session if the reset is closed midway or the app is reopened.
+    clearLocalSessionForPasswordReset();
+  }, []);
 
   const request = async () => {
     if (!email) {

@@ -31,7 +31,7 @@ import {
   pincodeError,
   type ValidationMap,
 } from '../../lib/formValidation';
-import { employerLogoUrl, previewUrl } from '../../lib/fileUrls';
+import { companyLogoUrl, employerLogoUrl, previewUrl } from '../../lib/fileUrls';
 import { useAuth } from '../../hooks/useAuth';
 import { adminEmployerUrl } from '../../lib/adminEmployerAccess';
 
@@ -161,7 +161,7 @@ export default function EmployerManagement() {
   };
 
   const deleteEmployer = async (employer: Employer) => {
-    const confirmed = window.confirm(`Delete ${employer.companyName}? This will remove employer-owned sites, jobs, applications, payments, wallet records, documents, and Aadhaar verification records.`);
+    const confirmed = window.confirm(`Delete ${employer.companyName}? Employer and delegated access will be removed, and open jobs will be closed. Associate applications, agreements, attendance, payments, and job history will be retained.`);
     if (!confirmed) return;
     setNotice('');
     setError('');
@@ -170,7 +170,7 @@ export default function EmployerManagement() {
       setSelected(null);
       setEditing(null);
       await reload();
-      setNotice('Employer deleted.');
+      setNotice('Employer access removed. Associate job history was retained.');
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to delete employer.'));
     }
@@ -346,7 +346,7 @@ export default function EmployerManagement() {
             const owner = employers.find(employer => employer.id === company.employerId);
             const companySites = sites.filter(site => site.employerId === company.employerId && site.companyId === company.id);
             const companyJobs = jobs.filter(job => job.employerId === company.employerId && job.companyId === company.id);
-            return <div key={company.id} className="rounded-xl border border-gray-100 p-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{company.logo ? <img src={previewUrl(company.logo)} alt={`${company.companyName} logo`} className="h-12 w-12 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><Building2 size={20}/></div>}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{company.companyName}</p><p className="text-xs text-gray-500">{owner?.contactPersonName || company.employerId}</p></div></div>{statusBadge(company.accountStatus)}</div><div className="mt-3 grid grid-cols-2 gap-3"><MobileDetail label="Location" value={`${company.city}, ${company.state}`} /><MobileDetail label="Verification" value={statusBadge(company.verificationStatus)} /><MobileDetail label="Sites" value={String(companySites.length)} /><MobileDetail label="Jobs" value={String(companyJobs.length)} /></div><label className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-blue-700"><ImagePlus size={14}/>{logoBusy === company.id ? 'Uploading...' : 'Upload Company Logo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div>;
+            return <div key={company.id} className="rounded-xl border border-gray-100 p-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{company.logo ? <img src={companyLogoUrl(company.logo)} alt={`${company.companyName} logo`} className="h-12 w-12 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><Building2 size={20}/></div>}<div className="min-w-0"><p className="break-words font-semibold text-gray-900">{company.companyName}</p><p className="text-xs text-gray-500">{owner?.contactPersonName || company.employerId}</p></div></div>{statusBadge(company.accountStatus)}</div><div className="mt-3 grid grid-cols-2 gap-3"><MobileDetail label="Location" value={`${company.city}, ${company.state}`} /><MobileDetail label="Verification" value={statusBadge(company.verificationStatus)} /><MobileDetail label="Sites" value={String(companySites.length)} /><MobileDetail label="Jobs" value={String(companyJobs.length)} /></div><label className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-blue-700"><ImagePlus size={14}/>{logoBusy === company.id ? 'Uploading...' : 'Upload Company Logo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div>;
           })}
           {companies.length === 0 && <div className="py-8 text-center text-sm text-gray-400">No companies found</div>}
         </div>
@@ -370,7 +370,7 @@ export default function EmployerManagement() {
                       <div className="font-semibold text-gray-900">{company.companyName}</div>
                       <div className="text-xs text-gray-400">{company.id} - {company.businessType}</div>
                     </td>
-                    <td className="px-4 py-3"><div className="flex items-center gap-2">{company.logo ? <img src={previewUrl(company.logo)} alt={`${company.companyName} logo`} className="h-10 w-10 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-400"><Building2 size={17}/></div>}<label className="cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-blue-700">{logoBusy === company.id ? 'Uploading...' : 'Upload'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div></td>
+                    <td className="px-4 py-3"><div className="flex items-center gap-2">{company.logo ? <img src={companyLogoUrl(company.logo)} alt={`${company.companyName} logo`} className="h-10 w-10 rounded-full border bg-white object-contain p-0.5" /> : <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-400"><Building2 size={17}/></div>}<label className="cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-blue-700">{logoBusy === company.id ? 'Uploading...' : 'Upload'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoBusy === company.id} className="hidden" onChange={event => { void uploadCompanyLogo(company, event.target.files?.[0]); event.currentTarget.value = ''; }}/></label></div></td>
                     <td className="px-4 py-3 text-sm text-gray-700">{owner?.contactPersonName || company.employerId}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{company.gstNumber || '--'} / {company.panNumber || '--'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{company.city}, {company.state}</td>

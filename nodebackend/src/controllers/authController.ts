@@ -340,7 +340,7 @@ export async function login(req: Request, res: Response) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
 
-  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive') {
+  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive' || user.accountStatus === 'deleted') {
     throw new HttpError(403, `Your account is ${user.accountStatus}. Contact support.`);
   }
 
@@ -391,7 +391,7 @@ export async function loginVerifyOtp(req: Request, res: Response) {
   if (data.role && user.role !== data.role && !(data.role === 'super_admin' && user.role === 'admin_employee')) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
-  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive') {
+  if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive' || user.accountStatus === 'deleted') {
     throw new HttpError(403, `Your account is ${user.accountStatus}. Contact support.`);
   }
 
@@ -426,6 +426,14 @@ export async function requestPasswordOtp(req: Request, res: Response) {
 }
 
 /** POST /auth/password/reset — verifies the code and sets a new password. */
+export async function replacePasswordAndRevokeSessions(userId: string, newPassword: string) {
+  const password = await hashPassword(newPassword);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { password } }),
+    prisma.personalAccessToken.deleteMany({ where: { tokenableId: userId } }),
+  ]);
+}
+
 export async function resetPassword(req: Request, res: Response) {
   const schema = z.object({
     email: normalizedEmailSchema,
@@ -439,9 +447,9 @@ export async function resetPassword(req: Request, res: Response) {
   const user = await prisma.user.findUnique({ where: { id: record.userId ?? '' } });
   if (!user) throw new HttpError(422, 'Account not found.');
 
-  await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(data.password) } });
-  // Revoke all existing sessions so only the new password grants access.
-  await prisma.personalAccessToken.deleteMany({ where: { tokenableId: user.id } });
+  // Password replacement and session revocation are one security operation:
+  // either both commit or neither does.
+  await replacePasswordAndRevokeSessions(user.id, data.password);
 
   return res.json({ message: 'Password updated. You can now sign in with your new password.' });
 }

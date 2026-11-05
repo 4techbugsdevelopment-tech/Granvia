@@ -45,7 +45,7 @@ import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
-import { employerLogoUrl, previewUrl } from '../lib/fileUrls';
+import { companyLogoUrl, employerLogoUrl, previewUrl } from '../lib/fileUrls';
 import SalaryStructurePanel, { validateSalaryDraft } from '../components/salary/SalaryStructurePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../services/salaryStructureService';
 
@@ -150,6 +150,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
   };
 
   const activeCompany = companies.find(c => c.id === activeCompanyId) ?? companies[0] ?? null;
+  const employerBrandLogoUrl = employer.logoUrl || companyLogoUrl(activeCompany?.logo_url);
   const adminAccess = profile.admin_employer_access;
   const aadhaarVerified = !!adminAccess || (employer.isAadhaarVerified && employer.aadhaarVerificationStatus === 'verified');
 
@@ -218,7 +219,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         onNavigate={id => setPage(id as EmployerPage)}
         onLogout={handleLogout}
         accent="#8b1a1a"
-        brandLogoUrl={employer.logoUrl}
+        brandLogoUrl={employerBrandLogoUrl}
         headerRight={(
           <div className="flex items-center gap-1">
             <NotificationBell />
@@ -247,14 +248,14 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
         style={{ background: 'linear-gradient(180deg, #0a1628, #0f1e3c 65%, #120a0a)' }}
         animate={{ width: collapsed ? 76 : 280 }}
       >
-        <div className={`${collapsed ? 'px-2' : 'px-4'} py-5 border-b border-white/10 flex items-center justify-between`}>
+        <div className={`${collapsed ? 'px-2' : 'px-4'} py-5 border-b border-white/10 flex items-center justify-between gap-2`}>
+          {!collapsed ? <GranviaLogo size={36} textColor="white" accentColor="#8b1a1a" /> : <GranviaLogo size={28} showText={false} iconColor="white" accentColor="#8b1a1a" />}
           <div className="flex items-center gap-2">
-            {!collapsed ? <GranviaLogo size={36} textColor="white" accentColor="#8b1a1a" /> : <GranviaLogo size={28} showText={false} iconColor="white" accentColor="#8b1a1a" />}
-            {!collapsed && employer.logoUrl && <img src={employer.logoUrl} alt={`${employer.contactPersonName} logo`} className="h-9 w-9 rounded-full border-2 border-white/70 bg-white object-contain p-0.5" />}
+            <button onClick={() => setCollapsed(!collapsed)} className="text-white/60 hover:text-white" aria-label={collapsed ? 'Expand employer menu' : 'Collapse employer menu'}>
+              <Menu size={18} />
+            </button>
+            {!collapsed && employerBrandLogoUrl && <img src={employerBrandLogoUrl} alt={`${activeCompany?.company_name ?? employer.contactPersonName} logo`} className="h-9 w-9 rounded-full border-2 border-white/70 bg-white object-contain p-0.5" />}
           </div>
-          <button onClick={() => setCollapsed(!collapsed)} className="text-white/60 hover:text-white">
-            <Menu size={18} />
-          </button>
         </div>
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">
           {visibleNavItems.map(item => {
@@ -286,9 +287,12 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       <motion.main className="flex-1 min-h-screen flex flex-col" animate={{ marginLeft: collapsed ? 76 : 280 }}>
         {adminAccess && <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-6 py-3 text-sm text-amber-950"><div><strong>Super Admin access:</strong> managing {employer.contactPersonName} ({employer.email}). <span className="text-amber-800">Employer status: {adminAccess.employer_status}. Changes apply to this employer.</span></div><button onClick={exitAdminEmployerAccess} className="rounded-lg border border-amber-400 px-3 py-1.5 font-semibold">Return to Super Admin</button></div>}
         <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between">
-          <div>
-            <h1 className="font-bold text-sm text-gray-900">{pageTitles[currentPage]}</h1>
-            <p className="text-xs text-gray-400">{activeCompany?.company_name ?? 'No company'} · Aadhaar {employer.aadhaarVerificationStatus}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <GranviaLogo size={36} textColor="#0f1e3c" accentColor="#8b1a1a" />
+            <div className="min-w-0 border-l border-gray-200 pl-3">
+              <h1 className="truncate font-bold text-sm text-gray-900">{pageTitles[currentPage]}</h1>
+              <p className="truncate text-xs text-gray-400">{activeCompany?.company_name ?? 'No company'} · Aadhaar {employer.aadhaarVerificationStatus}</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {aadhaarVerified && companies.length > 1 && (
@@ -301,7 +305,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
               <div className="text-sm font-semibold text-gray-800">{employer.contactPersonName}</div>
               <div className="text-xs text-gray-400">{adminAccess ? 'Super Admin managing employer' : 'Employer'}</div>
             </div>
-            {employer.logoUrl ? <img src={employer.logoUrl} alt="Employer logo" className="h-9 w-9 rounded-full border border-gray-200 bg-white object-contain p-0.5" /> : <div className="w-9 h-9 rounded-full text-white flex items-center justify-center font-bold" style={{ background: 'linear-gradient(135deg, #0f1e3c, #8b1a1a)' }}>{(activeCompany?.company_name || employer.contactPersonName).charAt(0)}</div>}
+            {employerBrandLogoUrl ? <img src={employerBrandLogoUrl} alt={`${activeCompany?.company_name ?? employer.contactPersonName} logo`} className="h-10 w-10 shrink-0 rounded-full border border-gray-200 bg-white object-contain p-0.5" /> : <div className="h-10 w-10 shrink-0 rounded-full text-white flex items-center justify-center font-bold" style={{ background: 'linear-gradient(135deg, #0f1e3c, #8b1a1a)' }}>{(activeCompany?.company_name || employer.contactPersonName).charAt(0)}</div>}
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">{renderPage()}</div>
@@ -989,7 +993,7 @@ function CompaniesPage({ employer, activeCompanyId, onSwitch, onChanged }: { emp
         <DataTable headers={['Company', 'Registration', 'Location', 'Verification', 'Account', 'Actions']}>
           {companies.map((company: any) => (
             <tr key={company.id} className="border-b border-gray-50">
-              <Td><div className="flex items-center gap-2">{company.logo_url && <img src={previewUrl(company.logo_url)} alt={`${company.company_name} logo`} className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div><b>{company.company_name}</b><div className="text-xs text-gray-400">{company.business_type}</div></div></div></Td>
+              <Td><div className="flex items-center gap-2">{company.logo_url && <img src={companyLogoUrl(company.logo_url)} alt={`${company.company_name} logo`} className="h-9 w-9 rounded-full border bg-white object-contain p-0.5" />}<div><b>{company.company_name}</b><div className="text-xs text-gray-400">{company.business_type}</div></div></div></Td>
               <Td>{company.registration_type}<div className="text-xs text-gray-400">GST {company.gst_number || '--'} / PAN {company.pan_number || '--'}</div></Td>
               <Td>{company.city}, {company.state}</Td>
               <Td>{statusBadge(company.verification_status)}</Td>
@@ -1851,9 +1855,9 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
 
   const saveJob = async () => {
     const validationErrors = validateJobForm(job as Record<string, string>);
-    const salaryError = validateSalaryDraft(salaryStructure);
+    const salaryError = validateSalaryDraft(salaryStructure, job.payment_type === 'Daily' ? 'Daily' : 'Monthly');
     if (salaryError) validationErrors.salary_structure = salaryError;
-    if (salaryStructure && job.payment_type !== 'Monthly') validationErrors.payment_type = 'Salary structure amounts are monthly.';
+    if (salaryStructure && !['Monthly', 'Daily'].includes(job.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly or Daily payment type.';
     setJobErrors(validationErrors);
     setJobError('');
     if (Object.keys(validationErrors).length > 0) {
@@ -1984,7 +1988,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
-          <Sel label="Payment Type" value={job.payment_type} error={jobErrors.payment_type} options={['Monthly']} onChange={v => setJob({ ...job, payment_type: v })} />
+          <Sel label="Payment Type" value={job.payment_type} error={jobErrors.payment_type} options={['Monthly', 'Daily']} onChange={v => setJob({ ...job, payment_type: v })} />
           <Input label="Duty Hours" value={job.duty_hours} onChange={v => setJob({ ...job, duty_hours: v })} />
           <Sel label="Shift Type" value={job.shift_type} options={['Day', 'Night', 'Rotational']} onChange={v => setJob({ ...job, shift_type: v })} />
           <Input label="Start Date" type="date" value={job.start_date} error={jobErrors.start_date} onChange={v => setJob({ ...job, start_date: v })} />
@@ -1994,7 +1998,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Input label="Languages" value={job.language_requirements} onChange={v => setJob({ ...job, language_requirements: v })} />
         </div>
         <div className="mt-5">
-          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
+          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} paymentFrequency={job.payment_type === 'Daily' ? 'Daily' : 'Monthly'} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
           {jobErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{jobErrors.salary_structure}</p>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
@@ -2091,9 +2095,9 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
     if (!editingJob) return;
     const validationErrors = validateJobForm(editForm);
     if (editSalaryStructure) {
-      const salaryError = validateSalaryDraft(editSalaryStructure);
+      const salaryError = validateSalaryDraft(editSalaryStructure, editForm.payment_type === 'Daily' ? 'Daily' : 'Monthly');
       if (salaryError) validationErrors.salary_structure = salaryError;
-      if (editForm.payment_type !== 'Monthly') validationErrors.payment_type = 'Salary structure amounts are monthly.';
+      if (!['Monthly', 'Daily'].includes(editForm.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly or Daily payment type.';
     }
     setEditErrors(validationErrors);
     setEditError('');
@@ -2199,8 +2203,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               <Td>{job.guards_required}</Td>
               <Td>
                 ₹{job.salary_amount}
-                <div className="text-xs text-gray-400">Gross / {job.salary_structure ? 'Month' : job.payment_type}</div>
-                {job.salary_structure && <div className="text-xs text-gray-400">Net ₹{job.salary_structure.net_monthly} · CTC ₹{job.salary_structure.annual_ctc}/yr</div>}
+                <div className="text-xs text-gray-400">Gross / {job.payment_type === 'Daily' ? 'Day' : job.payment_type}</div>
+                {job.salary_structure && <div className="text-xs text-gray-400">Net ₹{job.salary_structure.net_monthly} / {job.payment_type === 'Daily' ? 'day' : 'month'}{job.payment_type === 'Monthly' ? ` · CTC ₹${job.salary_structure.annual_ctc}/yr` : ''}</div>}
               </Td>
               <Td>{job.shift_type}</Td>
               <Td>{statusBadge(job.status)}</Td>
@@ -2252,14 +2256,14 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               <h4 className="mb-3 mt-6 font-bold text-gray-900">Salary Structure</h4>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {[
-                  ['Gross Monthly', viewingJob.salary_structure.gross_monthly],
-                  ['Deductions', viewingJob.salary_structure.deductions_monthly],
-                  ['Estimated Net', viewingJob.salary_structure.net_monthly],
-                  ['Employer Cost', viewingJob.salary_structure.employer_cost_monthly],
-                  ['Annual CTC', viewingJob.salary_structure.annual_ctc],
+                  [`Gross ${viewingJob.payment_type}`, viewingJob.salary_structure.gross_monthly],
+                  [`${viewingJob.payment_type} Deductions`, viewingJob.salary_structure.deductions_monthly],
+                  [`Estimated Net ${viewingJob.payment_type}`, viewingJob.salary_structure.net_monthly],
+                  [`${viewingJob.payment_type} Employer Cost`, viewingJob.salary_structure.employer_cost_monthly],
+                  ...(viewingJob.payment_type === 'Monthly' ? [['Annual CTC', viewingJob.salary_structure.annual_ctc]] : []),
                 ].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-900 p-3 text-white"><p className="text-xs text-slate-300">{label}</p><p className="mt-1 font-bold">₹{value}</p></div>)}
               </div>
-              <div className="mt-4 overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-gray-500"><th className="p-2">Component</th><th className="p-2">Category</th><th className="p-2">Calculation</th><th className="p-2 text-right">Monthly</th></tr></thead><tbody>{viewingJob.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-2 font-medium">{row.name}</td><td className="p-2 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-2">{row.calculation_type === 'percentage' ? `${row.percentage}% of ${String(row.percentage_basis).replaceAll('_', ' ')}` : 'Fixed'}</td><td className="p-2 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
+              <div className="mt-4 overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-gray-500"><th className="p-2">Component</th><th className="p-2">Category</th><th className="p-2">Calculation</th><th className="p-2 text-right">{viewingJob.payment_type}</th></tr></thead><tbody>{viewingJob.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-2 font-medium">{row.name}</td><td className="p-2 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-2">{row.calculation_type === 'percentage' ? `${row.percentage}% of ${String(row.percentage_basis).replaceAll('_', ' ')}` : 'Fixed'}</td><td className="p-2 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
             </> : <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Historical salary record: gross ₹{viewingJob.salary_amount}. No component breakdown is stored for this job.</div>}
             {viewingJob.description && <div className="mt-5"><h4 className="font-bold text-gray-900">Description</h4><p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{viewingJob.description}</p></div>}
           </div>
@@ -2314,7 +2318,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Sel   label="Site"            value={ef.site_id}             error={editErrors.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
                 <Input label="Associates Required" value={ef.guards_required} error={editErrors.guards_required} onChange={v => set('guards_required')(v.replace(/\D/g, ''))} />
                 <Sel   label="Associate Type"  value={ef.guard_type}          error={editErrors.guard_type} options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
-                <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={editSalaryStructure ? ['Monthly'] : ['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
+                <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={editSalaryStructure ? ['Monthly','Daily'] : ['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
                 <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />
@@ -2323,7 +2327,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
               </div>
               <div className="mt-5">
-                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} onChange={value => { if (!editSalaryStructure) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
+                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} paymentFrequency={ef.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!editSalaryStructure && !['Monthly', 'Daily'].includes(ef.payment_type)) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
                 {editErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{editErrors.salary_structure}</p>}
               </div>
               <div className="mt-3">

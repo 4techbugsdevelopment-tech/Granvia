@@ -15,12 +15,17 @@ const col = (...pairs: [string, string][]): Column[] => pairs.map(([key, label])
 const EXPORT_LIMIT = 5000;
 const money = (value: Prisma.Decimal | null | undefined) => new Prisma.Decimal(value ?? 0).toFixed(2);
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
+const WORK_HISTORY_STATUSES = ['hired', 'joined', 'leave_requested', 'completed', 'released'] as const;
 
 /** Every entry is a real report. Deferred catalogue items are not advertised as implemented. */
 export const EXTENDED_REPORTS: Record<ReportingRole, { kind: string; label: string }[]> = {
   super_admin: [
     { kind: 'employer-registrations', label: 'Employer registrations & growth' },
+    { kind: 'employer-master', label: 'Employer master & workforce summary' },
     { kind: 'associate-registrations', label: 'Associate registrations & growth' },
+    { kind: 'associates', label: 'Associate master tracker' },
+    { kind: 'associate-work-history', label: 'Associate work, attendance & earnings history' },
+    { kind: 'associate-attendance-history', label: 'Associate daily attendance & settlement history' },
     { kind: 'employer-credits', label: 'Employer credits statement' },
     { kind: 'associate-wallets', label: 'Associate wallet balances' },
     { kind: 'associate-statement', label: 'Associate wallet movements' },
@@ -30,6 +35,8 @@ export const EXTENDED_REPORTS: Record<ReportingRole, { kind: string; label: stri
   ],
   employer: [
     { kind: 'associates', label: 'Associate master tracker' },
+    { kind: 'associate-work-history', label: 'Associate work, attendance & earnings history' },
+    { kind: 'associate-attendance-history', label: 'Associate daily attendance & settlement history' },
     { kind: 'employees', label: 'Employee & sub-admin tracker' },
     { kind: 'companies', label: 'Company master register' },
     { kind: 'sites', label: 'Site master register' },
@@ -81,13 +88,27 @@ export async function extendedReportOptions(db: Db, actor: ReportActor | undefin
     const rows = await db.user.findMany({ where: { role: 'employer', ...(profile ? { employerProfile: profile } : {}), ...(q.search ? { fullName: { contains: q.search } } : {}) }, select: { id: true, fullName: true }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }], take: 501 });
     add('employer_id', rows.map(r => ({ id: r.id, label: r.fullName })));
   }
-  if (definition.filters.includes('guard_id') && role === 'super_admin') {
-    const rows = await db.user.findMany({ where: { role: 'guard', ...(q.search ? { fullName: { contains: q.search } } : {}) }, select: { id: true, fullName: true }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }], take: 501 });
+  if (definition.filters.includes('guard_id') && ['super_admin', 'employer'].includes(role)) {
+    let guardIds: string[] | undefined;
+    if (role === 'employer') {
+      const groups = await db.jobApplication.groupBy({ by: ['guardUserId'], where: { job: { employerUserId: user.id } }, _count: { _all: true }, orderBy: { guardUserId: 'asc' }, take: 501 });
+      guardIds = groups.map(group => group.guardUserId);
+      if (groups.length > 500) truncated.push('guard_id');
+    }
+    const rows = await db.user.findMany({ where: { role: 'guard', ...(guardIds ? { id: { in: guardIds } } : {}), ...(q.search ? { fullName: { contains: q.search } } : {}) }, select: { id: true, fullName: true }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }], take: 501 });
     add('guard_id', rows.map(r => ({ id: r.id, label: r.fullName })));
   }
   if (definition.filters.includes('company_id') && ['super_admin', 'employer'].includes(role)) {
     const rows = await db.employerCompany.findMany({ where: { ...(role === 'employer' ? { employerUserId: user.id } : {}), ...(q.search ? { companyName: { contains: q.search } } : {}) }, select: { id: true, companyName: true }, orderBy: [{ companyName: 'asc' }, { id: 'asc' }], take: 501 });
     add('company_id', rows.map(r => ({ id: r.id, label: r.companyName })));
+  }
+  if (definition.filters.includes('site_id') && ['super_admin', 'employer'].includes(role)) {
+    const rows = await db.companySite.findMany({ where: { ...(role === 'employer' ? { employerUserId: user.id } : {}), ...(q.search ? { siteName: { contains: q.search } } : {}) }, select: { id: true, siteName: true }, orderBy: [{ siteName: 'asc' }, { id: 'asc' }], take: 501 });
+    add('site_id', rows.map(r => ({ id: r.id, label: r.siteName })));
+  }
+  if (definition.filters.includes('job_id') && ['super_admin', 'employer'].includes(role)) {
+    const rows = await db.jobPost.findMany({ where: { ...(role === 'employer' ? { employerUserId: user.id } : {}), ...(q.search ? { title: { contains: q.search } } : {}) }, select: { id: true, title: true }, orderBy: [{ title: 'asc' }, { id: 'asc' }], take: 501 });
+    add('job_id', rows.map(r => ({ id: r.id, label: r.title })));
   }
   return { options, truncated };
 }
@@ -101,9 +122,12 @@ type Query = z.infer<typeof schema>;
 const commonFilters = ['page', 'page_size', 'date_from', 'date_to'];
 const allowed: Record<string, string[]> = {
   'employer-registrations': ['status'], 'associate-registrations': ['status'],
+  'employer-master': ['status'],
   'employer-credits': ['employer_id', 'source'], 'associate-wallets': ['guard_id', 'status'],
   'associate-statement': ['guard_id', 'status'], withdrawals: ['guard_id', 'status'],
   'recruitment-pipeline': ['employer_id', 'company_id', 'site_id', 'job_id', 'guard_id', 'status'],
+  'associate-work-history': ['employer_id', 'company_id', 'site_id', 'job_id', 'guard_id', 'status'],
+  'associate-attendance-history': ['employer_id', 'company_id', 'site_id', 'job_id', 'guard_id', 'status'],
   associates: ['company_id', 'status'], employees: ['status'], jobs: ['company_id', 'status'],
   companies: ['status'], sites: ['company_id', 'status'], invoices: ['employer_id', 'company_id', 'status'],
 };
@@ -166,7 +190,115 @@ function permissions(value: string | null | undefined) {
   } catch { return null; }
 }
 
+async function employerMaster(db: Db, q: Query, skip: number, take: number): Promise<Result> {
+  const where: Prisma.UserWhereInput = { role: 'employer', createdAt: reportDateRange(q, 'timestamp'), ...(q.status ? { accountStatus: q.status } : {}) };
+  const [total, accountGroups, employers] = await Promise.all([
+    db.user.count({ where }), db.user.groupBy({ by: ['accountStatus'], where, _count: { _all: true } }),
+    db.user.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
+      id: true, fullName: true, email: true, mobile: true, accountStatus: true, createdAt: true,
+      employerProfile: { select: { city: true, state: true, verificationStatus: true, profileStatus: true } },
+    } }),
+  ]);
+  const ids = employers.map(employer => employer.id);
+  const [companies, jobs, applications, hiredAssociates, attendance, payments] = await Promise.all([
+    ids.length ? db.employerCompany.groupBy({ by: ['employerUserId'], where: { employerUserId: { in: ids } }, _count: { _all: true } }) : [],
+    ids.length ? db.jobPost.groupBy({ by: ['employerUserId'], where: { employerUserId: { in: ids } }, _count: { _all: true } }) : [],
+    ids.length ? db.jobApplication.groupBy({ by: ['employerUserId', 'status'], where: { employerUserId: { in: ids } }, _count: { _all: true } }) : [],
+    ids.length ? db.jobApplication.groupBy({ by: ['employerUserId', 'guardUserId'], where: { employerUserId: { in: ids }, status: { in: [...WORK_HISTORY_STATUSES] } }, _count: { _all: true } }) : [],
+    ids.length ? db.attendanceRecord.groupBy({ by: ['employerUserId'], where: { employerUserId: { in: ids } }, _count: { _all: true }, _sum: { totalHours: true } }) : [],
+    ids.length ? db.payment.groupBy({ by: ['employerUserId', 'paymentStatus'], where: { employerUserId: { in: ids } }, _count: { _all: true }, _sum: { amount: true } }) : [],
+  ]);
+  const countMap = <T extends { employerUserId: string | null; _count: { _all: number } }>(groups: T[]) => new Map(groups.filter(group => group.employerUserId).map(group => [group.employerUserId!, group._count._all]));
+  const companyCounts = countMap(companies), jobCounts = countMap(jobs), attendanceCounts = new Map(attendance.filter(group => group.employerUserId).map(group => [group.employerUserId!, group]));
+  const applicationMetrics = new Map<string, Record<string, number>>();
+  for (const group of applications) {
+    if (!group.employerUserId) continue;
+    const current = applicationMetrics.get(group.employerUserId) ?? {};
+    current[group.status] = group._count._all; applicationMetrics.set(group.employerUserId, current);
+  }
+  const hiredCounts = new Map<string, number>();
+  for (const group of hiredAssociates) if (group.employerUserId) hiredCounts.set(group.employerUserId, (hiredCounts.get(group.employerUserId) ?? 0) + 1);
+  const paymentMetrics = new Map<string, Record<string, { count: number; amount: string }>>();
+  for (const group of payments) {
+    if (!group.employerUserId) continue;
+    const current = paymentMetrics.get(group.employerUserId) ?? {};
+    current[group.paymentStatus] = { count: group._count._all, amount: money(group._sum.amount) }; paymentMetrics.set(group.employerUserId, current);
+  }
+  return {
+    total, basis: 'users.created_at (IST); workforce, attendance and payment metrics are lifetime current records',
+    warnings: [
+      { code: 'EMPLOYER_LIFETIME_METRICS', section: 'employers', message: 'Registration dates filter Employer accounts. Company, job, workforce, attendance and earnings columns are lifetime recorded metrics and are not restricted by the registration-date filter.' },
+      { code: 'LEGACY_OWNER_LINKS', section: 'scope', message: 'Counts use stored Employer owner IDs. Legacy records without an Employer owner ID cannot be attributed to an Employer row.' },
+      { code: 'EMPLOYER_RECORDED_EARNINGS', section: 'earnings', message: 'Recorded completed earnings are completed Associate payment records under the Employer. They are not independent proof of bank payout.' },
+    ],
+    columns: col(['employer', 'Employer'], ['mobile', 'Mobile'], ['email', 'Email'], ['registered_at', 'Registered at'], ['account_status', 'Account status'], ['verification', 'Verification'], ['profile_status', 'Profile status'], ['city', 'City'], ['state', 'State'], ['companies', 'Companies'], ['jobs', 'Jobs'], ['applications', 'Applications'], ['hired_associates', 'Associates with hired/work history'], ['work_history_records', 'Hired / work history records'], ['attendance_records', 'Attendance records'], ['recorded_hours', 'Recorded hours'], ['completed_earnings', 'Recorded completed earnings (INR)'], ['processing_earnings', 'Recorded processing earnings (INR)'], ['id', 'Employer ID']),
+    items: employers.map(employer => {
+      const app = applicationMetrics.get(employer.id) ?? {}, att = attendanceCounts.get(employer.id), pay = paymentMetrics.get(employer.id) ?? {};
+      return { id: employer.id, employer: employer.fullName, mobile: employer.mobile, email: employer.email, registered_at: iso(employer.createdAt), account_status: employer.accountStatus,
+        verification: employer.employerProfile?.verificationStatus ?? null, profile_status: employer.employerProfile?.profileStatus ?? null,
+        city: employer.employerProfile?.city ?? null, state: employer.employerProfile?.state ?? null, companies: companyCounts.get(employer.id) ?? 0, jobs: jobCounts.get(employer.id) ?? 0,
+        applications: Object.values(app).reduce((sum, count) => sum + count, 0), hired_associates: hiredCounts.get(employer.id) ?? 0,
+        work_history_records: WORK_HISTORY_STATUSES.reduce((sum, status) => sum + (app[status] ?? 0), 0), attendance_records: att?._count._all ?? 0,
+        recorded_hours: money(att?._sum.totalHours), completed_earnings: pay.completed?.amount ?? '0.00', processing_earnings: pay.processing?.amount ?? '0.00' };
+    }),
+    summary: { registered_employers: total, current_account_statuses: Object.fromEntries(accountGroups.map(group => [group.accountStatus, group._count._all])) },
+  };
+}
+
+async function platformAssociateMaster(db: Db, q: Query, skip: number, take: number): Promise<Result> {
+  const where: Prisma.UserWhereInput = { role: 'guard', createdAt: reportDateRange(q, 'timestamp'), ...(q.status ? { accountStatus: q.status } : {}) };
+  const [total, accountGroups, users] = await Promise.all([
+    db.user.count({ where }),
+    db.user.groupBy({ by: ['accountStatus'], where, _count: { _all: true } }),
+    db.user.findMany({ where, skip, take, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
+      id: true, fullName: true, email: true, mobile: true, accountStatus: true, createdAt: true,
+      guardProfile: { select: { city: true, state: true, verificationStatus: true, experience: true, qualification: true } },
+    } }),
+  ]);
+  const ids = users.map(user => user.id);
+  const [applications, attendance, payments] = await Promise.all([
+    ids.length ? db.jobApplication.groupBy({ by: ['guardUserId', 'status'], where: { guardUserId: { in: ids } }, _count: { _all: true } }) : [],
+    ids.length ? db.attendanceRecord.groupBy({ by: ['guardUserId'], where: { guardUserId: { in: ids } }, _count: { _all: true }, _sum: { totalHours: true } }) : [],
+    ids.length ? db.payment.groupBy({ by: ['guardUserId', 'paymentStatus'], where: { guardUserId: { in: ids } }, _count: { _all: true }, _sum: { amount: true } }) : [],
+  ]);
+  const applicationMetrics = new Map<string, Record<string, number>>();
+  for (const group of applications) {
+    const current = applicationMetrics.get(group.guardUserId) ?? {};
+    current[group.status] = group._count._all; applicationMetrics.set(group.guardUserId, current);
+  }
+  const attendanceMetrics = new Map(attendance.map(group => [group.guardUserId, group]));
+  const paymentMetrics = new Map<string, Record<string, { count: number; amount: string }>>();
+  for (const group of payments) {
+    if (!group.guardUserId) continue;
+    const current = paymentMetrics.get(group.guardUserId) ?? {};
+    current[group.paymentStatus] = { count: group._count._all, amount: money(group._sum.amount) }; paymentMetrics.set(group.guardUserId, current);
+  }
+  return {
+    total,
+    basis: 'users.created_at (IST); application, attendance and recorded earnings metrics are lifetime current records',
+    warnings: [
+      { code: 'ASSOCIATE_LIFETIME_METRICS', section: 'associates', message: 'Registration dates filter Associate accounts. Work, attendance and earnings columns are lifetime recorded metrics for each displayed Associate and are not restricted by the registration-date filter.' },
+      { code: 'RECORDED_EARNINGS_ONLY', section: 'earnings', message: 'Completed earnings are stored completed payment records. They are not independent proof of bank payout; processing amounts are shown separately.' },
+    ],
+    columns: col(['name', 'Associate'], ['mobile', 'Mobile'], ['email', 'Email'], ['registered_at', 'Registered at'], ['account_status', 'Account status'], ['verification', 'Verification'], ['city', 'City'], ['state', 'State'], ['experience', 'Experience'], ['qualification', 'Qualification'], ['applications', 'Applications'], ['work_history_records', 'Hired / work history records'], ['attendance_records', 'Attendance records'], ['recorded_hours', 'Recorded hours'], ['completed_earnings', 'Recorded completed earnings (INR)'], ['processing_earnings', 'Recorded processing earnings (INR)'], ['id', 'Associate ID']),
+    items: users.map(user => {
+      const app = applicationMetrics.get(user.id) ?? {};
+      const att = attendanceMetrics.get(user.id);
+      const pay = paymentMetrics.get(user.id) ?? {};
+      return { id: user.id, name: user.fullName, mobile: user.mobile, email: user.email, registered_at: iso(user.createdAt), account_status: user.accountStatus,
+        verification: user.guardProfile?.verificationStatus ?? null, city: user.guardProfile?.city ?? null, state: user.guardProfile?.state ?? null,
+        experience: user.guardProfile?.experience ?? null, qualification: user.guardProfile?.qualification ?? null,
+        applications: Object.values(app).reduce((sum, count) => sum + count, 0),
+        work_history_records: WORK_HISTORY_STATUSES.reduce((sum, status) => sum + (app[status] ?? 0), 0),
+        attendance_records: att?._count._all ?? 0, recorded_hours: money(att?._sum.totalHours),
+        completed_earnings: pay.completed?.amount ?? '0.00', processing_earnings: pay.processing?.amount ?? '0.00' };
+    }),
+    summary: { registered_associates: total, current_account_statuses: Object.fromEntries(accountGroups.map(group => [group.accountStatus, group._count._all])) },
+  };
+}
+
 async function associateMaster(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  if (actor.role === 'super_admin') return platformAssociateMaster(db, q, skip, take);
   const applicationWhere: Prisma.JobApplicationWhereInput = {
     ...await pipelineScope(db, actor, { ...q, guard_id: undefined, status: undefined }),
     appliedAt: reportDateRange(q, 'timestamp'),
@@ -209,6 +341,132 @@ async function associateMaster(db: Db, actor: ReportActor, q: Query, skip: numbe
     warnings: [{ code: 'CURRENT_ASSOCIATE_PROFILE', section: 'associates', message: 'The list is deduplicated from applications to your jobs. Profile, verification and account values are current; workforce positions are current application statuses, not historical employment events.' }],
     columns: col(['name', 'Associate'], ['mobile', 'Mobile'], ['email', 'Email'], ['account_status', 'Account status'], ['verification', 'Verification'], ['city', 'City'], ['state', 'State'], ['experience', 'Experience'], ['qualification', 'Qualification'], ['applications', 'Applications'], ['workforce_positions', 'Current workforce positions'], ['application_statuses', 'Application statuses'], ['first_applied_at', 'First applied at'], ['last_applied_at', 'Last applied at'], ['id', 'Associate ID']),
     items: rows, summary: { associated_associates: matching.length, current_workforce_associates: workforce, current_account_statuses: accountStatuses, application_statuses: pipelineStatuses } };
+}
+
+async function associateWorkHistory(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  const where: Prisma.JobApplicationWhereInput = {
+    ...await pipelineScope(db, actor, q),
+    appliedAt: reportDateRange(q, 'timestamp'),
+    status: q.status ? q.status : { in: [...WORK_HISTORY_STATUSES] },
+  };
+  const [total, statusGroups, distinct] = await Promise.all([
+    db.jobApplication.count({ where }),
+    db.jobApplication.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    db.jobApplication.groupBy({ by: ['guardUserId'], where, _count: { _all: true }, take: 10001, orderBy: { guardUserId: 'asc' } }),
+  ]);
+  const applications = await db.jobApplication.findMany({
+    where, skip, take, orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, guardUserId: true, employerUserId: true, status: true, appliedAt: true, reviewedAt: true,
+      job: { select: { id: true, employerUserId: true, title: true, salaryAmount: true, paymentType: true, shiftType: true, dutyHours: true, startDate: true, endDate: true,
+        company: { select: { companyName: true } }, site: { select: { siteName: true, address: true, city: true, state: true, pincode: true } } } } },
+  });
+  const pairs = applications.map(application => ({ guardUserId: application.guardUserId, jobId: application.job.id }));
+  const [associates, employers, attendanceGroups, paymentGroups, agreements] = await Promise.all([
+    readInChunks(applications.map(application => application.guardUserId), batch => db.user.findMany({ where: { id: { in: batch }, role: 'guard' }, select: { id: true, fullName: true, email: true, mobile: true } })),
+    readInChunks(applications.map(application => application.job.employerUserId), batch => db.user.findMany({ where: { id: { in: batch }, role: 'employer' }, select: { id: true, fullName: true } })),
+    pairs.length ? db.attendanceRecord.groupBy({ by: ['guardUserId', 'jobId', 'status'], where: { OR: pairs }, _count: { _all: true }, _sum: { totalHours: true }, _min: { attendanceDate: true }, _max: { attendanceDate: true } }) : [],
+    pairs.length ? db.payment.groupBy({ by: ['guardUserId', 'jobId', 'paymentStatus'], where: { OR: pairs }, _count: { _all: true }, _sum: { amount: true } }) : [],
+    pairs.length ? db.agreement.findMany({ where: { OR: pairs }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, guardUserId: true, jobId: true, agreementNumber: true, status: true, effectiveFrom: true, effectiveUntil: true, signedAt: true } }) : [],
+  ]);
+  const associateNames = new Map(associates.map(user => [user.id, user]));
+  const employerNames = new Map(employers.map(user => [user.id, user.fullName]));
+  const key = (guardUserId: string | null, jobId: string | null) => `${guardUserId ?? ''}:${jobId ?? ''}`;
+  const attendance = new Map<string, { count: number; hours: Prisma.Decimal; statuses: Record<string, number>; first: Date | null; last: Date | null }>();
+  for (const group of attendanceGroups) {
+    const id = key(group.guardUserId, group.jobId), current = attendance.get(id) ?? { count: 0, hours: new Prisma.Decimal(0), statuses: {}, first: null, last: null };
+    current.count += group._count._all; current.hours = current.hours.add(group._sum.totalHours ?? 0); current.statuses[group.status] = group._count._all;
+    if (group._min.attendanceDate && (!current.first || group._min.attendanceDate < current.first)) current.first = group._min.attendanceDate;
+    if (group._max.attendanceDate && (!current.last || group._max.attendanceDate > current.last)) current.last = group._max.attendanceDate;
+    attendance.set(id, current);
+  }
+  const payments = new Map<string, Record<string, { count: number; amount: string }>>();
+  for (const group of paymentGroups) {
+    const id = key(group.guardUserId, group.jobId), current = payments.get(id) ?? {};
+    current[group.paymentStatus] = { count: group._count._all, amount: money(group._sum.amount) }; payments.set(id, current);
+  }
+  const agreementByWork = new Map<string, typeof agreements[number]>();
+  for (const agreement of agreements) {
+    const id = key(agreement.guardUserId, agreement.jobId);
+    if (!agreementByWork.has(id)) agreementByWork.set(id, agreement);
+  }
+  return {
+    total,
+    basis: 'job_applications.applied_at (IST); attendance and payment metrics are lifetime for each Associate/job pairing',
+    warnings: [
+      { code: 'WORK_HISTORY_STATUS', section: 'employment', message: 'By default this report includes hired, joined, leave-requested, completed and released application records. Status is the current stored employment/application state, not a reconstructed status timeline.' },
+      { code: 'WORK_HISTORY_DATES', section: 'dates', message: 'From/Through filters use the application date. Job dates come from the job record; first/last attendance are recorded work evidence and may be unavailable.' },
+      { code: 'WORK_HISTORY_EARNINGS', section: 'earnings', message: 'Completed and processing earnings are stored payment records for the Associate/job pair. Completed does not independently prove bank payout; salary is the job posting amount and is not added to earnings.' },
+    ],
+    columns: col(['associate', 'Associate'], ['mobile', 'Mobile'], ['email', 'Email'], ['employer', 'Employer'], ['company', 'Company'], ['job', 'Job'], ['site', 'Site'], ['work_location', 'Work location'], ['employment_status', 'Employment status'], ['applied_at', 'Applied at'], ['job_start', 'Job start'], ['job_end', 'Job end'], ['shift', 'Shift'], ['duty_hours', 'Duty hours'], ['posted_salary', 'Posted salary (INR)'], ['payment_type', 'Salary basis'], ['attendance_records', 'Attendance records'], ['approved_attendance', 'Approved / verified attendance'], ['attendance_statuses', 'Attendance statuses'], ['recorded_hours', 'Recorded hours'], ['first_attendance', 'First attendance'], ['last_attendance', 'Last attendance'], ['completed_earnings', 'Recorded completed earnings (INR)'], ['processing_earnings', 'Recorded processing earnings (INR)'], ['payment_statuses', 'Payment statuses'], ['agreement_status', 'Agreement status'], ['agreement_number', 'Agreement number'], ['agreement_from', 'Agreement effective from'], ['agreement_until', 'Agreement effective until'], ['agreement_signed_at', 'Agreement signed at'], ['id', 'Application ID']),
+    items: applications.map(application => {
+      const pair = key(application.guardUserId, application.job.id), user = associateNames.get(application.guardUserId), att = attendance.get(pair), pay = payments.get(pair) ?? {}, agreement = agreementByWork.get(pair), site = application.job.site;
+      const location = site ? [site.address, site.city, site.state, site.pincode].filter(Boolean).join(', ') || site.siteName : null;
+      return { id: application.id, associate: user?.fullName ?? 'Unknown Associate', mobile: user?.mobile ?? null, email: user?.email ?? null,
+        employer: employerNames.get(application.job.employerUserId) ?? 'Deleted / unavailable employer', company: application.job.company?.companyName ?? null,
+        job: application.job.title, site: site?.siteName ?? null, work_location: location, employment_status: application.status, applied_at: iso(application.appliedAt),
+        job_start: iso(application.job.startDate), job_end: iso(application.job.endDate), shift: application.job.shiftType, duty_hours: application.job.dutyHours,
+        posted_salary: application.job.salaryAmount == null ? null : money(application.job.salaryAmount), payment_type: application.job.paymentType,
+        attendance_records: att?.count ?? 0, approved_attendance: (att?.statuses.approved ?? 0) + (att?.statuses.verified ?? 0),
+        attendance_statuses: att ? Object.entries(att.statuses).map(([status, count]) => `${status}: ${count}`).join('; ') : null,
+        recorded_hours: att ? att.hours.toFixed(2) : '0.00', first_attendance: att?.first?.toISOString().slice(0, 10) ?? null, last_attendance: att?.last?.toISOString().slice(0, 10) ?? null,
+        completed_earnings: pay.completed?.amount ?? '0.00', processing_earnings: pay.processing?.amount ?? '0.00',
+        payment_statuses: Object.entries(pay).map(([status, value]) => `${status}: ${value.count} / INR ${value.amount}`).join('; ') || null,
+        agreement_status: agreement?.status ?? null, agreement_number: agreement?.agreementNumber ?? null, agreement_from: agreement?.effectiveFrom?.toISOString().slice(0, 10) ?? null,
+        agreement_until: agreement?.effectiveUntil?.toISOString().slice(0, 10) ?? null, agreement_signed_at: iso(agreement?.signedAt) };
+    }),
+    summary: { employment_records: total, distinct_associates: distinct.length > 10000 ? null : distinct.length,
+      current_employment_statuses: Object.fromEntries(statusGroups.map(group => [group.status, group._count._all])) },
+  };
+}
+
+async function associateAttendanceHistory(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
+  const jobWhere: Prisma.JobPostWhereInput = {
+    ...(actor.role === 'employer' ? { employerUserId: actor.id } : q.employer_id ? { employerUserId: q.employer_id } : {}),
+    ...(q.company_id ? { companyId: q.company_id } : {}), ...(q.site_id ? { siteId: q.site_id } : {}), ...(q.job_id ? { id: q.job_id } : {}),
+  };
+  const where: Prisma.AttendanceRecordWhereInput = {
+    ...(q.guard_id ? { guardUserId: q.guard_id } : {}), ...(q.status ? { status: q.status } : {}),
+    attendanceDate: reportDateRange(q, 'calendar'), job: jobWhere,
+  };
+  const [total, groups, rows] = await Promise.all([
+    db.attendanceRecord.count({ where }),
+    db.attendanceRecord.groupBy({ by: ['status'], where, _count: { _all: true }, _sum: { totalHours: true } }),
+    db.attendanceRecord.findMany({ where, skip, take, orderBy: [{ attendanceDate: 'desc' }, { inTime: 'desc' }, { id: 'desc' }], select: {
+      id: true, guardUserId: true, attendanceDate: true, inTime: true, outTime: true, scheduledOutTime: true, totalHours: true,
+      entryMode: true, checkoutMethod: true, status: true, employerRemarks: true, guardRemarks: true,
+      job: { select: { id: true, employerUserId: true, title: true, company: { select: { companyName: true } }, site: { select: { siteName: true, address: true, city: true, state: true, pincode: true } } } },
+    } }),
+  ]);
+  const attendanceIds = rows.map(row => row.id);
+  const [associates, employers, payments] = await Promise.all([
+    readInChunks(rows.map(row => row.guardUserId), batch => db.user.findMany({ where: { id: { in: batch }, role: 'guard' }, select: { id: true, fullName: true, mobile: true } })),
+    readInChunks(rows.map(row => row.job?.employerUserId).filter((id): id is string => Boolean(id)), batch => db.user.findMany({ where: { id: { in: batch }, role: 'employer' }, select: { id: true, fullName: true } })),
+    attendanceIds.length ? db.payment.findMany({ where: { attendanceId: { in: attendanceIds } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, attendanceId: true, amount: true, paymentMethod: true, paymentStatus: true, paymentDate: true } }) : [],
+  ]);
+  const associateNames = new Map(associates.map(user => [user.id, user]));
+  const employerNames = new Map(employers.map(user => [user.id, user.fullName]));
+  const paymentByAttendance = new Map<string, typeof payments[number]>();
+  for (const payment of payments) if (payment.attendanceId && !paymentByAttendance.has(payment.attendanceId)) paymentByAttendance.set(payment.attendanceId, payment);
+  const totalHours = groups.reduce((sum, group) => sum.add(group._sum.totalHours ?? 0), new Prisma.Decimal(0));
+  return {
+    total,
+    basis: 'attendance_records.attendance_date (calendar date); stored check-in/out and latest linked payment record',
+    warnings: [
+      { code: 'ATTENDANCE_RECORDED_EVIDENCE', section: 'attendance', message: 'Times, hours, locations and statuses are stored attendance evidence. Missing checkout or hours remain unavailable and are not inferred by this report.' },
+      { code: 'ATTENDANCE_SETTLEMENT_EVIDENCE', section: 'settlement', message: 'The linked settlement is the latest recorded payment for the attendance entry. Its status is recorded workflow evidence, not independent proof of bank payout.' },
+    ],
+    columns: col(['attendance_date', 'Attendance date'], ['associate', 'Associate'], ['mobile', 'Mobile'], ['employer', 'Employer'], ['company', 'Company'], ['job', 'Job'], ['site', 'Site'], ['work_location', 'Work location'], ['check_in', 'Check-in'], ['check_out', 'Check-out'], ['scheduled_out', 'Scheduled checkout'], ['hours', 'Recorded hours'], ['status', 'Attendance status'], ['entry_mode', 'Entry mode'], ['checkout_method', 'Checkout method'], ['associate_remarks', 'Associate remarks'], ['employer_remarks', 'Employer remarks'], ['settlement_amount', 'Linked settlement amount (INR)'], ['settlement_status', 'Linked settlement status'], ['settlement_method', 'Settlement method'], ['settlement_date', 'Settlement date'], ['id', 'Attendance ID']),
+    items: rows.map(row => {
+      const user = associateNames.get(row.guardUserId), payment = paymentByAttendance.get(row.id), site = row.job?.site;
+      return { id: row.id, attendance_date: row.attendanceDate.toISOString().slice(0, 10), associate: user?.fullName ?? 'Unknown Associate', mobile: user?.mobile ?? null,
+        employer: row.job ? employerNames.get(row.job.employerUserId) ?? 'Deleted / unavailable employer' : null, company: row.job?.company?.companyName ?? null,
+        job: row.job?.title ?? null, site: site?.siteName ?? null, work_location: site ? [site.address, site.city, site.state, site.pincode].filter(Boolean).join(', ') || site.siteName : null,
+        check_in: iso(row.inTime), check_out: iso(row.outTime), scheduled_out: iso(row.scheduledOutTime), hours: row.totalHours == null ? null : money(row.totalHours),
+        status: row.status, entry_mode: row.entryMode, checkout_method: row.checkoutMethod, associate_remarks: row.guardRemarks, employer_remarks: row.employerRemarks,
+        settlement_amount: payment ? money(payment.amount) : null, settlement_status: payment?.paymentStatus ?? null, settlement_method: payment?.paymentMethod ?? null, settlement_date: iso(payment?.paymentDate) };
+    }),
+    summary: { attendance_entries: total, recorded_hours: totalHours.toFixed(2), attendance_statuses: Object.fromEntries(groups.map(group => [group.status, { count: group._count._all, hours: money(group._sum.totalHours) }])) },
+  };
 }
 
 async function employeeMaster(db: Db, actor: ReportActor, q: Query, skip: number, take: number): Promise<Result> {
@@ -440,7 +698,7 @@ export async function extendedReport(db: Db, actor: ReportActor | undefined, rol
   for (const key of Object.keys(raw as object)) if (![...commonFilters, ...allowed[kind]].includes(key)) throw new HttpError(422, `Unsupported filter: ${key}.`);
   if (role === 'employer' && q.employer_id) throw new HttpError(422, 'Employer scope comes from your signed-in account.');
   if (role === 'guard' && q.guard_id) throw new HttpError(422, 'Associate scope comes from your signed-in account.');
-  if ((role === 'employer' || role === 'super_admin') && ['sites', 'invoices', 'recruitment-pipeline', 'associates', 'jobs'].includes(kind) && (q.employer_id || q.company_id || q.site_id || q.job_id)) {
+  if ((role === 'employer' || role === 'super_admin') && ['sites', 'invoices', 'recruitment-pipeline', 'associate-work-history', 'associate-attendance-history', 'associates', 'jobs'].includes(kind) && (q.employer_id || q.company_id || q.site_id || q.job_id)) {
     const resolved = await resolveReportScope(db, user, role, q);
     if (role === 'super_admin' && resolved.employerUserId) q.employer_id = resolved.employerUserId;
   }
@@ -450,11 +708,14 @@ export async function extendedReport(db: Db, actor: ReportActor | undefined, rol
   const { skip, take } = exporting ? { skip: 0, take: EXPORT_LIMIT + 1 } : reportPagination(q);
   let result: Result;
   if (kind.endsWith('-registrations')) result = await registrations(db, user, kind, q, skip, take);
+  else if (kind === 'employer-master') result = await employerMaster(db, q, skip, take);
   else if (kind === 'employer-credits') result = await employerCredits(db, user, q, skip, take);
   else if (kind === 'associate-wallets') result = await associateWallets(db, user, q, skip, take);
   else if (kind === 'associate-statement') result = await associateStatement(db, user, q, skip, take);
   else if (kind === 'withdrawals') result = await withdrawals(db, user, q, skip, take);
   else if (kind === 'associates') result = await associateMaster(db, user, q, skip, take);
+  else if (kind === 'associate-work-history') result = await associateWorkHistory(db, user, q, skip, take);
+  else if (kind === 'associate-attendance-history') result = await associateAttendanceHistory(db, user, q, skip, take);
   else if (kind === 'employees') result = await employeeMaster(db, user, q, skip, take);
   else if (kind === 'jobs') result = await jobMaster(db, user, q, skip, take);
   else if (kind === 'recruitment-pipeline') result = await pipeline(db, user, q, skip, take);

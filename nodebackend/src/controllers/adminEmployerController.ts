@@ -83,7 +83,7 @@ function brandImage(req: Request) {
 export async function index(req: Request, res: Response) {
   const baseUrl = requestBaseUrl(req);
   const employers = await prisma.user.findMany({
-    where: { role: 'employer' },
+    where: { role: 'employer', accountStatus: { not: 'deleted' } },
     include: { employerProfile: true, employerWallet: true },
     orderBy: { createdAt: 'desc' },
   });
@@ -268,54 +268,38 @@ export async function resetPassword(req: Request, res: Response) {
 /** DELETE /admin/employers/:employer */
 export async function destroy(req: Request, res: Response) {
   const employer = await prisma.user.findUnique({ where: { id: req.params.employer } });
-  if (!employer || employer.role !== 'employer') throw new HttpError(404, 'Not an employer account.');
+  if (!employer || employer.role !== 'employer' || employer.accountStatus === 'deleted') throw new HttpError(404, 'Not an employer account.');
 
-  const [applications, tickets, subAdmins] = await Promise.all([
-    prisma.jobApplication.findMany({ where: { employerUserId: employer.id }, select: { id: true } }),
-    prisma.supportTicket.findMany({ where: { userId: employer.id }, select: { id: true } }),
+  const [companies, subAdmins] = await Promise.all([
+    prisma.employerCompany.findMany({ where: { employerUserId: employer.id }, select: { id: true } }),
     prisma.subAdminProfile.findMany({ where: { employerUserId: employer.id }, select: { userId: true } }),
   ]);
-  const applicationIds = applications.map((row) => row.id);
-  const ticketIds = tickets.map((row) => row.id);
+  const companyIds = companies.map((row) => row.id);
   const subAdminIds = subAdmins.map((row) => row.userId);
 
   await prisma.$transaction([
-    ...(applicationIds.length ? [prisma.applicationStatusLog.deleteMany({ where: { applicationId: { in: applicationIds } } })] : []),
-    prisma.interviewRequest.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.jobOffer.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.agreement.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.attendanceRecord.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.payment.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.jobApplication.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.jobPost.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.companyDocument.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.companySite.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.employerCompany.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.invoice.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.walletTransaction.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.operationsAssignment.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.employerAadhaarVerification.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.discount.updateMany({ where: { employerUserId: employer.id }, data: { employerUserId: null } }),
-    ...(ticketIds.length ? [prisma.supportTicketMessage.deleteMany({ where: { ticketId: { in: ticketIds } } })] : []),
-    prisma.supportTicket.deleteMany({ where: { userId: employer.id } }),
-    prisma.notification.deleteMany({ where: { userId: employer.id } }),
+    // Employer deletion is archival. Associate-owned hiring, attendance and
+    // payment history must remain readable, together with its job/company
+    // context. Close the employer's resources instead of hard-deleting them.
+    prisma.jobPost.updateMany({ where: { employerUserId: employer.id }, data: { status: 'closed' } }),
+    prisma.companySite.updateMany({ where: { employerUserId: employer.id }, data: { status: 'inactive' } }),
+    prisma.employerCompany.updateMany({ where: { employerUserId: employer.id }, data: { accountStatus: 'inactive' } }),
+    prisma.operationsAssignment.updateMany({ where: { employerUserId: employer.id }, data: { status: 'inactive' } }),
+    prisma.employerWallet.updateMany({ where: { employerUserId: employer.id }, data: { status: 'blocked' } }),
+    prisma.adminEmployerAssignment.deleteMany({ where: { employerUserId: employer.id } }),
+    ...(companyIds.length ? [prisma.adminCompanyAssignment.deleteMany({ where: { companyId: { in: companyIds } } })] : []),
     prisma.emailOtp.deleteMany({ where: { userId: employer.id } }),
     prisma.personalAccessToken.deleteMany({ where: { tokenableId: employer.id } }),
-    prisma.staffMember.deleteMany({ where: { subAdminUserId: { in: [employer.id, ...subAdminIds] } } }),
+    prisma.staffMember.updateMany({ where: { subAdminUserId: { in: [employer.id, ...subAdminIds] } }, data: { status: 'Inactive' } }),
     ...(subAdminIds.length ? [
-      prisma.guardProfile.updateMany({ where: { subAdminId: { in: subAdminIds } }, data: { subAdminId: null } }),
       prisma.personalAccessToken.deleteMany({ where: { tokenableId: { in: subAdminIds } } }),
-      prisma.notification.deleteMany({ where: { userId: { in: subAdminIds } } }),
       prisma.emailOtp.deleteMany({ where: { userId: { in: subAdminIds } } }),
-      prisma.subAdminProfile.deleteMany({ where: { userId: { in: subAdminIds } } }),
-      prisma.user.deleteMany({ where: { id: { in: subAdminIds } } }),
+      prisma.user.updateMany({ where: { id: { in: subAdminIds } }, data: { accountStatus: 'inactive' } }),
     ] : []),
-    prisma.employerWallet.deleteMany({ where: { employerUserId: employer.id } }),
-    prisma.employerProfile.deleteMany({ where: { userId: employer.id } }),
-    prisma.user.delete({ where: { id: employer.id } }),
+    prisma.user.update({ where: { id: employer.id }, data: { accountStatus: 'deleted' } }),
   ]);
 
-  return res.json({ message: 'Employer deleted successfully.' });
+  return res.json({ message: 'Employer access removed. Associate job history has been retained.' });
 }
 
 /** PATCH /admin/company-documents/:document */

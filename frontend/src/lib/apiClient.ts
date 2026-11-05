@@ -10,14 +10,32 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const TOKEN_STORAGE_KEY = 'granvia_api_token';
 
+function usesSessionOnlyAppToken(): boolean {
+  const appWindow = window as Window & { __GRANVIA_APK__?: boolean };
+  return Boolean(
+    appWindow.__GRANVIA_APK__ ||
+    navigator.userAgent.includes('wv') ||
+    window.matchMedia?.('(display-mode: standalone)').matches
+  );
+}
+
 export function getStoredToken(): string | null {
+  if (usesSessionOnlyAppToken()) {
+    // Older app builds persisted tokens indefinitely. Remove that legacy copy
+    // so an app process restarted after close must authenticate again.
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    return sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  }
   return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
 export function setStoredToken(token: string | null): void {
+  const storage = usesSessionOnlyAppToken() ? sessionStorage : localStorage;
   if (token) {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    storage.setItem(TOKEN_STORAGE_KEY, token);
+    if (storage === sessionStorage) localStorage.removeItem(TOKEN_STORAGE_KEY);
   } else {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
   }
 }

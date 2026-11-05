@@ -920,7 +920,11 @@ const updateAttendanceSchema = z.object({
 
 export function payableAmount(record: {
   totalHours: Prisma.Decimal | number | null;
-  job: { salaryAmount: Prisma.Decimal | null; paymentType: string | null } | null;
+  job: {
+    salaryAmount: Prisma.Decimal | null;
+    paymentType: string | null;
+    salaryStructure?: { netMonthly: Prisma.Decimal; deductionsMonthly: Prisma.Decimal } | null;
+  } | null;
   guardProfile: { dailyRate: Prisma.Decimal | null; hourlyRate: Prisma.Decimal | null } | null;
 }) {
   const paymentType = String(record.job?.paymentType ?? 'Daily').toLowerCase();
@@ -929,6 +933,12 @@ export function payableAmount(record: {
     if (rate <= 0) throw new HttpError(422, 'Associate hourly rate or job hourly amount is required before attendance can be settled.');
     const hours = Number(record.totalHours ?? 0);
     return Math.round(rate * hours * 100) / 100;
+  }
+
+  if ((paymentType === 'daily' || paymentType.includes('day')) && record.job?.salaryStructure) {
+    const netDailyAmount = Number(record.job.salaryStructure.netMonthly);
+    if (netDailyAmount <= 0) throw new HttpError(422, 'The job daily net amount must be greater than zero before attendance can be settled.');
+    return Math.round(netDailyAmount * 100) / 100;
   }
 
   const configuredDailyRate = Number(record.guardProfile?.dailyRate ?? 0);
@@ -960,6 +970,7 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
             title: true,
             salaryAmount: true,
             paymentType: true,
+            salaryStructure: { select: { netMonthly: true, deductionsMonthly: true } },
           },
         },
       },

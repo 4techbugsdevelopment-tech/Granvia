@@ -227,6 +227,13 @@ export async function requestPasswordOtp(email: string) {
   return data as { message: string; dev_otp?: string };
 }
 
+/** Forgot-password is an explicit return to unauthenticated state. */
+export function clearLocalSessionForPasswordReset() {
+  if (getAdminEmployerId()) exitAdminEmployerAccess();
+  setStoredToken(null);
+  notifyAuthChange();
+}
+
 /** Verifies the reset code and sets a new password. */
 export async function resetPassword(email: string, otp: string, password: string) {
   const { data } = await apiClient.post('/auth/password/reset', {
@@ -234,6 +241,9 @@ export async function resetPassword(email: string, otp: string, password: string
     otp: otp.trim(),
     password,
   });
+  // The API revokes every server token. Clear the WebView/browser copy and
+  // cached AuthContext immediately so reopening cannot restore the old user.
+  clearLocalSessionForPasswordReset();
   return data as { message: string };
 }
 

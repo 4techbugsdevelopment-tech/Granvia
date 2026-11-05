@@ -12,7 +12,7 @@ export function requireRole(...roles: string[]) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
 
-    if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive') {
+    if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive' || user.accountStatus === 'deleted') {
       return res.status(403).json({ message: 'Account is not active.' });
     }
 
