@@ -13,6 +13,7 @@
     "test:admin-employees": "tsx --test tests/adminEmployees.test.ts",
     "test:company-assignments": "tsx --test tests/adminCompanyAssignments.test.ts",
     "test:salary-structure": "tsx --test tests/salaryStructure.test.ts",
+    "test:lwf-payroll": "tsx --test tests/lwfPayroll.test.ts",
     "test:employer-logos": "tsx --test tests/employerLogos.test.ts",
     "test:sms": "tsx --test tests/smsRegistrationOtp.test.ts",
     "test:admin-employer-access": "tsx --test tests/adminEmployerAccess.test.ts",

@@ -1,83 +1,73 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Landmark, Pencil } from 'lucide-react';
-import { getErrorMessage } from '../../services/apiErrors';
-import { getLwfMaster, saveLwfMaster, type LwfSetting, type LwfStatus } from '../../services/lwfService';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Pencil, Plus, XCircle } from 'lucide-react';
+import { getErrorMessage, getValidationErrors, type ValidationErrors } from '../../services/apiErrors';
+import { listAdminStates, type StateMaster } from '../../services/locationMasterService';
+import { closeLwfPolicy, createLwfPolicy, getLwfMaster, listLwfPolicies, saveLwfMaster, updateLwfPolicy, type LwfFrequency, type LwfPolicy, type LwfPolicyInput, type LwfSetting } from '../../services/lwfService';
 import { Card, PageHeader, Pill, Table } from './_adminUi';
 
-type Draft = { employee_amount: string; employer_amount: string; status: LwfStatus; notes: string };
-const EMPTY: Draft = { employee_amount: '', employer_amount: '', status: 'active', notes: '' };
+type LegacyDraft = { employee_amount: string; employer_amount: string; status: 'active' | 'inactive'; notes: string };
+type PolicyDraft = Omit<LwfPolicyInput, 'schedule_months' | 'eligible_employee_categories' | 'exemption_codes'> & { schedule_months: string; eligible_employee_categories: string; exemption_codes: string };
+const EMPTY_LEGACY: LegacyDraft = { employee_amount: '', employer_amount: '', status: 'active', notes: '' };
+const EMPTY_POLICY: PolicyDraft = { state_id: '', establishment_type: '', employee_amount: '', employer_amount: '', frequency: 'monthly', schedule_months: '', effective_from: '', effective_to: '', eligibility_min_gross: '', eligibility_max_gross: '', eligible_employee_categories: '', exemption_codes: '', status: 'draft', legal_reference: '', notes: '' };
+const FREQUENCIES: Array<[LwfFrequency, string]> = [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['half_yearly', 'Half-yearly'], ['yearly', 'Yearly'], ['custom', 'Custom schedule']];
+const ModalErrorContext = createContext('');
+const ModalFieldErrorsContext = createContext<ValidationErrors>({});
+const FIELD_NAMES: Record<string, string> = {
+  'Employee amount': 'employee_amount', 'Employee contribution': 'employee_amount',
+  'Employer amount': 'employer_amount', 'Employer contribution': 'employer_amount',
+  'State Master': 'state_id', 'Establishment type (optional exact match)': 'establishment_type',
+  Frequency: 'frequency', 'Contribution months (1-12, comma separated)': 'schedule_months',
+  'Effective from': 'effective_from', 'Effective to (optional)': 'effective_to',
+  'Eligible gross minimum': 'eligibility_min_gross', 'Eligible gross maximum': 'eligibility_max_gross',
+  'Eligible employee categories': 'eligible_employee_categories', 'Exemption codes': 'exemption_codes',
+  Status: 'status', 'Save as': 'status', 'Verified legal / compliance reference': 'legal_reference', Notes: 'notes',
+};
+
+function focusModalField(field?: string) {
+  if (!field) return;
+  window.requestAnimationFrame(() => {
+    const input = document.querySelector<HTMLElement>(`[data-lwf-field="${field}"]`);
+    input?.focus();
+    input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+function parseArray(value: string) { return value.split(',').map(item => item.trim()).filter(Boolean); }
+function parseMonths(value: string) { return [...new Set(parseArray(value).map(Number).filter(month => Number.isInteger(month) && month >= 1 && month <= 12))]; }
+function policyDraft(row: LwfPolicy): PolicyDraft {
+  const json = (raw: string | number[]) => { if (Array.isArray(raw)) return raw; try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; } };
+  return { state_id: row.state_id, establishment_type: row.establishment_type ?? '', employee_amount: row.employee_amount, employer_amount: row.employer_amount, frequency: row.frequency, schedule_months: json(row.schedule_months).join(', '), effective_from: row.effective_from.slice(0, 10), effective_to: row.effective_to?.slice(0, 10) ?? '', eligibility_min_gross: row.eligibility_min_gross ?? '', eligibility_max_gross: row.eligibility_max_gross ?? '', eligible_employee_categories: json(row.eligible_employee_categories).join(', '), exemption_codes: json(row.exemption_codes).join(', '), status: row.status === 'active' ? 'active' : 'draft', legal_reference: row.legal_reference ?? '', notes: row.notes ?? '' };
+}
 
 export default function LwfMaster() {
-  const [setting, setSetting] = useState<LwfSetting | null>(null);
-  const [draft, setDraft] = useState<Draft>(EMPTY);
-  const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    setLoading(true);
-    try { setSetting(await getLwfMaster()); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load().catch(cause => setError(getErrorMessage(cause, 'Unable to load the LWF master.'))); }, []);
-
-  const startEditing = () => {
-    setDraft(setting ? {
-      employee_amount: setting.employee_amount,
-      employer_amount: setting.employer_amount,
-      status: setting.status,
-      notes: setting.notes || '',
-    } : EMPTY);
-    setError('');
-    setEditing(true);
-  };
-
-  const save = async () => {
-    setSaving(true); setError(''); setNotice('');
-    try {
-      await saveLwfMaster({ ...draft, notes: draft.notes.trim() || null });
-      await load();
-      setEditing(false);
-      setNotice('Standard LWF rates saved. They apply to every employer without an employer-specific override.');
-    } catch (cause) {
-      setError(getErrorMessage(cause, 'Unable to save the LWF master.'));
-    } finally { setSaving(false); }
-  };
-
-  return <motion.div className="p-4 md:p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-    <PageHeader title="LWF Master" subtitle="Set the standard Labour Welfare Fund amounts used by every employer unless that employer saves its own override." action={<button onClick={startEditing} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ background: '#0f1e3c' }}><Pencil size={16}/>{setting ? 'Edit Standard Rates' : 'Set Standard Rates'}</button>} />
-    {notice && <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div>}
-    {error && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-    <Card className="p-0 overflow-hidden">
-      {loading ? <div className="p-10 text-center text-sm text-gray-500">Loading LWF master...</div> : setting ? <Table headers={['Policy', 'Employee LWF', 'Employer LWF', 'Status', 'Updated', 'Action']}>
-        <tr>
-          <td className="px-4 py-3 font-semibold text-gray-900"><span className="inline-flex items-center gap-2"><Landmark size={17} className="text-slate-400"/>Platform Standard</span></td>
-          <td className="px-4 py-3 text-sm">₹{setting.employee_amount}</td>
-          <td className="px-4 py-3 text-sm">₹{setting.employer_amount}</td>
-          <td className="px-4 py-3"><Pill label={setting.status} tone={setting.status === 'active' ? 'green' : 'gray'}/></td>
-          <td className="px-4 py-3 text-sm text-gray-500">{setting.updated_at ? new Date(setting.updated_at).toLocaleString('en-IN') : '--'}</td>
-          <td className="px-4 py-3"><button onClick={startEditing} className="table-action">Edit</button></td>
-        </tr>
-      </Table> : <div className="p-10 text-center"><p className="font-semibold text-gray-800">No standard LWF rates configured</p><p className="mt-1 text-sm text-gray-500">LWF will not be added to salary structures until Super Admin sets the standard.</p></div>}
+  const [legacy, setLegacy] = useState<LwfSetting | null>(null), [legacyDraft, setLegacyDraft] = useState<LegacyDraft>(EMPTY_LEGACY), [legacyOpen, setLegacyOpen] = useState(false);
+  const [policies, setPolicies] = useState<LwfPolicy[]>([]), [states, setStates] = useState<StateMaster[]>([]), [draft, setDraft] = useState<PolicyDraft>(EMPTY_POLICY), [editing, setEditing] = useState<LwfPolicy | null>(null), [policyOpen, setPolicyOpen] = useState(false);
+  const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState(''), [stateFilter, setStateFilter] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
+  const load = async () => { setLoading(true); try { const [legacyRow, policyRows, stateRows] = await Promise.all([getLwfMaster(), listLwfPolicies(), listAdminStates()]); setLegacy(legacyRow); setPolicies(policyRows); setStates(stateRows); } finally { setLoading(false); } };
+  useEffect(() => { load().catch(cause => setError(getErrorMessage(cause, 'Unable to load LWF configuration.'))); }, []);
+  const filtered = useMemo(() => stateFilter ? policies.filter(row => row.state_id === stateFilter) : policies, [policies, stateFilter]);
+  const openLegacy = () => { setLegacyDraft(legacy ? { employee_amount: legacy.employee_amount, employer_amount: legacy.employer_amount, status: legacy.status, notes: legacy.notes ?? '' } : EMPTY_LEGACY); setLegacyOpen(true); setError(''); setFieldErrors({}); };
+  const saveLegacy = async () => { setSaving(true); setError(''); setFieldErrors({}); try { await saveLwfMaster({ ...legacyDraft, notes: legacyDraft.notes || null }); setLegacyOpen(false); await load(); setNotice('Legacy compatibility rates saved. State statutory policies remain separate.'); } catch (cause) { const validationErrors = getValidationErrors(cause); setFieldErrors(validationErrors); setError(getErrorMessage(cause, 'Unable to save compatibility rates.')); focusModalField(Object.keys(validationErrors)[0]); } finally { setSaving(false); } };
+  const openAdd = () => { setEditing(null); setDraft({ ...EMPTY_POLICY, state_id: stateFilter || states.find(state => state.status === 'active')?.id || '' }); setPolicyOpen(true); setError(''); setFieldErrors({}); };
+  const openEdit = (row: LwfPolicy) => { setEditing(row); setDraft(policyDraft(row)); setPolicyOpen(true); setError(''); setFieldErrors({}); };
+  const payload = (): LwfPolicyInput => ({ ...draft, establishment_type: draft.establishment_type || null, schedule_months: parseMonths(draft.schedule_months), effective_to: draft.effective_to || null, eligibility_min_gross: draft.eligibility_min_gross || null, eligibility_max_gross: draft.eligibility_max_gross || null, eligible_employee_categories: parseArray(draft.eligible_employee_categories), exemption_codes: parseArray(draft.exemption_codes), legal_reference: draft.legal_reference || null, notes: draft.notes || null });
+  const savePolicy = async () => { setSaving(true); setError(''); setFieldErrors({}); try { if (editing) await updateLwfPolicy(editing.id, payload()); else await createLwfPolicy(payload()); setPolicyOpen(false); await load(); setNotice(editing ? 'LWF draft version updated.' : 'LWF policy version created.'); } catch (cause) { const validationErrors = getValidationErrors(cause); setFieldErrors(validationErrors); setError(getErrorMessage(cause, 'Unable to save LWF policy.')); focusModalField(Object.keys(validationErrors)[0]); } finally { setSaving(false); } };
+  const closePolicy = async (row: LwfPolicy) => { const effectiveTo = window.prompt('Effective-to date (YYYY-MM-DD):', new Date().toISOString().slice(0, 10)); if (!effectiveTo) return; const reason = window.prompt('Reason for closing this policy version:'); if (!reason) return; try { await closeLwfPolicy(row.id, { effective_to: effectiveTo, reason }); await load(); setNotice('Policy version closed. Historical payroll references remain unchanged.'); } catch (cause) { setError(getErrorMessage(cause, 'Unable to close the policy.')); } };
+  return <ModalFieldErrorsContext.Provider value={fieldErrors}><ModalErrorContext.Provider value={error}><div className="p-6 space-y-5">
+    <PageHeader title="LWF Master" subtitle="Configure effective-dated State Master policies. Legacy global and employer rates remain isolated for backward compatibility." action={<button onClick={openAdd} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16}/>Add State Policy</button>} />
+    {notice && <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</div>}{error && !legacyOpen && !policyOpen && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
+    <Card className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-bold text-gray-900">Legacy compatibility policy</h2><p className="text-sm text-gray-500">Used only when a historical job has no resolvable state context. It is never promoted into a State policy.</p></div><button onClick={openLegacy} className="rounded-lg border px-3 py-2 text-sm font-semibold"><Pencil size={14} className="inline mr-1"/>{legacy ? 'Edit' : 'Configure'}</button></div>{legacy ? <div className="mt-4 grid gap-3 sm:grid-cols-4"><Metric label="Employee" value={`₹${legacy.employee_amount}`}/><Metric label="Employer" value={`₹${legacy.employer_amount}`}/><Metric label="Status" value={legacy.status}/><Metric label="Updated" value={legacy.updated_at ? new Date(legacy.updated_at).toLocaleDateString('en-IN') : '--'}/></div> : <p className="mt-4 text-sm text-amber-700">No legacy compatibility rate is configured.</p>}</Card>
+    <Card className="overflow-hidden p-0"><div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-bold text-gray-900">State policy versions</h2><p className="text-xs text-gray-500">Activated versions are immutable; close them and create a new version for amendments.</p></div><select className="form-input sm:max-w-64" value={stateFilter} onChange={event => setStateFilter(event.target.value)}><option value="">All states</option>{states.map(state => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
+      {loading ? <div className="p-10 text-center text-sm text-gray-500">Loading...</div> : <Table headers={['State / version', 'Contributions', 'Frequency / schedule', 'Effective dates', 'Eligibility', 'Status / audit', 'Actions']}>{filtered.map(row => <tr key={row.id} className="border-t align-top"><td className="px-4 py-3"><p className="font-semibold">{row.state?.name ?? row.state_id} · v{row.version_number}</p><p className="text-xs text-gray-500">{row.establishment_type || 'All configured establishments'}</p></td><td className="px-4 py-3 text-sm"><p>Employee ₹{row.employee_amount}</p><p>Employer ₹{row.employer_amount}</p></td><td className="px-4 py-3 text-sm capitalize"><p>{row.frequency.replace('_', ' ')}</p><p className="text-xs text-gray-500">Months: {row.frequency === 'monthly' ? 'Every month' : (() => { try { return JSON.parse(String(row.schedule_months)).join(', '); } catch { return '--'; } })()}</p></td><td className="px-4 py-3 text-sm"><p>{new Date(row.effective_from).toLocaleDateString('en-IN')}</p><p className="text-xs text-gray-500">to {row.effective_to ? new Date(row.effective_to).toLocaleDateString('en-IN') : 'open-ended'}</p></td><td className="px-4 py-3 text-xs"><p>{row.eligibility_min_gross ? `From ₹${row.eligibility_min_gross}` : 'No minimum'}</p><p>{row.eligibility_max_gross ? `Through ₹${row.eligibility_max_gross}` : 'No maximum'}</p></td><td className="px-4 py-3"><Pill label={row.status} tone={row.status === 'active' ? 'green' : row.status === 'draft' ? 'amber' : 'gray'}/><p className="mt-1 text-xs text-gray-500">{row.audit_events?.[0]?.action?.replaceAll('_', ' ') ?? 'Audit retained'}</p></td><td className="px-4 py-3"><div className="flex gap-2">{row.status === 'draft' && <button onClick={() => openEdit(row)} className="rounded-lg border p-2" title="Edit draft"><Pencil size={15}/></button>}{row.status === 'active' && <button onClick={() => closePolicy(row)} className="rounded-lg border border-red-200 p-2 text-red-700" title="Close policy"><XCircle size={15}/></button>}</div></td></tr>)}</Table>}
     </Card>
-    {editing && <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 sm:p-4" onClick={() => setEditing(false)}><div className="mx-auto my-4 max-w-xl rounded-2xl bg-white p-5 sm:p-6" onClick={event => event.stopPropagation()}>
-      <h2 className="text-lg font-bold text-gray-900">Standard LWF Rates</h2>
-      <p className="mt-1 text-sm text-gray-500">These amounts apply platform-wide. Employer overrides remain isolated to their own account.</p>
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        <MoneyField label="Employee LWF (monthly)" value={draft.employee_amount} onChange={value => setDraft(current => ({ ...current, employee_amount: value }))}/>
-        <MoneyField label="Employer LWF (monthly)" value={draft.employer_amount} onChange={value => setDraft(current => ({ ...current, employer_amount: value }))}/>
-        <label><span className="form-label">Status</span><select className="form-input mt-1" value={draft.status} onChange={event => setDraft(current => ({ ...current, status: event.target.value as LwfStatus }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-        <label className="sm:col-span-2"><span className="form-label">Notes</span><textarea className="form-input mt-1 min-h-24" value={draft.notes} maxLength={500} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))}/></label>
-      </div>
-      <div className="mt-6 flex justify-end gap-3"><button onClick={() => setEditing(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold">Cancel</button><button onClick={save} disabled={saving || !draft.employee_amount || !draft.employer_amount} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save Standard'}</button></div>
-    </div></div>}
-  </motion.div>;
+    {legacyOpen && <Modal title="Legacy compatibility rates" error={error} onClose={() => setLegacyOpen(false)}><div className="grid gap-4 sm:grid-cols-2"><Field label="Employee amount" value={legacyDraft.employee_amount} onChange={value => setLegacyDraft(cur => ({ ...cur, employee_amount: value }))}/><Field label="Employer amount" value={legacyDraft.employer_amount} onChange={value => setLegacyDraft(cur => ({ ...cur, employer_amount: value }))}/><Select label="Status" value={legacyDraft.status} onChange={value => setLegacyDraft(cur => ({ ...cur, status: value as LegacyDraft['status'] }))} options={[['active','Active'],['inactive','Inactive']]}/><Field label="Notes" value={legacyDraft.notes} onChange={value => setLegacyDraft(cur => ({ ...cur, notes: value }))}/></div><Actions saving={saving} onCancel={() => setLegacyOpen(false)} onSave={saveLegacy}/></Modal>}
+    {policyOpen && <Modal title={editing ? `Edit draft v${editing.version_number}` : 'Add state LWF policy'} onClose={() => setPolicyOpen(false)}><div className="grid gap-4 sm:grid-cols-2"><Select label="State Master" value={draft.state_id} onChange={value => setDraft(cur => ({ ...cur, state_id: value }))} options={states.filter(state => state.status === 'active').map(state => [state.id, state.name])}/><Field label="Establishment type (optional exact match)" value={draft.establishment_type ?? ''} onChange={value => setDraft(cur => ({ ...cur, establishment_type: value }))}/><Field label="Employee contribution" value={draft.employee_amount} onChange={value => setDraft(cur => ({ ...cur, employee_amount: value }))}/><Field label="Employer contribution" value={draft.employer_amount} onChange={value => setDraft(cur => ({ ...cur, employer_amount: value }))}/><Select label="Frequency" value={draft.frequency} onChange={value => setDraft(cur => ({ ...cur, frequency: value as LwfFrequency }))} options={FREQUENCIES}/><Field label="Contribution months (1-12, comma separated)" value={draft.schedule_months} onChange={value => setDraft(cur => ({ ...cur, schedule_months: value }))}/><Field label="Effective from" type="date" value={draft.effective_from} onChange={value => setDraft(cur => ({ ...cur, effective_from: value }))}/><Field label="Effective to (optional)" type="date" value={draft.effective_to ?? ''} onChange={value => setDraft(cur => ({ ...cur, effective_to: value }))}/><Field label="Eligible gross minimum" value={draft.eligibility_min_gross ?? ''} onChange={value => setDraft(cur => ({ ...cur, eligibility_min_gross: value }))}/><Field label="Eligible gross maximum" value={draft.eligibility_max_gross ?? ''} onChange={value => setDraft(cur => ({ ...cur, eligibility_max_gross: value }))}/><Field label="Eligible employee categories" value={draft.eligible_employee_categories} onChange={value => setDraft(cur => ({ ...cur, eligible_employee_categories: value }))}/><Field label="Exemption codes" value={draft.exemption_codes} onChange={value => setDraft(cur => ({ ...cur, exemption_codes: value }))}/><Select label="Save as" value={draft.status} onChange={value => setDraft(cur => ({ ...cur, status: value as PolicyDraft['status'] }))} options={[['draft','Draft (inactive)'],['active','Active statutory version']]}/><Field label="Verified legal / compliance reference" value={draft.legal_reference ?? ''} onChange={value => setDraft(cur => ({ ...cur, legal_reference: value }))}/><div className="sm:col-span-2"><Field label="Notes" value={draft.notes ?? ''} onChange={value => setDraft(cur => ({ ...cur, notes: value }))}/></div></div><p className="mt-3 text-xs text-amber-700">Unverified rules should remain Draft. Activation requires a legal or compliance reference.</p><Actions saving={saving} onCancel={() => setPolicyOpen(false)} onSave={savePolicy}/></Modal>}
+  </div></ModalErrorContext.Provider></ModalFieldErrorsContext.Provider>;
 }
 
-function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label><span className="form-label">{label}</span><input inputMode="decimal" className="form-input mt-1" value={value} onChange={event => onChange(event.target.value.replace(/[^\d.]/g, ''))}/></label>;
-}
+function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 font-semibold text-gray-900">{value}</p></div>; }
+function Modal({ title, children, error: suppliedError, onClose }: { title: string; children: React.ReactNode; error?: string; onClose: () => void }) { const contextualError = useContext(ModalErrorContext); const error = suppliedError || contextualError; return <div className="fixed inset-0 z-[80] bg-slate-950/50 p-4" onClick={onClose}><div className="mx-auto my-4 flex max-h-[calc(100vh-2rem)] max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}><div className="shrink-0 px-6 pt-6"><h3 className="text-lg font-bold">{title}</h3>{error && <div role="alert" aria-live="assertive" className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 shadow-sm">{error}</div>}</div><div className="min-h-0 overflow-y-auto px-6 pb-6 pt-4">{children}</div></div></div>; }
+function Field({ label, value, type = 'text', onChange }: { label: string; value: string; type?: string; onChange: (value: string) => void }) { const fieldName = FIELD_NAMES[label]; const error = useContext(ModalFieldErrorsContext)[fieldName]; const errorId = fieldName ? `lwf-${fieldName}-error` : undefined; return <label><span className="form-label">{label}</span><input data-lwf-field={fieldName} name={fieldName} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className={`form-input mt-1 ${error ? 'border-red-400 ring-2 ring-red-100 focus:border-red-500 focus:ring-red-200' : ''}`} type={type} value={value} onChange={event => onChange(event.target.value)}/>{error && <span id={errorId} className="mt-1 block text-xs font-medium text-red-700">{error}</span>}</label>; }
+function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<readonly [string,string]> }) { const fieldName = FIELD_NAMES[label]; const error = useContext(ModalFieldErrorsContext)[fieldName]; const errorId = fieldName ? `lwf-${fieldName}-error` : undefined; return <label><span className="form-label">{label}</span><select data-lwf-field={fieldName} name={fieldName} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className={`form-input mt-1 ${error ? 'border-red-400 ring-2 ring-red-100 focus:border-red-500 focus:ring-red-200' : ''}`} value={value} onChange={event => onChange(event.target.value)}>{options.map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select>{error && <span id={errorId} className="mt-1 block text-xs font-medium text-red-700">{error}</span>}</label>; }
+function Actions({ saving, onCancel, onSave }: { saving: boolean; onCancel: () => void; onSave: () => void }) { return <div className="mt-6 flex gap-2"><button onClick={onCancel} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold">Cancel</button><button onClick={onSave} disabled={saving} className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button></div>; }

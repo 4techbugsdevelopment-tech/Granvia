@@ -13,7 +13,7 @@ export function adminEmployeeModules(path: string, method: string): string[] {
   }
   // Applicant actions are also embedded in the Job Management screen.
   if (resource === 'applications') return ['Job Management', 'Hiring Workflow'];
-  if (resource === 'lwf-effective' && method === 'GET') return ['Job Management'];
+  if ((resource === 'lwf-effective' || resource === 'lwf-policy-preview') && method === 'GET') return ['Job Management'];
   const modules: Record<string, string> = {
     guards: 'Associate Management', 'guard-documents': 'Associate Management',
     employers: 'Employer Management', 'company-documents': 'Employer Management',

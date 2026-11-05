@@ -918,7 +918,7 @@ const updateAttendanceSchema = z.object({
   employer_remarks: z.string().max(2000).nullish(),
 });
 
-function payableAmount(record: {
+export function payableAmount(record: {
   totalHours: Prisma.Decimal | number | null;
   job: { salaryAmount: Prisma.Decimal | null; paymentType: string | null } | null;
   guardProfile: { dailyRate: Prisma.Decimal | null; hourlyRate: Prisma.Decimal | null } | null;
@@ -930,7 +930,15 @@ function payableAmount(record: {
     const hours = Number(record.totalHours ?? 0);
     return Math.round(rate * hours * 100) / 100;
   }
-  const rate = Number(record.guardProfile?.dailyRate ?? record.job?.salaryAmount ?? 0);
+
+  const configuredDailyRate = Number(record.guardProfile?.dailyRate ?? 0);
+  if (configuredDailyRate > 0) return Math.round(configuredDailyRate * 100) / 100;
+
+  if (paymentType.includes('month')) {
+    throw new HttpError(422, 'Monthly gross salary cannot be used as an attendance settlement amount. Configure an approved Associate daily rate or use the approved payroll flow.');
+  }
+
+  const rate = Number(record.job?.salaryAmount ?? 0);
   if (rate <= 0) throw new HttpError(422, 'Associate daily rate or job salary/payment amount is required before attendance can be settled.');
   return Math.round(rate * 100) / 100;
 }

@@ -38,8 +38,10 @@ ALTER TABLE [dbo].[job_salary_structures] ADD
   [lwf_source] NVARCHAR(20),
   [lwf_setting_id] NVARCHAR(36);
 
-ALTER TABLE [dbo].[job_salary_structures] ADD CONSTRAINT [job_salary_structures_lwf_source_check]
-  CHECK ([lwf_source] IS NULL OR [lwf_source] IN ('master','employer'));
+-- SQL Server compiles a static constraint definition before recognizing columns
+-- added earlier in the same batch. Compile this statement after the columns exist.
+EXEC(N'ALTER TABLE [dbo].[job_salary_structures] ADD CONSTRAINT [job_salary_structures_lwf_source_check]
+  CHECK ([lwf_source] IS NULL OR [lwf_source] IN (''master'',''employer'',''state_policy''));');
 
 COMMIT TRAN;
 END TRY

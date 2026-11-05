@@ -17,6 +17,7 @@ import MobilePlaceholder from './screens/MobilePlaceholder';
 import AadhaarMockTestScreen from './screens/AadhaarMockTestScreen';
 import AgreementScreen from './screens/AgreementScreen';
 import AcceptedJobsScreen from './screens/AcceptedJobsScreen';
+import PayslipsScreen from './screens/PayslipsScreen';
 import { signOut } from '../services/authService';
 
 interface MobileAppProps {
@@ -26,7 +27,7 @@ interface MobileAppProps {
 type Screen =
   | 'dashboard' | 'jobs' | 'attendance' | 'profile' | 'applications'
   | 'wallet' | 'availability' | 'notifications' | 'support' | 'settings' | 'accepted-jobs' | 'agreement' | 'transactions'
-  | 'aadhaar-mock-test' | 'reports';
+  | 'aadhaar-mock-test' | 'reports' | 'payslips';
 
 function initialScreen(): Screen {
   if (new URLSearchParams(window.location.search).has('extended_report')) return 'reports';
@@ -46,6 +47,7 @@ const MORE_ITEMS = [
   { id: 'reports' as Screen, icon: <ClipboardList size={20} />, label: 'Reports & Statements' },
   { id: 'applications' as Screen, icon: <ClipboardList size={20} />, label: 'Applications' },
   { id: 'wallet' as Screen, icon: <Wallet size={20} />, label: 'Wallet' },
+  { id: 'payslips' as Screen, icon: <FileSignature size={20} />, label: 'Payslips' },
   { id: 'availability' as Screen, icon: <CalendarDays size={20} />, label: 'Availability' },
   { id: 'accepted-jobs' as Screen, icon: <ClipboardList size={20} />, label: 'Accepted Jobs' },
   { id: 'notifications' as Screen, icon: <Bell size={20} />, label: 'Notifications' },
@@ -92,6 +94,7 @@ export default function MobileApp({ onLogout }: MobileAppProps) {
       case 'profile': return <ProfileScreen />;
       case 'applications': return <ApplicationsScreen />;
       case 'wallet': return <WalletScreen />;
+      case 'payslips': return <PayslipsScreen />;
       case 'reports': return <ExtendedReports role="guard"/>;
       case 'availability': return <AvailabilityScreen />;
       case 'accepted-jobs': return <AcceptedJobsScreen />;

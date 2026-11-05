@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Landmark, RotateCcw, Save } from 'lucide-react';
 import { getErrorMessage } from '../services/apiErrors';
-import { getEmployerLwfSetting, resetEmployerLwfSetting, saveEmployerLwfSetting, type LwfSetting, type LwfStatus } from '../services/lwfService';
+import { getEmployerLwfSetting, listEmployerLwfPolicies, resetEmployerLwfSetting, saveEmployerLwfSetting, type LwfPolicy, type LwfSetting, type LwfStatus } from '../services/lwfService';
 
 type Draft = { employee_amount: string; employer_amount: string; status: LwfStatus; notes: string };
 
@@ -9,6 +9,7 @@ export default function LwfSettingsPage() {
   const [master, setMaster] = useState<LwfSetting | null>(null);
   const [override, setOverride] = useState<LwfSetting | null>(null);
   const [effective, setEffective] = useState<LwfSetting | null>(null);
+  const [policies, setPolicies] = useState<LwfPolicy[]>([]);
   const [draft, setDraft] = useState<Draft>({ employee_amount: '', employer_amount: '', status: 'active', notes: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,8 +19,9 @@ export default function LwfSettingsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await getEmployerLwfSetting();
+      const [data, statePolicies] = await Promise.all([getEmployerLwfSetting(), listEmployerLwfPolicies()]);
       setMaster(data.master); setOverride(data.override); setEffective(data.effective);
+      setPolicies(statePolicies);
       const editable = data.override || data.master;
       setDraft({ employee_amount: editable?.employee_amount || '', employer_amount: editable?.employer_amount || '', status: editable?.status || 'active', notes: data.override?.notes || '' });
     } finally { setLoading(false); }
@@ -48,7 +50,8 @@ export default function LwfSettingsPage() {
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading LWF settings...</div>;
 
   return <div className="p-4 md:p-6 space-y-5">
-    <div><h1 className="text-2xl font-bold text-slate-900">LWF Settings</h1><p className="mt-1 text-sm text-gray-500">The Super Admin standard applies automatically. Saving here creates an override only for your employer account.</p></div>
+    <div><h1 className="text-2xl font-bold text-slate-900">LWF Settings</h1><p className="mt-1 text-sm text-gray-500">State statutory policies are managed by Super Admin. The older employer override remains available only for state-less legacy salary records.</p></div>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5"><h2 className="font-bold text-gray-900">Applicable state policy versions</h2><p className="mt-1 text-sm text-gray-500">These active policies match states used by your companies or sites. Actual applicability is resolved by job, establishment, date, schedule and eligibility.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{policies.map(policy => <div key={policy.id} className="rounded-xl bg-slate-50 p-4"><div className="flex items-center justify-between"><p className="font-semibold">{policy.state?.name ?? policy.state_id} · v{policy.version_number}</p><span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">{policy.status}</span></div><p className="mt-2 text-sm">Employee ₹{policy.employee_amount} · Employer ₹{policy.employer_amount}</p><p className="mt-1 text-xs capitalize text-gray-500">{policy.frequency.replace('_', ' ')} · effective {new Date(policy.effective_from).toLocaleDateString('en-IN')}{policy.effective_to ? ` to ${new Date(policy.effective_to).toLocaleDateString('en-IN')}` : ''}</p></div>)}{policies.length === 0 && <p className="text-sm text-amber-700">No active state policy matches the states currently recorded on your companies or sites. Payroll will show an unconfigured jurisdiction until Super Admin adds a verified policy.</p>}</div></section>
     {notice && <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div>}
     {error && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     {!master && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Super Admin has not configured the standard LWF rates yet. An employer override cannot be created until the standard exists.</div>}

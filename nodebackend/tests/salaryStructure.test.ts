@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { calculateSalaryStructure, saveJobSalaryStructure } from '../src/services/salaryStructureService';
 import { storeTemplate } from '../src/controllers/salaryStructureController';
 import { store as storeJob, update as updateJob } from '../src/controllers/jobController';
+import { payableAmount, updateStatus as updateAttendanceStatus } from '../src/controllers/attendanceController';
 import { requireRole } from '../src/middleware/role';
 import { prisma } from '../src/prisma';
 import { HttpError } from '../src/utils/http';
@@ -86,6 +87,7 @@ test('saving a job structure replaces normalized components and writes an audit 
     salaryStatutoryRule: { findMany: async () => [] },
     employerLwfSetting: { findUnique: async () => null },
     lwfMasterSetting: { findUnique: async () => null },
+    jobPost: { findUnique: async () => ({ id: 'job-1', startDate: null, site: null, company: null, guardType: null, category: null }) },
     jobSalaryStructure: { upsert: async ({ create }: any) => ({ id: 'structure-1', ...create }) },
     jobSalaryComponent: {
       deleteMany: async () => { deleted = true; },
@@ -132,6 +134,7 @@ test('Add Job persists server-calculated gross salary and returns the normalized
     lwfMasterSetting: { findUnique: async () => null },
     jobPost: {
       create: async ({ data }: any) => ({ id: 'job-1', ...data }),
+      findUnique: async () => ({ id: 'job-1', startDate: null, site: null, company: null, guardType: 'SECURITY_GUARD', category: null }),
       update: async ({ data }: any) => { legacyGross = data.salaryAmount; },
       findUniqueOrThrow: async () => ({ id: 'job-1', title: 'Guard', salaryAmount: legacyGross, salaryStructure: { grossMonthly: legacyGross, components: [] } }),
     },
@@ -148,6 +151,68 @@ test('Add Job persists server-calculated gross salary and returns the normalized
   assert.equal(result().statusCode, 201);
   assert.equal(legacyGross, '22000.50');
   assert.equal(result().body.salary_amount, '22000.50');
+});
+
+test('monthly gross salary cannot silently become one attendance settlement', () => {
+  assert.throws(
+    () => payableAmount({
+      totalHours: new Prisma.Decimal(8),
+      job: { salaryAmount: new Prisma.Decimal(22000.50), paymentType: 'Monthly' },
+      guardProfile: { dailyRate: null, hourlyRate: null },
+    }),
+    error => error instanceof HttpError
+      && error.status === 422
+      && /monthly gross salary cannot be used/i.test(error.message),
+  );
+});
+
+test('monthly settlement is rejected before payment or wallet writes begin', async t => {
+  const writes: string[] = [];
+  const fakeTx = {
+    attendanceRecord: { findUnique: async () => ({
+      id: 'attendance-1', guardUserId: 'associate-1', employerUserId: 'employer-1', jobId: 'job-1',
+      attendanceDate: new Date('2026-11-03T00:00:00.000Z'), inTime: new Date('2026-11-03T03:30:00.000Z'),
+      outTime: new Date('2026-11-03T11:30:00.000Z'), totalHours: new Prisma.Decimal(8), status: 'pending_verification',
+      job: { id: 'job-1', title: 'Monthly Associate', salaryAmount: new Prisma.Decimal(22000.50), paymentType: 'Monthly' },
+    }) },
+    payment: {
+      findFirst: async () => null,
+      create: async () => { writes.push('payment'); return { id: 'payment-1' }; },
+    },
+    guardProfile: { findUnique: async () => ({ dailyRate: null, hourlyRate: null }) },
+  };
+  mock(t, prisma, '$transaction', async (callback: any) => callback(fakeTx));
+
+  await assert.rejects(
+    () => updateAttendanceStatus({
+      user: { id: 'employer-1' }, params: { record: 'attendance-1' }, body: { status: 'approved' },
+      headers: {}, get: () => undefined, ip: '127.0.0.1',
+    } as unknown as Request, responseCapture().response),
+    error => error instanceof HttpError && error.status === 422,
+  );
+  assert.deepEqual(writes, []);
+});
+
+test('monthly attendance uses an explicit Associate daily rate instead of job gross', () => {
+  const amount = payableAmount({
+    totalHours: new Prisma.Decimal(8),
+    job: { salaryAmount: new Prisma.Decimal(22000.50), paymentType: 'Monthly' },
+    guardProfile: { dailyRate: new Prisma.Decimal(850.25), hourlyRate: null },
+  });
+  assert.equal(amount, 850.25);
+});
+
+test('daily and hourly attendance settlement behavior remains unchanged', () => {
+  assert.equal(payableAmount({
+    totalHours: new Prisma.Decimal(8),
+    job: { salaryAmount: new Prisma.Decimal(900.50), paymentType: 'Daily' },
+    guardProfile: { dailyRate: null, hourlyRate: null },
+  }), 900.50);
+  assert.equal(payableAmount({
+    totalHours: new Prisma.Decimal(7.5),
+    job: { salaryAmount: new Prisma.Decimal(125), paymentType: 'Hourly' },
+    guardProfile: { dailyRate: null, hourlyRate: new Prisma.Decimal(120) },
+  }), 900);
 });
 
 test('editing a historical job without a structure preserves its legacy salary amount', async t => {

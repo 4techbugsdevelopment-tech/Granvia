@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { createDefaultSalaryStructure, createSalaryTemplate, listSalaryTemplates, type SalaryApiScope, type SalaryBasis, type SalaryCategory, type SalaryComponentDraft, type SalaryStructureDraft, type SalaryTemplate } from '../../services/salaryStructureService';
-import { applyLwfToSalaryDraft, getEffectiveLwfForSalary, type LwfSetting } from '../../services/lwfService';
+import { applyLwfToSalaryDraft, getEffectiveLwfForSalary, removeLwfFromSalaryDraft, type LwfPreviewContext, type LwfSetting } from '../../services/lwfService';
 
 const input = 'w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm';
 const moneyToPaise = (raw: string | null | undefined) => {
@@ -49,7 +49,7 @@ export function validateSalaryDraft(draft: SalaryStructureDraft | null) {
 
 const labels: Record<SalaryCategory, string> = { earning: 'Earnings', deduction: 'Deductions', employer_contribution: 'Employer Contributions' };
 const isManagedLwf = (code: string) => code === 'EMPLOYEE_LWF' || code === 'EMPLOYER_LWF';
-export default function SalaryStructurePanel({ value, legacySalary, onChange, scope = 'employer', employerId }: { value: SalaryStructureDraft | null; legacySalary?: string | number | null; onChange: (value: SalaryStructureDraft) => void; scope?: SalaryApiScope; employerId?: string }) {
+export default function SalaryStructurePanel({ value, legacySalary, onChange, scope = 'employer', employerId, policyContext }: { value: SalaryStructureDraft | null; legacySalary?: string | number | null; onChange: (value: SalaryStructureDraft) => void; scope?: SalaryApiScope; employerId?: string; policyContext?: LwfPreviewContext }) {
   const [templates, setTemplates] = useState<SalaryTemplate[]>([]), [templateId, setTemplateId] = useState(''), [templateName, setTemplateName] = useState('');
   const [message, setMessage] = useState('');
   const [lwfSource, setLwfSource] = useState('');
@@ -58,17 +58,28 @@ export default function SalaryStructurePanel({ value, legacySalary, onChange, sc
   const onChangeRef = useRef(onChange);
   valueRef.current = value;
   onChangeRef.current = onChange;
+  const previewGross = useMemo(() => value ? calculateSalaryDraft(removeLwfFromSalaryDraft(value)).gross : '', [value]);
   useEffect(() => { listSalaryTemplates(scope).then(setTemplates).catch(() => setMessage('Salary templates are unavailable until the salary migration is applied.')); }, [scope]);
   useEffect(() => {
     const currentValue = valueRef.current;
     if (!currentValue || (scope === 'admin' && !employerId)) return;
-    getEffectiveLwfForSalary(scope, employerId).then(setting => {
+    const baseDraft = removeLwfFromSalaryDraft(currentValue);
+    getEffectiveLwfForSalary(scope, employerId, policyContext ? { ...policyContext, gross_amount: previewGross } : undefined).then(setting => {
+      if (!setting) { setManagedLwf(null); setLwfSource('No LWF configuration is currently applicable.'); onChangeRef.current(baseDraft); return; }
+      if (setting.resolution_status && setting.resolution_status !== 'applied') {
+        setManagedLwf(null);
+        setLwfSource(`LWF ${setting.resolution_status.replace('_', ' ')}: ${String(setting.resolution_reason ?? 'configuration unavailable').replaceAll('_', ' ')}.`);
+        onChangeRef.current(baseDraft);
+        return;
+      }
       setManagedLwf(setting);
-      if (!setting) { setLwfSource(''); return; }
-      setLwfSource(setting.source === 'employer' ? 'Employer override' : 'Super Admin standard');
-      onChangeRef.current(applyLwfToSalaryDraft(currentValue, setting));
-    }).catch(() => setLwfSource(''));
-  }, [scope, employerId]);
+      const source = setting.source === 'state_policy'
+        ? `${setting.state?.name ?? 'State'} policy · ${String(setting.frequency ?? 'configured').replace('_', ' ')}${setting.is_trigger_period ? ' · contribution due in this period' : ' · no contribution in this month'}`
+        : setting.source === 'employer' ? 'Employer override (legacy compatibility)' : 'Super Admin standard (legacy compatibility)';
+      setLwfSource(source);
+      onChangeRef.current(applyLwfToSalaryDraft(baseDraft, setting));
+    }).catch(() => setLwfSource('Unable to resolve the applicable LWF configuration.'));
+  }, [scope, employerId, policyContext?.state, policyContext?.state_id, policyContext?.effective_date, policyContext?.establishment_type, policyContext?.employee_category, previewGross]);
   const totals = useMemo(() => value ? calculateSalaryDraft(value) : null, [value]);
   if (!value) return <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3"><h3 className="font-bold text-gray-900">Salary Structure</h3><p className="text-sm text-amber-900">This historical job contains only a legacy gross salary of ₹{legacySalary ?? '0'}. No component breakdown has been invented.</p><button type="button" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" onClick={() => onChange(createDefaultSalaryStructure(String(legacySalary ?? '')))}>Create structure from legacy gross as Basic Salary</button></section>;
   const update = (index: number, changes: Partial<SalaryComponentDraft>) => onChange({ components: value.components.map((row, i) => i === index ? { ...row, ...changes } : row) });
@@ -76,7 +87,7 @@ export default function SalaryStructurePanel({ value, legacySalary, onChange, sc
   const applyTemplate = () => { const selected = templates.find(row => row.id === templateId); if (selected) { const draft = { components: selected.components.map(row => ({ ...row })) }; onChange(managedLwf ? applyLwfToSalaryDraft(draft, managedLwf) : draft); setMessage(`Applied ${selected.name}.`); } };
   const saveTemplate = async () => { if (!templateName.trim()) return setMessage('Enter a template name.'); const error = validateSalaryDraft(value); if (error) return setMessage(error); try { const created = await createSalaryTemplate({ name: templateName.trim(), components: value.components }, scope); setTemplates(rows => [...rows, created].sort((a, b) => a.name.localeCompare(b.name))); setTemplateName(''); setMessage('Salary template saved.'); } catch (error: any) { setMessage(error?.response?.data?.message || 'Unable to save template.'); } };
   return <section className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 space-y-5">
-    <div><h3 className="text-lg font-bold text-gray-900">Salary Structure</h3><p className="text-sm text-gray-500">Configure monthly earnings, employee deductions and employer costs. Server calculations remain authoritative.</p>{lwfSource && <p className="mt-1 text-xs font-semibold text-blue-700">LWF source: {lwfSource}. Managed LWF amounts are read-only here.</p>}</div>
+    <div><h3 className="text-lg font-bold text-gray-900">Salary Structure</h3><p className="text-sm text-gray-500">Configure monthly earnings, employee deductions and employer costs. Server calculations remain authoritative.</p>{lwfSource && <p className="mt-1 text-xs font-semibold text-blue-700">LWF: {lwfSource} {managedLwf?.source === 'state_policy' ? `Configured contribution: employee ₹${managedLwf.policy_employee_amount}, employer ₹${managedLwf.policy_employer_amount}.` : 'Managed LWF amounts are read-only here.'}</p>}</div>
     <div className="grid gap-3 md:grid-cols-2"><div className="flex gap-2"><select className={input} value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Apply saved template</option>{templates.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select><button type="button" className="rounded-lg border px-3 text-sm" onClick={applyTemplate} disabled={!templateId}>Apply</button></div><div className="flex gap-2"><input className={input} placeholder="New template name" value={templateName} onChange={event => setTemplateName(event.target.value)}/><button type="button" className="rounded-lg border px-3 text-sm whitespace-nowrap" onClick={saveTemplate}>Save template</button></div></div>
     {message && <p className="text-sm text-amber-700">{message}</p>}
     {(['earning', 'deduction', 'employer_contribution'] as SalaryCategory[]).map(category => <div key={category} className="space-y-3"><div className="flex items-center justify-between"><h4 className="font-bold text-gray-800">{labels[category]}</h4><button type="button" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700" onClick={() => add(category)}><Plus size={15}/> Add Salary Component</button></div>

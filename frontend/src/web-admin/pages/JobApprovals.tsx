@@ -576,7 +576,7 @@ export default function JobApprovals() {
               <label className="sm:col-span-2"><span className="form-label">Description</span><textarea value={jobForm.description} onChange={event => setJobForm(current => ({ ...current, description: event.target.value }))} className="form-input min-h-24" /></label>
             </div>
             <div className="mt-6">
-              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} onChange={value => { if (!salaryStructure) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} />
+              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} onChange={value => { if (!salaryStructure) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setFormOpen(false)} className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>

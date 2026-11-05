@@ -8,7 +8,7 @@ import {
   BarChart3, Briefcase, Building2, CalendarCheck, CheckCircle, ClipboardList,
   CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MapPin, Menu, MessageSquare,
   Plus, Search, Settings, ShieldCheck, UserCheck, Wallet, X, XCircle, ExternalLink,
-  UsersRound, ArrowLeft, RefreshCw,
+  UsersRound, ArrowLeft, RefreshCw, Landmark,
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import GranviaLogo from '../components/GranviaLogo';
@@ -39,6 +39,7 @@ import { AssociateTypeOption, listActiveAssociateTypes } from '../services/assoc
 import EmailOtpAadhaarPage from './AadhaarVerificationPage';
 import FeedbackPage from './FeedbackPage';
 import LwfSettingsPage from './LwfSettingsPage';
+import PayrollPage from './PayrollPage';
 import AvailableGuardsPage from './AvailableGuardsPage';
 import TeamPage from './TeamPage';
 import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
@@ -67,7 +68,7 @@ interface EmployerInfo {
 type EmployerPage =
   | 'dashboard' | 'profile' | 'aadhaar' | 'team' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
   | 'available-guards' | 'interviews' | 'agreements' | 'attendance'
-  | 'payments' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
+  | 'payments' | 'payroll' | 'wallet' | 'invoices' | 'reports' | 'feedback' | 'support' | 'settings';
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ const navItems: { id: EmployerPage; label: string; icon: React.ReactNode; master
   { id: 'agreements',  label: 'Agreements / Onboarding',  icon: <Handshake size={18} />,     master: true },
   { id: 'attendance',  label: 'Attendance Verification',  icon: <CalendarCheck size={18} />, master: true },
   { id: 'payments',    label: 'Payments',                 icon: <CreditCard size={18} />, master: true },
+  { id: 'payroll',     label: 'Payroll & LWF',             icon: <Landmark size={18} />, master: true },
   { id: 'wallet',      label: 'Wallet',                   icon: <Wallet size={18} /> },
   { id: 'invoices',    label: 'Invoices / Receipts',      icon: <FileText size={18} />,      master: true },
   { id: 'reports',     label: 'Reports',                  icon: <BarChart3 size={18} />,     master: true },
@@ -194,6 +196,7 @@ export default function EmployerApp({ onLogout, layout = 'desktop' }: EmployerAp
       case 'agreements':  return activeCompany ? <AgreementsPage employer={employer} company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'attendance':  return activeCompany ? <AttendancePage company={activeCompany} key={refresh} onChanged={reload} /> : <CompanyRequired onNavigate={setPage} />;
       case 'payments':    return activeCompany ? <PaymentsPage employer={employer} company={activeCompany} key={refresh} /> : <CompanyRequired onNavigate={setPage} />;
+      case 'payroll':     return <PayrollPage />;
       case 'wallet':      return <WalletPage key={refresh} />;
       case 'invoices':    return activeCompany ? <InvoicesPage company={activeCompany} /> : <CompanyRequired onNavigate={setPage} />;
       case 'reports':     return <EmployerReportingHub company={activeCompany} key={activeCompany?.id ?? 'account'} onSelectCompany={() => setPage('companies')} />;
@@ -1991,7 +1994,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Input label="Languages" value={job.language_requirements} onChange={v => setJob({ ...job, language_requirements: v })} />
         </div>
         <div className="mt-5">
-          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} />
+          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
           {jobErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{jobErrors.salary_structure}</p>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
@@ -2320,7 +2323,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
               </div>
               <div className="mt-5">
-                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} onChange={value => { if (!editSalaryStructure) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} />
+                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} onChange={value => { if (!editSalaryStructure) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
                 {editErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{editErrors.salary_structure}</p>}
               </div>
               <div className="mt-3">

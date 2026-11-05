@@ -83,6 +83,11 @@ router.delete('/admin/location/cities/:city', asyncHandler(locationMaster.destro
 router.get('/admin/lwf-master', asyncHandler(lwf.master));
 router.post('/admin/lwf-master', asyncHandler(lwf.saveMaster));
 router.get('/admin/lwf-effective/:employer', asyncHandler(lwf.adminEffective));
+router.get('/admin/lwf-policies', asyncHandler(lwf.policies));
+router.post('/admin/lwf-policies', asyncHandler(lwf.createPolicy));
+router.patch('/admin/lwf-policies/:policy', asyncHandler(lwf.updatePolicy));
+router.post('/admin/lwf-policies/:policy/close', asyncHandler(lwf.closePolicy));
+router.get('/admin/lwf-policy-preview', asyncHandler(lwf.previewPolicy));
 router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
 router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 

@@ -1,0 +1,10 @@
+import { useEffect, useState } from 'react';
+import { getErrorMessage } from '../../services/apiErrors';
+import { listGuardPayslips } from '../../services/payrollService';
+
+const money = (value: unknown) => `₹${Number(value ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export default function PayslipsScreen() {
+  const [rows, setRows] = useState<any[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true);
+  useEffect(() => { listGuardPayslips().then(setRows).catch(cause => setError(getErrorMessage(cause, 'Unable to load payslips.'))).finally(() => setLoading(false)); }, []);
+  return <div className="p-4 space-y-4"><div><h1 className="text-xl font-bold text-slate-900">Payslips</h1><p className="text-sm text-gray-500">Finalized payroll snapshots and recorded salary payment status.</p></div>{error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{loading && <p className="text-sm text-gray-500">Loading...</p>}{rows.map(row => <section key={row.id} className="rounded-2xl bg-white p-4 shadow-sm"><div className="flex justify-between gap-3"><div><p className="font-bold">{row.job?.title ?? 'Salary'}</p><p className="text-xs text-gray-500">{row.run?.period?.label}</p></div><div className="text-right"><p className="text-xs text-gray-500">Net pay</p><p className="font-bold text-green-700">{money(row.net_payable)}</p></div></div><div className="mt-3 grid grid-cols-2 gap-2">{row.lines?.map((line:any) => <div key={line.id} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-gray-500">{line.name}</p><p className="font-semibold">{money(line.amount)}</p><p className="text-[11px] capitalize text-gray-400">{line.category.replace('_',' ')}</p></div>)}</div><p className="mt-3 text-xs font-semibold capitalize text-gray-600">Payment: {row.payment?.status?.replaceAll('_',' ') ?? 'not initiated'}</p></section>)}{!loading && !rows.length && <p className="rounded-2xl bg-white p-8 text-center text-sm text-gray-500">No finalized payslips yet.</p>}</div>;
+}

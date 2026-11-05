@@ -16,6 +16,7 @@ import * as availability from '../controllers/availabilityController';
 import * as wallet from '../controllers/walletController';
 import * as withdrawal from '../controllers/withdrawalController';
 import * as offer from '../controllers/jobOfferController';
+import * as payroll from '../controllers/payrollController';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -40,6 +41,8 @@ router.delete('/guard/availability/:availability', asyncHandler(availability.des
 
 router.get('/guard/wallet', asyncHandler(wallet.guardShow));
 router.get('/guard/wallet/transactions', asyncHandler(wallet.guardTransactions));
+router.get('/guard/payslips', asyncHandler(payroll.payslips));
+router.get('/guard/payslips/:result', asyncHandler(payroll.payslip));
 router.get('/guard/withdrawals', asyncHandler(withdrawal.mine));
 router.post('/guard/withdrawals', asyncHandler(withdrawal.requestWithdrawal));
 
