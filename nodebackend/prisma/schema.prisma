@@ -415,11 +415,205 @@ model JobPost {
   salaryStructure             JobSalaryStructure?
   salaryAuditEvents           JobSalaryAuditEvent[]
   payrollResults              PayrollResult[]
+  minimumWageSnapshots        JobMinimumWageSnapshot[]
 
   @@index([employerUserId])
   @@index([companyId])
   @@index([status])
   @@map("job_posts")
+}
+
+model MinimumWageJurisdiction {
+  id                    String   @id @default(uuid()) @db.NVarChar(36)
+  jurisdictionType      String   @map("jurisdiction_type") @db.NVarChar(30)
+  stateUtCode           String?  @map("state_ut_code") @db.NVarChar(20)
+  appropriateGovernment String   @map("appropriate_government") @db.NVarChar(30)
+  jurisdictionName      String   @map("jurisdiction_name") @db.NVarChar(180)
+  status                String   @default("active") @db.NVarChar(20)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  notifications MinimumWageNotification[]
+  rates         MinimumWageRate[]
+  roleMappings  JobRoleSkillMapping[]
+  coverage      MinimumWageCoverage[]
+
+  @@unique([jurisdictionType, stateUtCode, appropriateGovernment, jurisdictionName])
+  @@index([stateUtCode, status])
+  @@map("minimum_wage_jurisdictions")
+}
+
+model MinimumWageNotification {
+  id                 String    @id @default(uuid()) @db.NVarChar(36)
+  jurisdictionId     String    @map("jurisdiction_id") @db.NVarChar(36)
+  notificationNumber String    @map("notification_number") @db.NVarChar(180)
+  notificationTitle  String    @map("notification_title") @db.NVarChar(500)
+  issuingAuthority   String    @map("issuing_authority") @db.NVarChar(300)
+  publicationDate    DateTime  @map("publication_date") @db.Date
+  effectiveFrom      DateTime  @map("effective_from") @db.Date
+  effectiveTo        DateTime? @map("effective_to") @db.Date
+  notificationType   String    @default("original") @map("notification_type") @db.NVarChar(30)
+  amendmentOfId      String?   @map("amendment_of_id") @db.NVarChar(36)
+  sourceUrl          String?   @map("source_url") @db.NVarChar(1000)
+  sourceDocumentPath String?   @map("source_document_path") @db.NVarChar(1000)
+  sourceDocumentHash String?   @map("source_document_hash") @db.NVarChar(128)
+  verificationStatus String    @default("draft") @map("verification_status") @db.NVarChar(30)
+  workflowStage      String    @default("imported") @map("workflow_stage") @db.NVarChar(30)
+  verifiedByUserId   String?   @map("verified_by_user_id") @db.NVarChar(36)
+  verifiedAt         DateTime? @map("verified_at")
+  approvedByUserId   String?   @map("approved_by_user_id") @db.NVarChar(36)
+  approvedAt         DateTime? @map("approved_at")
+  lastVerifiedAt     DateTime? @map("last_verified_at")
+  nextReviewAt       DateTime? @map("next_review_at") @db.Date
+  remarks            String?   @db.NVarChar(Max)
+  createdByUserId    String    @map("created_by_user_id") @db.NVarChar(36)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  jurisdiction MinimumWageJurisdiction   @relation(fields: [jurisdictionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amendmentOf  MinimumWageNotification?  @relation("MinimumWageAmendments", fields: [amendmentOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amendments   MinimumWageNotification[] @relation("MinimumWageAmendments")
+  rates        MinimumWageRate[]
+  snapshots    JobMinimumWageSnapshot[]
+
+  @@unique([jurisdictionId, notificationNumber])
+  @@index([verificationStatus, effectiveFrom, effectiveTo])
+  @@index([sourceDocumentHash])
+  @@map("minimum_wage_notifications")
+}
+
+model MinimumWageRate {
+  id                           String    @id @default(uuid()) @db.NVarChar(36)
+  notificationId               String    @map("notification_id") @db.NVarChar(36)
+  jurisdictionId               String    @map("jurisdiction_id") @db.NVarChar(36)
+  stateUtCode                  String    @map("state_ut_code") @db.NVarChar(20)
+  districtCode                 String?   @map("district_code") @db.NVarChar(100)
+  zoneCode                     String?   @map("zone_code") @db.NVarChar(100)
+  employmentCategoryCode       String?   @map("employment_category_code") @db.NVarChar(150)
+  occupationCode               String?   @map("occupation_code") @db.NVarChar(150)
+  skillCategoryCode            String?   @map("skill_category_code") @db.NVarChar(100)
+  effectiveFrom                DateTime  @map("effective_from") @db.Date
+  effectiveTo                  DateTime? @map("effective_to") @db.Date
+  wageUnit                     String    @map("wage_unit") @db.NVarChar(30)
+  basicWage                    Decimal   @map("basic_wage") @db.Decimal(14, 2)
+  variableDearnessAllowance    Decimal   @default(0) @map("variable_dearness_allowance") @db.Decimal(14, 2)
+  otherMandatoryWageComponents Decimal   @default(0) @map("other_mandatory_wage_components") @db.Decimal(14, 2)
+  totalNotifiedMinimumWage     Decimal   @map("total_notified_minimum_wage") @db.Decimal(14, 2)
+  currency                     String    @default("INR") @db.NVarChar(3)
+  qualifyingComponentCodes     String    @map("qualifying_component_codes") @db.NVarChar(Max)
+  applicabilityConditions      String?   @map("applicability_conditions") @db.NVarChar(Max)
+  conversionBasis              String?   @map("conversion_basis") @db.NVarChar(Max)
+  approvalStatus               String    @default("draft") @map("approval_status") @db.NVarChar(30)
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  notification MinimumWageNotification  @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jurisdiction MinimumWageJurisdiction  @relation(fields: [jurisdictionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  snapshots    JobMinimumWageSnapshot[]
+
+  @@index([stateUtCode, wageUnit, effectiveFrom, effectiveTo, approvalStatus])
+  @@index([employmentCategoryCode, occupationCode, skillCategoryCode])
+  @@map("minimum_wage_rates")
+}
+
+model JobRoleSkillMapping {
+  id                     String    @id @default(uuid()) @db.NVarChar(36)
+  jurisdictionId         String?   @map("jurisdiction_id") @db.NVarChar(36)
+  jobRoleCode            String    @map("job_role_code") @db.NVarChar(150)
+  employmentCategoryCode String?   @map("employment_category_code") @db.NVarChar(150)
+  occupationCode         String?   @map("occupation_code") @db.NVarChar(150)
+  skillCategoryCode      String    @map("skill_category_code") @db.NVarChar(100)
+  mappingStatus          String    @default("draft") @map("mapping_status") @db.NVarChar(30)
+  legalReference         String?   @map("legal_reference") @db.NVarChar(1000)
+  createdByUserId        String    @map("created_by_user_id") @db.NVarChar(36)
+  approvedByUserId       String?   @map("approved_by_user_id") @db.NVarChar(36)
+  approvedAt             DateTime? @map("approved_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  jurisdiction MinimumWageJurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([jurisdictionId, jobRoleCode, employmentCategoryCode, occupationCode])
+  @@index([jobRoleCode, mappingStatus])
+  @@map("job_role_skill_mappings")
+}
+
+model JobMinimumWageSnapshot {
+  id                     String   @id @default(uuid()) @db.NVarChar(36)
+  jobId                  String   @map("job_id") @db.NVarChar(36)
+  rateId                 String?  @map("rate_id") @db.NVarChar(36)
+  notificationId         String?  @map("notification_id") @db.NVarChar(36)
+  stateUtCode            String?  @map("state_ut_code") @db.NVarChar(20)
+  districtCode           String?  @map("district_code") @db.NVarChar(100)
+  zoneCode               String?  @map("zone_code") @db.NVarChar(100)
+  employmentCategoryCode String?  @map("employment_category_code") @db.NVarChar(150)
+  occupationCode         String?  @map("occupation_code") @db.NVarChar(150)
+  skillCategoryCode      String?  @map("skill_category_code") @db.NVarChar(100)
+  effectiveDate          DateTime @map("effective_date") @db.Date
+  wageUnit               String?  @map("wage_unit") @db.NVarChar(30)
+  appliedWageFloor       Decimal? @map("applied_wage_floor") @db.Decimal(14, 2)
+  offeredQualifyingWage  Decimal? @map("offered_qualifying_wage") @db.Decimal(14, 2)
+  shortfall              Decimal? @db.Decimal(14, 2)
+  resolutionStatus       String   @map("resolution_status") @db.NVarChar(30)
+  complianceStatus       String   @map("compliance_status") @db.NVarChar(30)
+  resolutionReason       String?  @map("resolution_reason") @db.NVarChar(500)
+  policySnapshot         String   @map("policy_snapshot") @db.NVarChar(Max)
+  qualifyingWageSnapshot String?  @map("qualifying_wage_snapshot") @db.NVarChar(Max)
+  resolverVersion        String   @map("resolver_version") @db.NVarChar(30)
+  triggerAction          String   @map("trigger_action") @db.NVarChar(50)
+  isCurrent              Boolean  @default(true) @map("is_current")
+  checkedByUserId        String   @map("checked_by_user_id") @db.NVarChar(36)
+  checkedAt              DateTime @default(now()) @map("checked_at")
+
+  job          JobPost                  @relation(fields: [jobId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rate         MinimumWageRate?         @relation(fields: [rateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notification MinimumWageNotification? @relation(fields: [notificationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([jobId, isCurrent, checkedAt])
+  @@index([resolutionStatus, complianceStatus])
+  @@map("job_minimum_wage_snapshots")
+}
+
+model MinimumWageComplianceAudit {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  actorUserId     String   @map("actor_user_id") @db.NVarChar(36)
+  action          String   @db.NVarChar(80)
+  entityType      String   @map("entity_type") @db.NVarChar(50)
+  entityId        String   @map("entity_id") @db.NVarChar(36)
+  jobId           String?  @map("job_id") @db.NVarChar(36)
+  notificationId  String?  @map("notification_id") @db.NVarChar(36)
+  previousValues  String?  @map("previous_values") @db.NVarChar(Max)
+  newValues       String?  @map("new_values") @db.NVarChar(Max)
+  reason          String?  @db.NVarChar(1000)
+  sourceReference String?  @map("source_reference") @db.NVarChar(1000)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([jobId, createdAt])
+  @@index([notificationId, createdAt])
+  @@map("minimum_wage_compliance_audits")
+}
+
+model MinimumWageCoverage {
+  id                        String    @id @default(uuid()) @db.NVarChar(36)
+  jurisdictionId            String?   @map("jurisdiction_id") @db.NVarChar(36)
+  stateUtCode               String    @map("state_ut_code") @db.NVarChar(20)
+  stateUtName               String    @map("state_ut_name") @db.NVarChar(150)
+  regionType                String    @map("region_type") @db.NVarChar(20)
+  coverageStatus            String    @default("NOT_STARTED") @map("coverage_status") @db.NVarChar(30)
+  verifiedNotificationCount Int       @default(0) @map("verified_notification_count")
+  lastVerifiedAt            DateTime? @map("last_verified_at")
+  nextReviewAt              DateTime? @map("next_review_at") @db.Date
+  coverageNotes             String?   @map("coverage_notes") @db.NVarChar(Max)
+  updatedByUserId           String?   @map("updated_by_user_id") @db.NVarChar(36)
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  jurisdiction MinimumWageJurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([stateUtCode, jurisdictionId])
+  @@index([coverageStatus, stateUtCode])
+  @@map("minimum_wage_coverage")
 }
 
 model JobSalaryStructure {

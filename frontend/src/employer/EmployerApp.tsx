@@ -47,6 +47,7 @@ import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
 import { companyLogoUrl, employerLogoUrl, previewUrl } from '../lib/fileUrls';
 import SalaryStructurePanel, { validateSalaryDraft } from '../components/salary/SalaryStructurePanel';
+import MinimumWagePanel from '../components/salary/MinimumWagePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../services/salaryStructureService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1999,6 +2000,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
         </div>
         <div className="mt-5">
           <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} paymentFrequency={job.payment_type === 'Daily' ? 'Daily' : 'Monthly'} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
+          <MinimumWagePanel scope="employer" state={sites.find(site => site.id === job.site_id)?.state ?? company.state} district={sites.find(site => site.id === job.site_id)?.city ?? company.city} jobRole={job.guard_type} employmentCategory={job.category} effectiveDate={job.start_date} paymentType={job.payment_type} salaryStructure={salaryStructure} />
           {jobErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{jobErrors.salary_structure}</p>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
@@ -2140,12 +2142,12 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
   const confirmDelete = async (jobId: string) => {
     setDeletingId(jobId);
     try {
-      await deleteJobPost(jobId);
+      const result = await deleteJobPost(jobId);
       setConfirmDeleteId(null);
       reload();
       onChanged();
-      setJobNotice('Job deleted successfully.');
-      window.alert('Job deleted successfully.');
+      setJobNotice(result.message || (result.archived ? 'Job archived successfully.' : 'Job deleted successfully.'));
+      window.alert(result.message || (result.archived ? 'Job archived successfully.' : 'Job deleted successfully.'));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete.');
     } finally {
@@ -2265,6 +2267,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               </div>
               <div className="mt-4 overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-gray-500"><th className="p-2">Component</th><th className="p-2">Category</th><th className="p-2">Calculation</th><th className="p-2 text-right">{viewingJob.payment_type}</th></tr></thead><tbody>{viewingJob.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-2 font-medium">{row.name}</td><td className="p-2 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-2">{row.calculation_type === 'percentage' ? `${row.percentage}% of ${String(row.percentage_basis).replaceAll('_', ' ')}` : 'Fixed'}</td><td className="p-2 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
             </> : <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Historical salary record: gross ₹{viewingJob.salary_amount}. No component breakdown is stored for this job.</div>}
+            {viewingJob.minimum_wage_snapshots?.[0] && <div className={`mt-5 rounded-xl border p-4 text-sm ${viewingJob.minimum_wage_snapshots[0].compliance_status === 'COMPLIANT' ? 'border-green-200 bg-green-50 text-green-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><h4 className="font-bold">Minimum Wage</h4><p className="mt-1">{String(viewingJob.minimum_wage_snapshots[0].compliance_status).replaceAll('_',' ')} · {String(viewingJob.minimum_wage_snapshots[0].resolution_status).replaceAll('_',' ')}{viewingJob.minimum_wage_snapshots[0].applied_wage_floor ? ` · Required ₹${viewingJob.minimum_wage_snapshots[0].applied_wage_floor}` : ''}{viewingJob.minimum_wage_snapshots[0].shortfall && Number(viewingJob.minimum_wage_snapshots[0].shortfall) > 0 ? ` · Shortfall ₹${viewingJob.minimum_wage_snapshots[0].shortfall}` : ''}</p></div>}
             {viewingJob.description && <div className="mt-5"><h4 className="font-bold text-gray-900">Description</h4><p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{viewingJob.description}</p></div>}
           </div>
         </div>
@@ -2328,6 +2331,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               </div>
               <div className="mt-5">
                 <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} paymentFrequency={ef.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!editSalaryStructure && !['Monthly', 'Daily'].includes(ef.payment_type)) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
+                <MinimumWagePanel scope="employer" state={sites.find(site => site.id === ef.site_id)?.state ?? company.state} district={sites.find(site => site.id === ef.site_id)?.city ?? company.city} jobRole={ef.guard_type} employmentCategory={editingJob.category} effectiveDate={ef.start_date} paymentType={ef.payment_type} salaryStructure={editSalaryStructure} />
                 {editErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{editErrors.salary_structure}</p>}
               </div>
               <div className="mt-3">

@@ -14,6 +14,8 @@
     "test:company-assignments": "tsx --test tests/adminCompanyAssignments.test.ts",
     "test:salary-structure": "tsx --test tests/salaryStructure.test.ts",
     "test:lwf-payroll": "tsx --test tests/lwfPayroll.test.ts",
+    "test:minimum-wage": "tsx --test tests/minimumWage.test.ts",
+    "test:minimum-wage:compiled": "node scripts/smoke-minimum-wage.cjs",
     "test:employer-logos": "tsx --test tests/employerLogos.test.ts",
     "test:sms": "tsx --test tests/smsRegistrationOtp.test.ts",
     "test:admin-employer-access": "tsx --test tests/adminEmployerAccess.test.ts",

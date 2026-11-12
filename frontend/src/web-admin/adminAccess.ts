@@ -3,7 +3,7 @@ import type { AdminPage } from './Sidebar';
 
 const PAGE_MODULES: Partial<Record<AdminPage, string>> = {
   dashboard: 'Dashboard', guards: 'Associate Management', 'add-guard': 'Associate Management', employers: 'Employer Management',
-  jobs: 'Job Management', attendance: 'Attendance', hiring: 'Hiring Workflow', wallet: 'Wallet & Payments', reports: 'Reports',
+  jobs: 'Job Management', 'minimum-wages': 'Minimum Wage Compliance', attendance: 'Attendance', hiring: 'Hiring Workflow', wallet: 'Wallet & Payments', reports: 'Reports',
   'email-logs': 'Email Logs', 'associate-types': 'Associate Types', locations: 'City & State Master',
 };
 export function canOpenAdminPage(profile: ProfileRow | null, page: AdminPage) {

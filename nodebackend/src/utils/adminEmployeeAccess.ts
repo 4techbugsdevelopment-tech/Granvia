@@ -1,5 +1,5 @@
 export const ADMIN_EMPLOYEE_MODULES = [
-  'Dashboard', 'Associate Management', 'Employer Management', 'Job Management',
+  'Dashboard', 'Associate Management', 'Employer Management', 'Job Management', 'Minimum Wage Compliance',
   'Attendance', 'Hiring Workflow', 'Wallet & Payments', 'Reports', 'Email Logs',
   'Associate Types', 'City & State Master',
   'Company HR', 'Company Sales', 'Company Operations', 'Company Accounts',
@@ -17,7 +17,7 @@ export function adminEmployeeModules(path: string, method: string): string[] {
   const modules: Record<string, string> = {
     guards: 'Associate Management', 'guard-documents': 'Associate Management',
     employers: 'Employer Management', 'company-documents': 'Employer Management',
-    jobs: 'Job Management', attendance: 'Attendance',
+    jobs: 'Job Management', 'minimum-wages': 'Minimum Wage Compliance', attendance: 'Attendance',
     hiring: 'Hiring Workflow', wallets: 'Wallet & Payments', 'wallet-recharge-requests': 'Wallet & Payments', 'email-logs': 'Email Logs',
     'associate-types': 'Associate Types', location: 'City & State Master',
   };

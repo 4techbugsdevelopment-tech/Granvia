@@ -67,11 +67,13 @@ export async function updateAdminJob(jobId: string, updates: Record<string, unkn
 }
 
 export async function deleteAdminJob(jobId: string) {
-  await apiClient.delete(`/admin/jobs/${jobId}`);
+  const { data } = await apiClient.delete(`/admin/jobs/${jobId}`);
+  return data as { message: string; archived?: boolean };
 }
 
 export async function deleteJobPost(jobId: string) {
-  await apiClient.delete(`/employer/jobs/${jobId}`);
+  const { data } = await apiClient.delete(`/employer/jobs/${jobId}`);
+  return data as { message: string; archived?: boolean };
 }
 
 export async function updateJobPost(jobId: string, updates: Record<string, unknown>) {
@@ -79,7 +81,7 @@ export async function updateJobPost(jobId: string, updates: Record<string, unkno
   return remapJob(data);
 }
 /** Job-form choices are available with Job Management permission alone. */
-export async function listAdminJobOptions(): Promise<{ companies: { id: string; employerId: string; companyName: string }[]; sites: { id: string; companyId: string; siteName: string | null; city: string | null }[] }> {
+export async function listAdminJobOptions(): Promise<{ companies: { id: string; employerId: string; companyName: string; businessType: string | null; state: string | null }[]; sites: { id: string; companyId: string; siteName: string | null; city: string | null; state: string | null }[] }> {
   const { data } = await apiClient.get('/admin/jobs/options');
   return data;
 }

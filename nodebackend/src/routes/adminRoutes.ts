@@ -26,6 +26,7 @@ import * as wallet from '../controllers/walletController';
 import * as attendance from '../controllers/attendanceController';
 import * as salary from '../controllers/salaryStructureController';
 import * as lwf from '../controllers/lwfController';
+import * as minimumWage from '../controllers/minimumWageController';
 
 const router = Router();
 const brandUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -88,6 +89,20 @@ router.post('/admin/lwf-policies', asyncHandler(lwf.createPolicy));
 router.patch('/admin/lwf-policies/:policy', asyncHandler(lwf.updatePolicy));
 router.post('/admin/lwf-policies/:policy/close', asyncHandler(lwf.closePolicy));
 router.get('/admin/lwf-policy-preview', asyncHandler(lwf.previewPolicy));
+router.get('/admin/minimum-wages/jurisdictions', asyncHandler(minimumWage.jurisdictions));
+router.get('/admin/minimum-wages/coverage', asyncHandler(minimumWage.coverage));
+router.get('/admin/minimum-wages/notifications', asyncHandler(minimumWage.notifications));
+router.post('/admin/minimum-wages/notifications', asyncHandler(minimumWage.storeNotification));
+router.post('/admin/minimum-wages/notifications/:notification/approve', asyncHandler(minimumWage.approveNotification));
+router.post('/admin/minimum-wages/notifications/:notification/reject', asyncHandler(minimumWage.rejectNotification));
+router.post('/admin/minimum-wages/notifications/:notification/revoke', asyncHandler(minimumWage.revokeNotification));
+router.get('/admin/minimum-wages/mappings', asyncHandler(minimumWage.mappings));
+router.post('/admin/minimum-wages/mappings', asyncHandler(minimumWage.storeMapping));
+router.post('/admin/minimum-wages/resolve', asyncHandler(minimumWage.resolvePreview));
+router.get('/admin/minimum-wages/jobs', asyncHandler(minimumWage.complianceJobs));
+router.get('/admin/minimum-wages/audits', asyncHandler(minimumWage.audits));
+router.post('/admin/jobs/:job/validate-minimum-wage', asyncHandler(minimumWage.validateJob));
+router.get('/admin/jobs/:job/minimum-wage-compliance', asyncHandler(minimumWage.jobCompliance));
 router.get('/admin/internal-staff', asyncHandler(internalStaff.adminIndex));
 router.post('/admin/internal-staff', asyncHandler(internalStaff.adminStore));
 

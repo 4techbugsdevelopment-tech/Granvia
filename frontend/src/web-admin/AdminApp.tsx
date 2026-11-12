@@ -20,6 +20,7 @@ import RoleMaster from './pages/RoleMaster';
 import AssociateTypeMaster from './pages/AssociateTypeMaster';
 import LocationMaster from './pages/LocationMaster';
 import LwfMaster from './pages/LwfMaster';
+import MinimumWageManagement from './pages/MinimumWageManagement';
 import SettingsPage from './pages/SettingsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
@@ -49,6 +50,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   'associate-types': 'Associate Types',
   locations: 'City & State Master',
   'lwf-master': 'LWF Master',
+  'minimum-wages': 'Minimum Wage Management',
   settings: 'Settings',
 };
 
@@ -70,6 +72,7 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/associate-types') return 'associate-types';
   if (pathname === '/admin/locations') return 'locations';
   if (pathname === '/admin/lwf-master') return 'lwf-master';
+  if (pathname === '/admin/minimum-wages') return 'minimum-wages';
   if (pathname === '/admin/settings') return 'settings';
   return 'dashboard';
 }
@@ -80,6 +83,7 @@ function getAdminPath(page: AdminPage): string {
   if (page === 'associate-types') return '/admin/associate-types';
   if (page === 'locations') return '/admin/locations';
   if (page === 'lwf-master') return '/admin/lwf-master';
+  if (page === 'minimum-wages') return '/admin/minimum-wages';
   if (page === 'guards' || page === 'add-guard') return page === 'guards' ? '/admin/guards' : '/admin/guards/add';
   return page === 'dashboard' ? '/admin' : `/admin/${page}`;
 }
@@ -132,6 +136,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'associate-types': return <AssociateTypeMaster />;
       case 'locations': return <LocationMaster />;
       case 'lwf-master': return <LwfMaster />;
+      case 'minimum-wages': return <MinimumWageManagement />;
       case 'settings': return <SettingsPage />;
       default: return <PlaceholderPage page={page} />;
     }

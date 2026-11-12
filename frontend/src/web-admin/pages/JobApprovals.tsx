@@ -11,6 +11,7 @@ import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdmi
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { FeedbackBanner } from './_adminUi';
 import SalaryStructurePanel, { validateSalaryDraft } from '../../components/salary/SalaryStructurePanel';
+import MinimumWagePanel from '../../components/salary/MinimumWagePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../../services/salaryStructureService';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
@@ -50,7 +51,7 @@ function skillList(raw: unknown): string[] {
 
 const EMPTY_JOB_FORM = {
   company_id: '', site_id: '', title: '', guards_required: '1',
-  guard_type: '',
+  guard_type: '', category: '',
   payment_type: 'Monthly', shift_type: 'Day', duty_hours: '8 hours', start_date: '',
   end_date: '', description: '', status: 'pending_approval',
 };
@@ -113,6 +114,7 @@ export default function JobApprovals() {
       company_id: job.employer_companies?.id ?? '', site_id: job.company_sites?.id ?? '', title: job.title ?? '',
       guards_required: String(job.guards_required ?? 1),
       guard_type: job.guard_type ?? associateTypes[0]?.code ?? '',
+      category: job.category ?? '',
       payment_type: job.payment_type ?? 'Monthly', shift_type: job.shift_type ?? 'Day', duty_hours: job.duty_hours ?? '8 hours',
       start_date: job.start_date ? String(job.start_date).slice(0, 10) : '', end_date: job.end_date ? String(job.end_date).slice(0, 10) : '',
       description: job.description ?? '', status: job.status ?? 'pending_approval',
@@ -154,9 +156,9 @@ export default function JobApprovals() {
     setError(null);
     setNotice('');
     try {
-      await deleteAdminJob(job.id);
-      setJobs(current => current.filter(item => item.id !== job.id));
-      setNotice('Job deleted successfully.');
+      const result = await deleteAdminJob(job.id);
+      setJobs(current => result.archived ? current.map(item => item.id === job.id ? { ...item, status: 'closed' } : item) : current.filter(item => item.id !== job.id));
+      setNotice(result.message || (result.archived ? 'Job archived successfully.' : 'Job deleted successfully.'));
     } catch (e) {
       setError(getErrorMessage(e, 'Failed to delete the job.'));
     } finally { setActing(null); }
@@ -423,6 +425,7 @@ export default function JobApprovals() {
                         </div>
                         <div className="mt-3 overflow-x-auto"><table className="min-w-full text-xs"><thead><tr className="border-b text-left text-slate-500"><th className="p-1.5">Component</th><th className="p-1.5">Category</th><th className="p-1.5 text-right">{job.payment_type}</th></tr></thead><tbody>{job.salary_structure.components.filter((row: any) => row.enabled).map((row: any) => <tr key={row.id ?? row.code} className="border-b"><td className="p-1.5">{row.name}</td><td className="p-1.5 capitalize">{String(row.category).replace('_', ' ')}</td><td className="p-1.5 text-right">₹{row.monthly_amount}</td></tr>)}</tbody></table></div>
                       </div> : <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Legacy gross salary ₹{job.salary_amount}; no component breakdown is stored.</div>}
+                      {job.minimum_wage_snapshots?.[0] && <div className={`mb-3 rounded-xl border p-3 text-xs ${job.minimum_wage_snapshots[0].compliance_status === 'COMPLIANT' ? 'border-green-200 bg-green-50 text-green-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><p className="font-bold">Minimum Wage: {String(job.minimum_wage_snapshots[0].compliance_status).replaceAll('_',' ')}</p><p className="mt-1">Resolution: {String(job.minimum_wage_snapshots[0].resolution_status).replaceAll('_',' ')}{job.minimum_wage_snapshots[0].applied_wage_floor ? ` · Required ₹${job.minimum_wage_snapshots[0].applied_wage_floor}` : ''}{job.minimum_wage_snapshots[0].shortfall && Number(job.minimum_wage_snapshots[0].shortfall) > 0 ? ` · Shortfall ₹${job.minimum_wage_snapshots[0].shortfall}` : ''}</p></div>}
                       {job.description && (
                         <p className="text-xs text-gray-500 pb-3">{job.description}</p>
                       )}
@@ -555,6 +558,7 @@ export default function JobApprovals() {
               </label>
               <JobField label="Job Title *" value={jobForm.title} onChange={value => setJobForm(current => ({ ...current, title: value }))} className="sm:col-span-2" />
               <JobField label="Openings" value={jobForm.guards_required} onChange={value => setJobForm(current => ({ ...current, guards_required: value.replace(/\D/g, '') }))} />
+              <JobField label="Employment Category" value={jobForm.category} onChange={value => setJobForm(current => ({ ...current, category: value }))} />
               <label>
                 <span className="form-label">Associate Type *</span>
                 <select value={jobForm.guard_type} onChange={event => setJobForm(current => ({ ...current, guard_type: event.target.value }))} className="form-input">
@@ -577,6 +581,7 @@ export default function JobApprovals() {
             </div>
             <div className="mt-6">
               <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} paymentFrequency={jobForm.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!salaryStructure && !['Monthly', 'Daily'].includes(jobForm.payment_type)) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
+              <MinimumWagePanel scope="admin" state={sites.find(site => site.id === jobForm.site_id)?.state ?? companies.find(company => company.id === jobForm.company_id)?.state} district={sites.find(site => site.id === jobForm.site_id)?.city} jobRole={jobForm.guard_type} employmentCategory={jobForm.category} effectiveDate={jobForm.start_date} paymentType={jobForm.payment_type} salaryStructure={salaryStructure} />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setFormOpen(false)} className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>
