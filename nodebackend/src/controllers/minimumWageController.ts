@@ -57,7 +57,7 @@ const resolveSchema = z.object({
   job_role_code: optionalText(150), employment_category_code: optionalText(150), occupation_code: optionalText(150),
   skill_category_code: optionalText(100), appropriate_government: z.enum(['STATE', 'CENTRAL']).nullish(),
   effective_date: dateValue, wage_unit: z.enum(['MONTHLY', 'DAILY', 'HOURLY', 'WEEKLY']),
-  salary_structure: z.unknown().optional(), payment_type: z.enum(['Monthly', 'Daily']).optional(),
+  salary_structure: z.unknown().optional(), payment_type: z.enum(['Monthly', 'Weekly', 'Daily']).optional(),
 });
 
 const mapRateData = (rate: z.infer<typeof rateSchema>, jurisdictionId: string) => ({

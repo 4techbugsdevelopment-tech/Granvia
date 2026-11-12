@@ -49,6 +49,14 @@ export async function index(req: Request, res: Response) {
 export async function store(req: Request, res: Response) {
   const data = createSchema.parse(req.body);
   if (data.application_id) {
+    const application = await prisma.jobApplication.findFirst({
+      where: { id: data.application_id, employerUserId: req.user!.id },
+      include: { job: { select: { paymentType: true } } },
+    });
+    if (!application) throw new HttpError(404, 'Application not found.');
+    const frequency = String(application.job.paymentType ?? '').trim().toLowerCase();
+    if (frequency === 'daily') throw new HttpError(422, 'Daily job payouts are created from approved attendance. A separate manual job payment would duplicate the configured daily settlement.');
+    if (frequency === 'weekly' || frequency === 'monthly') throw new HttpError(422, `${application.job.paymentType} job payouts must use a completed full-period payroll and the finalized Employer-wallet payout.`);
     const existing = await prisma.payment.findFirst({
       where: {
         employerUserId: req.user!.id,

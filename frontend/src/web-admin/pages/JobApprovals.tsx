@@ -10,11 +10,12 @@ import { getErrorMessage } from '../../services/apiErrors';
 import { listAdminJobApplications, scheduleAdminApplicationInterview, updateAdminApplicationStatus } from '../../services/applicationService';
 import { AssociateTypeOption, listActiveAssociateTypes } from '../../services/associateTypeService';
 import { FeedbackBanner } from './_adminUi';
-import SalaryStructurePanel, { validateSalaryDraft } from '../../components/salary/SalaryStructurePanel';
+import SalaryStructurePanel, { validateSalaryDraft, type SalaryPaymentFrequency } from '../../components/salary/SalaryStructurePanel';
 import MinimumWagePanel from '../../components/salary/MinimumWagePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../../services/salaryStructureService';
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'rejected' | 'draft' | 'closed';
+const salaryPaymentFrequency = (value: string): SalaryPaymentFrequency => value === 'Daily' ? 'Daily' : value === 'Weekly' ? 'Weekly' : 'Monthly';
 
 const STATUS_TABS: { key: StatusFilter; label: string; color: string; bg: string }[] = [
   { key: 'all',              label: 'All',       color: '#0f1e3c', bg: '#f1f5f9' },
@@ -128,11 +129,11 @@ export default function JobApprovals() {
       setFormError('Company, job title, associate type and start date are required.');
       return;
     }
-    const salaryError = validateSalaryDraft(salaryStructure, jobForm.payment_type === 'Daily' ? 'Daily' : 'Monthly');
+    const salaryError = validateSalaryDraft(salaryStructure, salaryPaymentFrequency(jobForm.payment_type));
     if (!editingJob || salaryStructure) {
       if (salaryError) { setFormError(salaryError); return; }
     }
-    if (salaryStructure && !['Monthly', 'Daily'].includes(jobForm.payment_type)) { setFormError('Salary structures require Monthly or Daily payment type.'); return; }
+    if (salaryStructure && !['Monthly', 'Weekly', 'Daily'].includes(jobForm.payment_type)) { setFormError('Salary structures require Monthly, Weekly or Daily payment type.'); return; }
     setActing(editingJob?.id ?? 'create');
     setFormError('');
     setNotice('');
@@ -345,7 +346,7 @@ export default function JobApprovals() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-sm font-bold text-green-700">
-                      ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo gross' : job.payment_type === 'Daily' ? 'day gross' : job.payment_type}
+                      ₹{job.salary_amount}/{job.payment_type === 'Monthly' ? 'mo gross' : job.payment_type === 'Weekly' ? 'week gross' : job.payment_type === 'Daily' ? 'day gross' : job.payment_type}
                     </span>
                     <button
                       onClick={() => toggleExpand(job.id)}
@@ -566,7 +567,7 @@ export default function JobApprovals() {
                   {associateTypes.map(type => <option key={type.id} value={type.code}>{type.name}</option>)}
                 </select>
               </label>
-              <label><span className="form-label">Payment Type</span><select value={jobForm.payment_type} onChange={event => setJobForm(current => ({ ...current, payment_type: event.target.value }))} className="form-input">{(salaryStructure ? ['Monthly', 'Daily'] : ['Monthly', 'Daily', 'Contract', 'Shift-based']).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label><span className="form-label">Payment Type</span><select value={jobForm.payment_type} onChange={event => setJobForm(current => ({ ...current, payment_type: event.target.value }))} className="form-input">{(salaryStructure ? ['Monthly', 'Weekly', 'Daily'] : ['Monthly', 'Weekly', 'Daily', 'Contract', 'Shift-based']).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
               <JobField label="Shift" value={jobForm.shift_type} onChange={value => setJobForm(current => ({ ...current, shift_type: value }))} />
               <JobField label="Duty Hours" value={jobForm.duty_hours} onChange={value => setJobForm(current => ({ ...current, duty_hours: value }))} />
               <JobField label="Start Date *" type="date" value={jobForm.start_date} onChange={value => setJobForm(current => ({ ...current, start_date: value }))} />
@@ -580,7 +581,7 @@ export default function JobApprovals() {
               <label className="sm:col-span-2"><span className="form-label">Description</span><textarea value={jobForm.description} onChange={event => setJobForm(current => ({ ...current, description: event.target.value }))} className="form-input min-h-24" /></label>
             </div>
             <div className="mt-6">
-              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} paymentFrequency={jobForm.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!salaryStructure && !['Monthly', 'Daily'].includes(jobForm.payment_type)) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
+              <SalaryStructurePanel value={salaryStructure} legacySalary={editingJob?.salary_amount} paymentFrequency={salaryPaymentFrequency(jobForm.payment_type)} onChange={value => { if (!salaryStructure && !['Monthly', 'Weekly', 'Daily'].includes(jobForm.payment_type)) setJobForm(current => ({ ...current, payment_type: 'Monthly' })); setSalaryStructure(value); }} scope="admin" employerId={companies.find(company => company.id === jobForm.company_id)?.employerId} policyContext={{ state: sites.find(site => site.id === jobForm.site_id)?.state, effective_date: jobForm.start_date || undefined, establishment_type: companies.find(company => company.id === jobForm.company_id)?.businessType, employee_category: jobForm.guard_type || undefined }} />
               <MinimumWagePanel scope="admin" state={sites.find(site => site.id === jobForm.site_id)?.state ?? companies.find(company => company.id === jobForm.company_id)?.state} district={sites.find(site => site.id === jobForm.site_id)?.city} jobRole={jobForm.guard_type} employmentCategory={jobForm.category} effectiveDate={jobForm.start_date} paymentType={jobForm.payment_type} salaryStructure={salaryStructure} />
             </div>
             <div className="mt-6 flex justify-end gap-3">

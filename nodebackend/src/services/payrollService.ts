@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { HttpError } from '../utils/http';
 import { policySnapshot, resolveLwfPolicy } from './lwfService';
+import { assertPayrollPeriodClosed, payrollPeriodFrequency } from './paymentFrequency';
 
 const zero = () => new Prisma.Decimal(0);
 const round = (value: Prisma.Decimal) => value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -15,12 +16,18 @@ export async function createPayrollPreview(tx: Prisma.TransactionClient, input: 
     if (existing.employerUserId !== input.employerUserId) throw new HttpError(409, 'Idempotency key is already used by another employer.');
     return existing;
   }
-  if (!input.fullPeriodConfirmed) throw new HttpError(422, 'Monthly salary proration is not configured. Confirm a full, unprorated payroll period or configure an approved proration rule before processing partial salary.');
+  if (!input.fullPeriodConfirmed) throw new HttpError(422, 'Salary proration is not configured. Confirm a full Weekly or Monthly payroll period before processing it.');
   const period = await tx.payrollPeriod.findFirst({ where: { id: input.periodId, employerUserId: input.employerUserId } });
   if (!period) throw new HttpError(404, 'Payroll period not found.');
   if (period.status !== 'open') throw new HttpError(409, 'This payroll period is closed.');
+  const paymentFrequency = payrollPeriodFrequency(period.periodStart, period.periodEnd);
+  assertPayrollPeriodClosed(period.periodEnd);
   const applications = await tx.jobApplication.findMany({
-    where: { employerUserId: input.employerUserId, status: 'hired', ...(input.applicationIds?.length ? { id: { in: input.applicationIds } } : {}) },
+    where: {
+      employerUserId: input.employerUserId,
+      status: 'hired',
+      ...(input.applicationIds?.length ? { id: { in: input.applicationIds } } : { job: { paymentType: paymentFrequency } }),
+    },
     include: {
       job: {
         include: {
@@ -32,9 +39,19 @@ export async function createPayrollPreview(tx: Prisma.TransactionClient, input: 
     },
     orderBy: { createdAt: 'asc' },
   });
-  if (!applications.length) throw new HttpError(422, 'No hired associates with matching applications are available for this payroll preview.');
-  const missing = applications.find(application => !application.job.salaryStructure || !String(application.job.paymentType ?? '').toLocaleLowerCase('en-IN').includes('month'));
-  if (missing) throw new HttpError(422, `Application ${missing.id} does not have an approved monthly salary structure.`);
+  if (!applications.length) throw new HttpError(422, `No hired Associates with ${paymentFrequency} jobs are available for this full-period payroll preview.`);
+  const wrongFrequency = applications.find(application => String(application.job.paymentType ?? '').trim().toLowerCase() !== paymentFrequency.toLowerCase());
+  if (wrongFrequency) throw new HttpError(422, `Application ${wrongFrequency.id} belongs to a ${wrongFrequency.job.paymentType ?? 'missing-frequency'} job and cannot be included in a ${paymentFrequency} payroll period.`);
+  const missing = applications.find(application => !application.job.salaryStructure);
+  if (missing) throw new HttpError(422, `Application ${missing.id} does not have an approved ${paymentFrequency.toLowerCase()} salary structure.`);
+  const existingPeriodResult = await tx.payrollResult.findFirst({
+    where: {
+      applicationId: { in: applications.map(application => application.id) },
+      run: { periodId: period.id, employerUserId: input.employerUserId, runType: 'regular', status: { in: ['draft', 'approved', 'finalized'] } },
+    },
+    select: { applicationId: true },
+  });
+  if (existingPeriodResult) throw new HttpError(409, `Application ${existingPeriodResult.applicationId} already has an active payroll result for this ${paymentFrequency.toLowerCase()} period. Continue the existing run instead of creating a duplicate payout.`);
   const run = await tx.payrollRun.create({ data: { periodId: period.id, employerUserId: input.employerUserId, runType: 'regular', status: 'draft', idempotencyKey: input.idempotencyKey, createdByUserId: input.actorUserId } });
   for (const application of applications) {
     const job = application.job;
@@ -43,10 +60,21 @@ export async function createPayrollPreview(tx: Prisma.TransactionClient, input: 
       where: { employerUserId: input.employerUserId, guardUserId: application.guardUserId, jobId: job.id, status: 'approved', attendanceDate: { gte: period.periodStart, lte: period.periodEnd } },
       select: { id: true, attendanceDate: true, totalHours: true, status: true }, orderBy: { attendanceDate: 'asc' },
     });
+    if (attendance.length) {
+      const existingAttendancePayment = await tx.payment.findFirst({
+        where: { attendanceId: { in: attendance.map(record => record.id) }, paymentStatus: { in: ['pending', 'otp_sent', 'processing', 'completed'] } },
+        select: { id: true },
+      });
+      if (existingAttendancePayment) {
+        throw new HttpError(409, `Application ${application.id} has attendance in this period that was already settled separately. Resolve the existing payment before creating a ${paymentFrequency.toLowerCase()} payroll payout.`);
+      }
+    }
     const baseComponents = structure.components.filter(component => component.enabled && !LWF_CODES.has(component.code.toUpperCase()));
     const gross = sum(baseComponents.filter(component => component.category === 'earning').map(component => component.monthlyAmount));
     const stateText = job.site?.state ?? job.company?.state ?? null;
-    const resolution = await resolveLwfPolicy(tx, { stateText, establishmentType: job.company?.businessType, effectiveDate: period.periodEnd, grossAmount: gross, employeeCategory: job.guardType ?? job.category });
+    const resolution: any = paymentFrequency === 'Monthly'
+      ? await resolveLwfPolicy(tx, { stateText, establishmentType: job.company?.businessType, effectiveDate: period.periodEnd, grossAmount: gross, employeeCategory: job.guardType ?? job.category })
+      : { status: 'not_applicable', reason: 'weekly_payment_frequency', state: null, policy: null, isTriggerPeriod: false, contributionPeriodKey: null };
     const lines = baseComponents.map(component => ({ code: component.code, name: component.name, category: component.category, amount: component.monthlyAmount, sourceType: 'salary_structure', sourceId: structure.id, metadata: JSON.stringify({ calculation_type: component.calculationType, statutory_code: component.statutoryCode }) }));
     if (resolution.status === 'applied' && resolution.policy && resolution.isTriggerPeriod) {
       lines.push({ code: 'EMPLOYEE_LWF', name: 'Employee Labour Welfare Fund (LWF)', category: 'deduction', amount: resolution.policy.employeeAmount, sourceType: 'lwf_policy', sourceId: resolution.policy.id, metadata: JSON.stringify({ contribution_period_key: resolution.contributionPeriodKey }) });
@@ -56,8 +84,8 @@ export async function createPayrollPreview(tx: Prisma.TransactionClient, input: 
     const contributions = sum(lines.filter(line => line.category === 'employer_contribution').map(line => line.amount));
     const net = round(gross.sub(deductions));
     if (net.isNegative()) throw new HttpError(422, `Payroll deductions exceed gross salary for application ${application.id}.`);
-    const blocked = resolution.status === 'not_configured' || resolution.status === 'ambiguous';
-    const salarySnapshot = { structure_id: structure.id, calculation_version: structure.calculationVersion, full_period_confirmed: true, monthly_proration: 'not_applied', lwf_resolution_status: resolution.status, lwf_resolution_reason: resolution.reason };
+    const blocked = paymentFrequency === 'Monthly' && (resolution.status === 'not_configured' || resolution.status === 'ambiguous');
+    const salarySnapshot = { structure_id: structure.id, calculation_version: structure.calculationVersion, payment_frequency: paymentFrequency, full_period_confirmed: true, proration: 'not_applied', lwf_resolution_status: resolution.status, lwf_resolution_reason: resolution.reason };
     const result = await tx.payrollResult.create({ data: {
       runId: run.id, applicationId: application.id, guardUserId: application.guardUserId, jobId: job.id,
       stateId: resolution.state?.id ?? null, lwfPolicyVersionId: resolution.policy?.id ?? null, lwfContributionPeriodKey: resolution.contributionPeriodKey,
@@ -67,7 +95,7 @@ export async function createPayrollPreview(tx: Prisma.TransactionClient, input: 
     } });
     await tx.payrollLine.createMany({ data: lines.map(line => ({ payrollResultId: result.id, ...line })) });
   }
-  await tx.payrollAuditEvent.create({ data: { runId: run.id, actorUserId: input.actorUserId, action: 'preview_created', snapshot: JSON.stringify({ full_period_confirmed: true, application_count: applications.length }) } });
+  await tx.payrollAuditEvent.create({ data: { runId: run.id, actorUserId: input.actorUserId, action: 'preview_created', snapshot: JSON.stringify({ payment_frequency: paymentFrequency, full_period_confirmed: true, application_count: applications.length }) } });
   return tx.payrollRun.findUniqueOrThrow({ where: { id: run.id }, include: { period: true, results: { include: { lines: true, payment: true } }, auditEvents: { orderBy: { createdAt: 'desc' } } } });
 }
 

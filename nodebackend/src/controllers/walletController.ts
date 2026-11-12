@@ -59,6 +59,7 @@ export async function debitEmployerWalletForPayment(
     purpose: string;
     metadata?: Record<string, unknown>;
     minimumRemainingBalance?: number;
+    referenceType?: string;
   },
 ) {
   const wallet = await ensureEmployerWallet(db, input.employerUserId);
@@ -117,7 +118,7 @@ export async function debitEmployerWalletForPayment(
       amount,
       purpose: input.purpose,
       source: 'job_payment',
-      referenceType: 'payment',
+      referenceType: input.referenceType ?? 'payment',
       referenceId: input.paymentId,
       jobId: input.jobId ?? null,
       guardUserId: input.guardUserId ?? null,

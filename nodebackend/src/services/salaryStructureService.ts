@@ -58,7 +58,7 @@ export const salaryStructureInputSchema = z.object({ components: z.array(salaryC
 });
 
 export type SalaryStructureInput = z.infer<typeof salaryStructureInputSchema>;
-export type SalaryPaymentFrequency = 'Monthly' | 'Daily';
+export type SalaryPaymentFrequency = 'Monthly' | 'Weekly' | 'Daily';
 type Rule = { code: string; category: string; percentage: Prisma.Decimal | null; percentageBasis: string | null; applicabilityMinGross: Prisma.Decimal | null; applicabilityMaxGross: Prisma.Decimal | null; monthlyCap: Prisma.Decimal | null; enabled: boolean };
 const zero = () => new Prisma.Decimal(0);
 const round = (value: Prisma.Decimal) => value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -67,8 +67,9 @@ const sum = (values: Prisma.Decimal[]) => round(values.reduce((total, value) => 
 export function normalizeSalaryPaymentFrequency(value: unknown): SalaryPaymentFrequency {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (normalized === 'monthly') return 'Monthly';
+  if (normalized === 'weekly') return 'Weekly';
   if (normalized === 'daily') return 'Daily';
-  throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
+  throw new HttpError(422, 'Salary structures require a Monthly, Weekly or Daily payment type.');
 }
 
 export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = [], paymentFrequency: SalaryPaymentFrequency = 'Monthly') {
@@ -121,8 +122,9 @@ export function calculateSalaryStructure(raw: unknown, statutoryRules: Rule[] = 
     net_per_period: netMonthly.toFixed(2),
     employer_contributions_per_period: employerContributions.toFixed(2),
     employer_cost_per_period: employerCostMonthly.toFixed(2),
-    // Keep the established API/database names for compatibility. For Daily jobs these
-    // columns contain one daily payment period and payment_frequency disambiguates them.
+    // Keep the established API/database names for compatibility. For Daily and Weekly
+    // jobs these columns contain one configured payment period; payment_frequency
+    // disambiguates them.
     gross_monthly: grossMonthly.toFixed(2),
     deductions_monthly: deductionsMonthly.toFixed(2),
     net_monthly: netMonthly.toFixed(2),
@@ -147,8 +149,8 @@ export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId
   const base = calculateSalaryStructure(withoutClientLwf.input, applicableRules, paymentFrequency);
   const effectiveDate = job.startDate ?? new Date();
   const stateText = job.site?.state ?? job.company?.state ?? null;
-  // LWF policies and their schedules are monthly. Never inject them into a daily
-  // payment period; daily custom deductions still follow the job's Daily frequency.
+  // LWF policies and their schedules are monthly. Never inject them into a Daily or
+  // Weekly payment period; custom deductions still follow the job's configured period.
   const stateResolution = paymentFrequency === 'Monthly' && stateText ? await resolveLwfPolicy(tx, {
     stateText,
     establishmentType: job.company?.businessType,
@@ -181,8 +183,8 @@ export async function saveJobSalaryStructure(tx: Prisma.TransactionClient, jobId
     lwf_frequency: stateResolution?.policy?.frequency ?? null,
     lwf_contribution_schedule: stateResolution?.policy?.scheduleMonths ?? null,
     lwf_effective_date: stateResolution ? effectiveDate : null,
-    lwf_resolution_status: stateResolution?.status ?? (legacySetting ? 'legacy_compatibility' : paymentFrequency === 'Daily' ? 'not_applicable' : 'not_configured'),
-    lwf_resolution_reason: stateResolution?.reason ?? (legacySetting ? 'legacy_global_or_employer_setting' : paymentFrequency === 'Daily' ? 'daily_payment_frequency' : 'jurisdiction_state_unresolved'),
+    lwf_resolution_status: stateResolution?.status ?? (legacySetting ? 'legacy_compatibility' : paymentFrequency !== 'Monthly' ? 'not_applicable' : 'not_configured'),
+    lwf_resolution_reason: stateResolution?.reason ?? (legacySetting ? 'legacy_global_or_employer_setting' : paymentFrequency !== 'Monthly' ? `${paymentFrequency.toLowerCase()}_payment_frequency` : 'jurisdiction_state_unresolved'),
     lwf_policy_snapshot: snapshot ? JSON.stringify(snapshot) : null,
   };
   const structure = await tx.jobSalaryStructure.upsert({

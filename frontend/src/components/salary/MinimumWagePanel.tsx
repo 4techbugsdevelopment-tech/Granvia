@@ -17,7 +17,7 @@ export default function MinimumWagePanel({ scope, state, district, jobRole, empl
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const request = useRef(0);
-  const validFrequency = paymentType === 'Monthly' || paymentType === 'Daily';
+  const validFrequency = paymentType === 'Monthly' || paymentType === 'Weekly' || paymentType === 'Daily';
   useEffect(() => {
     setError('');
     if (!state || !jobRole || !effectiveDate || !salaryStructure || !validFrequency) { setPreview(null); return; }
@@ -27,7 +27,7 @@ export default function MinimumWagePanel({ scope, state, district, jobRole, empl
       setLoading(true);
       previewMinimumWage(scope, {
         state, district_code: district || undefined, job_role_code: jobRole, employment_category_code: employmentCategory || undefined,
-        effective_date: effectiveDate, wage_unit: paymentType === 'Daily' ? 'DAILY' : 'MONTHLY', payment_type: paymentType as 'Monthly' | 'Daily', salary_structure: salaryStructure,
+        effective_date: effectiveDate, wage_unit: paymentType === 'Daily' ? 'DAILY' : paymentType === 'Weekly' ? 'WEEKLY' : 'MONTHLY', payment_type: paymentType as 'Monthly' | 'Weekly' | 'Daily', salary_structure: salaryStructure,
       }, controller.signal).then(result => { if (request.current === current) setPreview(result); })
         .catch(cause => { if (request.current === current && cause?.name !== 'CanceledError') setError(getErrorMessage(cause, 'Unable to check the minimum wage.')); })
         .finally(() => { if (request.current === current) setLoading(false); });

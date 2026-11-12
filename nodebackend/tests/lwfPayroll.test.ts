@@ -3,8 +3,20 @@ import test from 'node:test';
 import { Prisma } from '@prisma/client';
 import { createAdjustmentRun, createPayrollPreview } from '../src/services/payrollService';
 import { isLwfTriggerPeriod, lwfContributionPeriodKey, parseScheduleMonths, resolveLwfPolicy, scheduledMonths } from '../src/services/lwfService';
+import { assertPayrollPeriodClosed, payrollPeriodFrequency } from '../src/services/paymentFrequency';
+import { createPayment as createPayrollWalletPayment } from '../src/controllers/payrollController';
+import { prisma } from '../src/prisma';
+import type { Request, Response } from 'express';
 
 const state = { id: 'state-1', code: 'DL', name: 'Delhi' };
+function mock(t: { after: (fn: () => void) => void }, object: any, key: string, implementation: any) {
+  const previous = object[key]; object[key] = implementation; t.after(() => { object[key] = previous; });
+}
+function responseCapture() {
+  let statusCode = 200; let body: any;
+  const response = { status(code: number) { statusCode = code; return response; }, json(value: any) { body = value; return response; } } as unknown as Response;
+  return { response, result: () => ({ statusCode, body }) };
+}
 const policy = (overrides: Record<string, unknown> = {}) => ({
   id: 'policy-1', stateId: state.id, versionNumber: 1, establishmentType: null,
   employeeAmount: new Prisma.Decimal(25), employerAmount: new Prisma.Decimal(50), frequency: 'monthly', scheduleMonths: '[]',
@@ -44,6 +56,13 @@ test('state policy resolver never falls back to a global rate when jurisdiction 
   assert.equal(ambiguous.status, 'ambiguous');
 });
 
+test('payroll periods enforce complete weekly or calendar-month boundaries', () => {
+  assert.equal(payrollPeriodFrequency(new Date('2026-06-01'), new Date('2026-06-07')), 'Weekly');
+  assert.equal(payrollPeriodFrequency(new Date('2026-06-01'), new Date('2026-06-30')), 'Monthly');
+  assert.throws(() => payrollPeriodFrequency(new Date('2026-06-01'), new Date('2026-06-10')), /exactly seven calendar days|complete calendar month/i);
+  assert.throws(() => assertPayrollPeriodClosed(new Date('2026-06-07'), new Date('2026-06-07T12:00:00+05:30')), /must be complete/i);
+});
+
 function payrollTx(activePolicies: any[], periodEnd = new Date('2026-06-30T00:00:00Z')) {
   const resultWrites: any[] = [], lineWrites: any[] = [];
   const components = [
@@ -54,11 +73,12 @@ function payrollTx(activePolicies: any[], periodEnd = new Date('2026-06-30T00:00
   ];
   const tx: any = {
     payrollRun: { findUnique: async () => null, create: async ({ data }: any) => ({ id: 'run-1', ...data }), findUniqueOrThrow: async () => ({ id: 'run-1', results: resultWrites.map((row, index) => ({ id: `result-${index + 1}`, ...row, lines: lineWrites })) }) },
-    payrollPeriod: { findFirst: async () => ({ id: 'period-1', status: 'open', periodStart: new Date('2026-06-01T00:00:00Z'), periodEnd }) },
+    payrollPeriod: { findFirst: async () => ({ id: 'period-1', status: 'open', periodStart: new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth(), 1)), periodEnd }) },
     jobApplication: { findMany: async () => [{ id: 'app-1', employerUserId: 'employer-1', guardUserId: 'guard-1', status: 'hired', createdAt: new Date(), job: { id: 'job-1', paymentType: 'Monthly', guardType: 'SECURITY_GUARD', category: null, site: { state: 'Delhi' }, company: { state: 'Delhi', businessType: null }, salaryStructure: { id: 'salary-1', calculationVersion: 2, components } } }] },
     attendanceRecord: { findMany: async () => [{ id: 'att-1', attendanceDate: new Date('2026-06-10T00:00:00Z'), totalHours: new Prisma.Decimal(8), status: 'approved' }] },
+    payment: { findFirst: async () => null },
     stateMaster: { findMany: async () => [state] }, lwfPolicyVersion: { findMany: async () => activePolicies },
-    payrollResult: { create: async ({ data }: any) => { resultWrites.push(data); return { id: `result-${resultWrites.length}`, ...data }; } },
+    payrollResult: { findFirst: async () => null, create: async ({ data }: any) => { resultWrites.push(data); return { id: `result-${resultWrites.length}`, ...data }; } },
     payrollLine: { createMany: async ({ data }: any) => { lineWrites.push(...data); return { count: data.length }; } },
     payrollAuditEvent: { create: async () => ({ id: 'audit-1' }) },
   };
@@ -84,6 +104,82 @@ test('non-trigger payroll does not deduct non-monthly LWF and an unconfigured st
   const missing = payrollTx([]);
   await createPayrollPreview(missing.tx, { periodId: 'period-1', employerUserId: 'employer-1', actorUserId: 'employer-1', idempotencyKey: 'preview-key-3', fullPeriodConfirmed: true });
   assert.equal(missing.resultWrites[0].status, 'blocked');
+});
+
+test('full-week payroll selects Weekly jobs and does not inject monthly LWF', async () => {
+  const weekly = payrollTx([policy()], new Date('2026-06-07T00:00:00Z'));
+  weekly.tx.jobApplication.findMany = async () => [{
+    id: 'app-weekly', employerUserId: 'employer-1', guardUserId: 'guard-1', status: 'hired', createdAt: new Date(),
+    job: { id: 'job-weekly', paymentType: 'Weekly', guardType: 'SECURITY_GUARD', category: null, site: { state: 'Delhi' }, company: { state: 'Delhi', businessType: null }, salaryStructure: { id: 'salary-weekly', calculationVersion: 3, components: [
+      { id: 'c1', code: 'BASIC_SALARY', name: 'Basic Weekly Pay', category: 'earning', monthlyAmount: new Prisma.Decimal(7000), enabled: true, sortOrder: 1, calculationType: 'fixed', statutoryCode: null },
+      { id: 'c2', code: 'EMPLOYEE_LWF', name: 'Stale LWF', category: 'deduction', monthlyAmount: new Prisma.Decimal(50), enabled: true, sortOrder: 2, calculationType: 'fixed', statutoryCode: 'LWF' },
+    ] } },
+  }];
+  await createPayrollPreview(weekly.tx, { periodId: 'period-1', employerUserId: 'employer-1', actorUserId: 'employer-1', idempotencyKey: 'weekly-preview-key', fullPeriodConfirmed: true });
+  assert.equal(weekly.resultWrites[0].netPayable.toFixed(2), '7000.00');
+  assert.equal(weekly.resultWrites[0].status, 'draft');
+  assert.equal(weekly.lineWrites.some((row: any) => row.code.includes('LWF')), false);
+  assert.match(weekly.resultWrites[0].salarySnapshot, /"payment_frequency":"Weekly"/);
+});
+
+test('full-period payroll blocks attendance that already has a separate payout', async () => {
+  const duplicate = payrollTx([policy()]);
+  duplicate.tx.payment.findFirst = async () => ({ id: 'existing-payment' });
+  await assert.rejects(
+    () => createPayrollPreview(duplicate.tx, { periodId: 'period-1', employerUserId: 'employer-1', actorUserId: 'employer-1', idempotencyKey: 'duplicate-preview-key', fullPeriodConfirmed: true }),
+    /already settled separately/i,
+  );
+});
+
+test('full-period payroll blocks a second active result for the same application and period', async () => {
+  const duplicate = payrollTx([policy()]);
+  duplicate.tx.payrollResult.findFirst = async () => ({ applicationId: 'app-1' });
+  await assert.rejects(
+    () => createPayrollPreview(duplicate.tx, { periodId: 'period-1', employerUserId: 'employer-1', actorUserId: 'employer-1', idempotencyKey: 'second-preview-key', fullPeriodConfirmed: true }),
+    /already has an active payroll result/i,
+  );
+});
+
+test('finalized matching-frequency payroll pays atomically from Employer wallet to Associate wallet', async t => {
+  const writes: Record<string, any>[] = [];
+  const pendingPayment = { id: 'payroll-payment-1', payrollResultId: 'result-1', employerUserId: 'employer-1', guardUserId: 'guard-1', amount: new Prisma.Decimal(7000), status: 'pending', paymentMethod: 'employer_wallet', idempotencyKey: 'wallet-payout-key' };
+  const tx: any = {
+    payrollPayment: {
+      findUnique: async () => null,
+      create: async ({ data }: any) => { writes.push({ payrollPaymentCreate: data }); return { ...pendingPayment, ...data }; },
+      update: async ({ data }: any) => { writes.push({ payrollPaymentUpdate: data }); return { ...pendingPayment, ...data }; },
+    },
+    payrollResult: { findFirst: async () => ({
+      id: 'result-1', runId: 'run-1', jobId: 'job-1', guardUserId: 'guard-1', netPayable: new Prisma.Decimal(7000), status: 'finalized', payment: null,
+      job: { id: 'job-1', title: 'Weekly Guard', paymentType: 'Weekly' },
+      run: { period: { id: 'period-1', periodStart: new Date('2026-06-01'), periodEnd: new Date('2026-06-07') } },
+    }) },
+    employerWallet: {
+      findUnique: async () => ({ id: 'employer-wallet-1', balance: new Prisma.Decimal(20000), depositBalance: new Prisma.Decimal(20000), creditBalance: new Prisma.Decimal(0) }),
+      update: async ({ data }: any) => { writes.push({ employerWallet: data }); return { balance: new Prisma.Decimal(13000) }; },
+    },
+    walletTransaction: { create: async ({ data }: any) => { writes.push({ employerLedger: data }); return { id: 'employer-ledger-1' }; } },
+    associateWallet: {
+      upsert: async () => ({ id: 'associate-wallet-1' }),
+      update: async ({ data }: any) => { writes.push({ associateWallet: data }); return {}; },
+    },
+    associateWalletTransaction: {
+      findFirst: async () => null,
+      create: async ({ data }: any) => { writes.push({ associateLedger: data }); return { id: 'associate-ledger-1' }; },
+    },
+    notification: { create: async () => ({ id: 'notification-1' }) },
+  };
+  mock(t, prisma, '$transaction', async (callback: any) => callback(tx));
+  const capture = responseCapture();
+  await createPayrollWalletPayment({
+    user: { id: 'employer-1', role: 'employer' }, params: { result: 'result-1' }, body: { idempotency_key: 'wallet-payout-key', payment_method: 'employer_wallet' },
+  } as unknown as Request, capture.response);
+  assert.equal(capture.result().statusCode, 201);
+  assert.equal(capture.result().body.status, 'completed');
+  assert.deepEqual(writes.find(row => row.employerWallet)?.employerWallet.balance, { decrement: 7000 });
+  assert.equal(writes.find(row => row.employerLedger)?.employerLedger.referenceType, 'payroll_payment');
+  assert.equal(writes.find(row => row.associateLedger)?.associateLedger.status, 'completed');
+  assert.equal(String(writes.find(row => row.associateWallet)?.associateWallet.availableBalance.increment), '7000');
 });
 
 test('partial-month payroll is blocked until an approved proration rule exists', async () => {

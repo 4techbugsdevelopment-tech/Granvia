@@ -53,7 +53,7 @@ const jobFields = {
 
 const createSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).superRefine((data, context) => {
   if (data.salary_amount == null && data.salary_structure == null) context.addIssue({ code: z.ZodIssueCode.custom, path: ['salary_structure'], message: 'Enter a salary structure.' });
-  if (data.salary_structure != null && !['Monthly', 'Daily'].includes(String(data.payment_type))) context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_type'], message: 'Salary structures require a Monthly or Daily payment type.' });
+  if (data.salary_structure != null && !['Monthly', 'Weekly', 'Daily'].includes(String(data.payment_type))) context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_type'], message: 'Salary structures require a Monthly, Weekly or Daily payment type.' });
 });
 const updateSchema = z.object({ company_id: z.string().uuid(), title: z.string(), ...jobFields }).partial();
 
@@ -127,8 +127,8 @@ export async function update(req: Request, res: Response) {
 
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
-  if (data.salary_structure && !['Monthly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
-  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly or Daily payment type.');
+  if (data.salary_structure && !['Monthly', 'Weekly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly, Weekly or Daily payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Weekly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly, Weekly or Daily payment type.');
   const { salary_structure, salary_amount, ...jobData } = data;
   if (job.salaryStructure && salary_amount != null && !new Prisma.Decimal(salary_amount).equals(job.salaryAmount ?? 0)) throw new HttpError(422, 'This job uses a salary structure. Update the structure instead of the legacy salary amount.');
   const updated = await prisma.$transaction(async tx => {
@@ -276,8 +276,8 @@ export async function adminUpdate(req: Request, res: Response) {
   if (!job) throw new HttpError(404, 'Not found.');
   const data = updateSchema.parse(req.body);
   if (data.guard_type !== undefined) await assertActiveAssociateType(data.guard_type);
-  if (data.salary_structure && !['Monthly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly or Daily payment type.');
-  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly or Daily payment type.');
+  if (data.salary_structure && !['Monthly', 'Weekly', 'Daily'].includes(String(data.payment_type ?? job.paymentType))) throw new HttpError(422, 'Salary structures require a Monthly, Weekly or Daily payment type.');
+  if (job.salaryStructure && data.payment_type !== undefined && !['Monthly', 'Weekly', 'Daily'].includes(String(data.payment_type))) throw new HttpError(422, 'A structured salary must use Monthly, Weekly or Daily payment type.');
   let employerUserId: string | undefined;
 
   if (data.company_id || data.site_id) {

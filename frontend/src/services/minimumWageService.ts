@@ -5,8 +5,8 @@ export type MinimumWageStatus = 'VERIFIED' | 'REVIEW_REQUIRED' | 'NOT_AVAILABLE'
 export type MinimumWagePreviewInput = {
   state?: string; state_code?: string; district_code?: string; zone_code?: string;
   job_role_code?: string; employment_category_code?: string; occupation_code?: string; skill_category_code?: string;
-  appropriate_government?: 'STATE' | 'CENTRAL'; effective_date: string; wage_unit: 'MONTHLY' | 'DAILY';
-  salary_structure?: SalaryStructureDraft | null; payment_type?: 'Monthly' | 'Daily';
+  appropriate_government?: 'STATE' | 'CENTRAL'; effective_date: string; wage_unit: 'MONTHLY' | 'WEEKLY' | 'DAILY';
+  salary_structure?: SalaryStructureDraft | null; payment_type?: 'Monthly' | 'Weekly' | 'Daily';
 };
 export type MinimumWagePreview = {
   status: MinimumWageStatus; reason: string; resolver_version: string;

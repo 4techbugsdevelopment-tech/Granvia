@@ -219,7 +219,7 @@ export async function assessAndSnapshotJobMinimumWage(db: JobAssessmentDb, jobId
   });
   if (!job) throw new HttpError(404, 'Job not found while checking minimum wage.');
   const payment = norm(job.paymentType);
-  const wageUnit = payment === 'MONTHLY' ? 'MONTHLY' : payment === 'DAILY' ? 'DAILY' : null;
+  const wageUnit = payment === 'MONTHLY' ? 'MONTHLY' : payment === 'WEEKLY' ? 'WEEKLY' : payment === 'DAILY' ? 'DAILY' : null;
   const effectiveDate = dateOnly(job.startDate ?? new Date());
   const stateName = job.site?.state ?? job.company?.state ?? null;
   const districtCode = job.site?.city ?? job.company?.city ?? null;
@@ -229,7 +229,7 @@ export async function assessAndSnapshotJobMinimumWage(db: JobAssessmentDb, jobId
   };
   const resolution = wageUnit
     ? await resolveMinimumWage(db, input)
-    : unresolved('INVALID_CLASSIFICATION', 'Minimum-wage checking requires a Monthly or Daily payment type.', input);
+    : unresolved('INVALID_CLASSIFICATION', 'Minimum-wage checking requires a Monthly, Weekly or Daily payment type.', input);
   const comparison = job.salaryStructure
     ? compareQualifyingWage(resolution, job.salaryStructure.components)
     : { complianceStatus: 'REVIEW_REQUIRED' as const, qualifyingWage: null, shortfall: null, components: [], reason: 'A structured salary is required for minimum-wage checking.' };

@@ -941,12 +941,16 @@ export function payableAmount(record: {
     return Math.round(netDailyAmount * 100) / 100;
   }
 
-  const configuredDailyRate = Number(record.guardProfile?.dailyRate ?? 0);
-  if (configuredDailyRate > 0) return Math.round(configuredDailyRate * 100) / 100;
+  if (paymentType.includes('week')) {
+    throw new HttpError(422, 'Weekly jobs must be settled through a completed full-week payroll period. Attendance approval cannot create a daily wallet payout.');
+  }
 
   if (paymentType.includes('month')) {
-    throw new HttpError(422, 'Monthly gross salary cannot be used as an attendance settlement amount. Configure an approved Associate daily rate or use the approved payroll flow.');
+    throw new HttpError(422, 'Monthly jobs must be settled through a completed full-month payroll period. Attendance approval cannot create a daily wallet payout.');
   }
+
+  const configuredDailyRate = Number(record.guardProfile?.dailyRate ?? 0);
+  if (configuredDailyRate > 0) return Math.round(configuredDailyRate * 100) / 100;
 
   const rate = Number(record.job?.salaryAmount ?? 0);
   if (rate <= 0) throw new HttpError(422, 'Associate daily rate or job salary/payment amount is required before attendance can be settled.');
@@ -1011,11 +1015,45 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
         remarks: data.employer_remarks!.trim(),
         requestContext,
       });
-      return rejected;
+      return { record: rejected, settlementCreated: false, paymentFrequency: null };
     }
 
     if (!record.employerUserId) throw new HttpError(422, 'Attendance is not linked to an employer.');
     if (!record.jobId || !record.job) throw new HttpError(422, 'Attendance is not linked to a payable job.');
+
+    const paymentFrequency = String(record.job.paymentType ?? 'Daily').trim().toLowerCase();
+    const deferredFrequency = paymentFrequency.includes('week') ? 'weekly' : paymentFrequency.includes('month') ? 'monthly' : null;
+    if (deferredFrequency) {
+      const approved = await tx.attendanceRecord.update({
+        where: { id: record.id },
+        data: {
+          status: 'approved',
+          employerRemarks: data.employer_remarks?.trim() || `Approved by ${actorRole === 'super_admin' ? 'Super Admin' : 'employer'}; ${deferredFrequency} payout is deferred to full-period payroll`,
+        },
+      });
+      await writeAttendanceAudit(tx, {
+        eventType: 'approve_attendance',
+        actorUserId: actorId,
+        actorRole: actorRole === 'super_admin' ? 'super_admin' : 'employer',
+        attendanceRecordId: record.id,
+        guardUserId: record.guardUserId,
+        employerUserId: record.employerUserId,
+        jobId: record.jobId,
+        attendanceDate: record.attendanceDate,
+        remarks: data.employer_remarks?.trim() || null,
+        metadata: { settlement_created: false, payment_frequency: deferredFrequency, payout_workflow: 'full_period_payroll' },
+        requestContext,
+      });
+      await tx.notification.create({
+        data: {
+          userId: record.guardUserId,
+          title: 'Attendance approved',
+          message: `Approved attendance for ${record.job.title} will be included in the ${deferredFrequency} full-period payout.`,
+          type: 'attendance_approved',
+        },
+      });
+      return { record: approved, settlementCreated: false, paymentFrequency: deferredFrequency };
+    }
 
     const existingPayment = await tx.payment.findFirst({
       where: { attendanceId: record.id, paymentStatus: { in: ['pending', 'otp_sent', 'processing', 'completed'] } } as never,
@@ -1116,14 +1154,14 @@ async function decideAttendance(recordId: string, actorId: string, actorRole: 'e
       metadata: { settlement_created: true },
       requestContext,
     });
-    return approved;
+    return { record: approved, settlementCreated: true, paymentFrequency: paymentFrequency || 'daily' };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  if (data.status === 'approved') {
+  if (data.status === 'approved' && updated.settlementCreated) {
     await notifyRole('super_admin', 'Associate transfer processing', 'A verified attendance settlement is ready for Associate payout review.');
   }
 
-  return updated;
+  return updated.record;
 }
 
 async function materializeExceptionAttendance(requestId: string, actorId: string) {

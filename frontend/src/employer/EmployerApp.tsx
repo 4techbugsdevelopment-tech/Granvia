@@ -46,7 +46,7 @@ import { usePincodeAutofill } from '../hooks/usePincodeAutofill';
 import { AppLayoutProvider, useAppLayout } from '../subadmin/ui';
 import { addError, moneyError } from '../lib/formValidation';
 import { companyLogoUrl, employerLogoUrl, previewUrl } from '../lib/fileUrls';
-import SalaryStructurePanel, { validateSalaryDraft } from '../components/salary/SalaryStructurePanel';
+import SalaryStructurePanel, { validateSalaryDraft, type SalaryPaymentFrequency } from '../components/salary/SalaryStructurePanel';
 import MinimumWagePanel from '../components/salary/MinimumWagePanel';
 import { createDefaultSalaryStructure, salaryDraftFromRecord, type SalaryStructureDraft } from '../services/salaryStructureService';
 
@@ -65,6 +65,8 @@ interface EmployerInfo {
   aadhaarLastFour: string;
   logoUrl: string;
 }
+
+const salaryPaymentFrequency = (value: string): SalaryPaymentFrequency => value === 'Daily' ? 'Daily' : value === 'Weekly' ? 'Weekly' : 'Monthly';
 
 type EmployerPage =
   | 'dashboard' | 'profile' | 'aadhaar' | 'team' | 'companies' | 'documents' | 'sites' | 'post-job' | 'jobs' | 'applicants'
@@ -1856,9 +1858,9 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
 
   const saveJob = async () => {
     const validationErrors = validateJobForm(job as Record<string, string>);
-    const salaryError = validateSalaryDraft(salaryStructure, job.payment_type === 'Daily' ? 'Daily' : 'Monthly');
+    const salaryError = validateSalaryDraft(salaryStructure, salaryPaymentFrequency(job.payment_type));
     if (salaryError) validationErrors.salary_structure = salaryError;
-    if (salaryStructure && !['Monthly', 'Daily'].includes(job.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly or Daily payment type.';
+    if (salaryStructure && !['Monthly', 'Weekly', 'Daily'].includes(job.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly, Weekly or Daily payment type.';
     setJobErrors(validationErrors);
     setJobError('');
     if (Object.keys(validationErrors).length > 0) {
@@ -1989,7 +1991,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Sel label="Gender Preference" value={job.gender_preference} options={['Any', 'Male', 'Female']} onChange={v => setJob({ ...job, gender_preference: v })} />
           <Input label="Experience" value={job.experience_required} onChange={v => setJob({ ...job, experience_required: v })} />
           <Sel label="Qualification" value={job.qualification_required} options={['Any', 'Below 10th', '10th Pass', '12th Pass', 'Graduate', 'Post Graduate']} onChange={v => setJob({ ...job, qualification_required: v })} />
-          <Sel label="Payment Type" value={job.payment_type} error={jobErrors.payment_type} options={['Monthly', 'Daily']} onChange={v => setJob({ ...job, payment_type: v })} />
+          <Sel label="Payment Type" value={job.payment_type} error={jobErrors.payment_type} options={['Monthly', 'Weekly', 'Daily']} onChange={v => setJob({ ...job, payment_type: v })} />
           <Input label="Duty Hours" value={job.duty_hours} onChange={v => setJob({ ...job, duty_hours: v })} />
           <Sel label="Shift Type" value={job.shift_type} options={['Day', 'Night', 'Rotational']} onChange={v => setJob({ ...job, shift_type: v })} />
           <Input label="Start Date" type="date" value={job.start_date} error={jobErrors.start_date} onChange={v => setJob({ ...job, start_date: v })} />
@@ -1999,7 +2001,7 @@ function JobFormPage({ employer: _employer, company, onSaved, onBack, onDeposit 
           <Input label="Languages" value={job.language_requirements} onChange={v => setJob({ ...job, language_requirements: v })} />
         </div>
         <div className="mt-5">
-          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} paymentFrequency={job.payment_type === 'Daily' ? 'Daily' : 'Monthly'} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
+          <SalaryStructurePanel value={salaryStructure} onChange={setSalaryStructure} paymentFrequency={salaryPaymentFrequency(job.payment_type)} policyContext={{ state: sites.find(site => site.id === job.site_id)?.state, effective_date: job.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: job.guard_type || undefined }} />
           <MinimumWagePanel scope="employer" state={sites.find(site => site.id === job.site_id)?.state ?? company.state} district={sites.find(site => site.id === job.site_id)?.city ?? company.city} jobRole={job.guard_type} employmentCategory={job.category} effectiveDate={job.start_date} paymentType={job.payment_type} salaryStructure={salaryStructure} />
           {jobErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{jobErrors.salary_structure}</p>}
         </div>
@@ -2097,9 +2099,9 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
     if (!editingJob) return;
     const validationErrors = validateJobForm(editForm);
     if (editSalaryStructure) {
-      const salaryError = validateSalaryDraft(editSalaryStructure, editForm.payment_type === 'Daily' ? 'Daily' : 'Monthly');
+      const salaryError = validateSalaryDraft(editSalaryStructure, salaryPaymentFrequency(editForm.payment_type));
       if (salaryError) validationErrors.salary_structure = salaryError;
-      if (!['Monthly', 'Daily'].includes(editForm.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly or Daily payment type.';
+      if (!['Monthly', 'Weekly', 'Daily'].includes(editForm.payment_type)) validationErrors.payment_type = 'Salary structures require Monthly, Weekly or Daily payment type.';
     }
     setEditErrors(validationErrors);
     setEditError('');
@@ -2205,8 +2207,8 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
               <Td>{job.guards_required}</Td>
               <Td>
                 ₹{job.salary_amount}
-                <div className="text-xs text-gray-400">Gross / {job.payment_type === 'Daily' ? 'Day' : job.payment_type}</div>
-                {job.salary_structure && <div className="text-xs text-gray-400">Net ₹{job.salary_structure.net_monthly} / {job.payment_type === 'Daily' ? 'day' : 'month'}{job.payment_type === 'Monthly' ? ` · CTC ₹${job.salary_structure.annual_ctc}/yr` : ''}</div>}
+                <div className="text-xs text-gray-400">Gross / {job.payment_type === 'Daily' ? 'Day' : job.payment_type === 'Weekly' ? 'Week' : job.payment_type}</div>
+                {job.salary_structure && <div className="text-xs text-gray-400">Net ₹{job.salary_structure.net_monthly} / {job.payment_type === 'Daily' ? 'day' : job.payment_type === 'Weekly' ? 'week' : 'month'}{job.payment_type === 'Monthly' ? ` · CTC ₹${job.salary_structure.annual_ctc}/yr` : ''}</div>}
               </Td>
               <Td>{job.shift_type}</Td>
               <Td>{statusBadge(job.status)}</Td>
@@ -2321,7 +2323,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Sel   label="Site"            value={ef.site_id}             error={editErrors.site_id} options={sites.map(s => s.id)} labels={Object.fromEntries(sites.map(s => [s.id, s.site_name]))} onChange={set('site_id')} />
                 <Input label="Associates Required" value={ef.guards_required} error={editErrors.guards_required} onChange={v => set('guards_required')(v.replace(/\D/g, ''))} />
                 <Sel   label="Associate Type"  value={ef.guard_type}          error={editErrors.guard_type} options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
-                <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={editSalaryStructure ? ['Monthly','Daily'] : ['Monthly','Daily']} labels={{Monthly:'Monthly',Daily:'Daily'}} onChange={set('payment_type')} />
+                <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={['Monthly','Weekly','Daily']} labels={{Monthly:'Monthly',Weekly:'Weekly',Daily:'Daily'}} onChange={set('payment_type')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
                 <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />
@@ -2330,7 +2332,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Input label="Skills (comma-separated)" value={ef.required_skills} onChange={set('required_skills')} />
               </div>
               <div className="mt-5">
-                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} paymentFrequency={ef.payment_type === 'Daily' ? 'Daily' : 'Monthly'} onChange={value => { if (!editSalaryStructure && !['Monthly', 'Daily'].includes(ef.payment_type)) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
+                <SalaryStructurePanel value={editSalaryStructure} legacySalary={editingJob.salary_amount} paymentFrequency={salaryPaymentFrequency(ef.payment_type)} onChange={value => { if (!editSalaryStructure && !['Monthly', 'Weekly', 'Daily'].includes(ef.payment_type)) setEditForm(current => ({ ...current, payment_type: 'Monthly' })); setEditSalaryStructure(value); }} policyContext={{ state: sites.find(site => site.id === ef.site_id)?.state, effective_date: ef.start_date || undefined, establishment_type: company.business_type || undefined, employee_category: ef.guard_type || undefined }} />
                 <MinimumWagePanel scope="employer" state={sites.find(site => site.id === ef.site_id)?.state ?? company.state} district={sites.find(site => site.id === ef.site_id)?.city ?? company.city} jobRole={ef.guard_type} employmentCategory={editingJob.category} effectiveDate={ef.start_date} paymentType={ef.payment_type} salaryStructure={editSalaryStructure} />
                 {editErrors.salary_structure && <p className="mt-2 text-sm text-red-600">{editErrors.salary_structure}</p>}
               </div>
@@ -3099,13 +3101,17 @@ function PaymentsPage({ employer: _employer, company }: { employer: EmployerInfo
         <DataTable headers={['Associate', 'Job', 'Amount', 'Action']}>
           {apps.map((app: any) => {
             const alreadyPaid = paid.has(app.id);
+            const configuredFrequency = String(app.job_posts?.payment_type ?? '').toLowerCase();
+            const frequencyManaged = ['daily', 'weekly', 'monthly'].includes(configuredFrequency);
             return (
               <tr key={app.id} className="border-b border-gray-50">
                 <Td>{app.guard_profiles?.full_name ?? 'Associate'}</Td>
                 <Td>{app.job_posts?.title}</Td>
                 <Td>Rs {app.job_posts?.salary_amount ?? '--'}</Td>
                 <Td>
-                  {alreadyPaid
+                  {frequencyManaged
+                    ? <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">{configuredFrequency === 'daily' ? 'Settled from approved attendance' : `Use ${app.job_posts?.payment_type} Payroll & LWF`}</span>
+                    : alreadyPaid
                     ? <span className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">Payment Done</span>
                     : <button onClick={() => handlePay(app, app.guard_profiles?.full_name ?? 'Associate')} className="table-action tone-green">Pay from Wallet (OTP)</button>}
                 </Td>

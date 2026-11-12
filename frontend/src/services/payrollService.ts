@@ -1,7 +1,7 @@
 import { apiClient } from '../lib/apiClient';
 
 export async function listPayrollPeriods() { const { data } = await apiClient.get('/employer/payroll-periods'); return data as any[]; }
-export async function createPayrollPeriod(input: { label: string; period_start: string; period_end: string }) { const { data } = await apiClient.post('/employer/payroll-periods', input); return data; }
+export async function createPayrollPeriod(input: { label: string; period_start: string; period_end: string; payment_frequency: 'Weekly' | 'Monthly' }) { const { data } = await apiClient.post('/employer/payroll-periods', input); return data; }
 export async function listPayrollRuns(periodId?: string) { const { data } = await apiClient.get('/employer/payroll-runs', { params: periodId ? { period_id: periodId } : undefined }); return data as any[]; }
 export async function previewPayroll(input: { period_id: string; idempotency_key: string; full_period_confirmed: true; application_ids?: string[] }) { const { data } = await apiClient.post('/employer/payroll-runs/preview', input); return data; }
 export async function approvePayroll(runId: string) { const { data } = await apiClient.post(`/employer/payroll-runs/${runId}/approve`); return data; }
