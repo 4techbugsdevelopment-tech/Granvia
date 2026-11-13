@@ -29,7 +29,7 @@ function auditFromRequest(req: Request, kind: string, details?: Record<string, u
   };
 }
 
-const ROLES = ['super_admin', 'admin_employee', 'employer', 'guard', 'sub_admin', 'sales_executive', 'operations', 'finance'] as const;
+const ROLES = ['super_admin', 'admin_employee', 'employer', 'employer_employee', 'guard', 'sub_admin', 'sales_executive', 'operations', 'finance'] as const;
 
 // --- validation (mirrors App\Http\Requests\Auth\*) -------------------------
 
@@ -336,7 +336,7 @@ export async function login(req: Request, res: Response) {
     throw new HttpError(422, 'Invalid credentials.');
   }
 
-  if (data.role && user.role !== data.role && !(data.role === 'super_admin' && user.role === 'admin_employee')) {
+  if (data.role && user.role !== data.role && !(data.role === 'super_admin' && user.role === 'admin_employee') && !(data.role === 'employer' && user.role === 'employer_employee')) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
 
@@ -388,7 +388,7 @@ export async function loginVerifyOtp(req: Request, res: Response) {
 
   const user = await prisma.user.findUnique({ where: { email: data.email.trim().toLowerCase() } });
   if (!user) throw new HttpError(422, 'Account not found.');
-  if (data.role && user.role !== data.role && !(data.role === 'super_admin' && user.role === 'admin_employee')) {
+  if (data.role && user.role !== data.role && !(data.role === 'super_admin' && user.role === 'admin_employee') && !(data.role === 'employer' && user.role === 'employer_employee')) {
     throw new HttpError(403, 'This account is not registered for this portal.');
   }
   if (user.accountStatus === 'blocked' || user.accountStatus === 'inactive' || user.accountStatus === 'deleted') {

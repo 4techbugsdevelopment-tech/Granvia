@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'admin_employee' | 'employer' | 'guard' | 'sub_admin' | 'sales_executive' | 'operations' | 'finance';
+export type UserRole = 'super_admin' | 'admin_employee' | 'employer' | 'employer_employee' | 'guard' | 'sub_admin' | 'sales_executive' | 'operations' | 'finance';
 
 export interface ProfileRow {
   id: string;

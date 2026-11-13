@@ -52,15 +52,32 @@ export async function unassign(req: Request, res: Response) {
 }
 export async function mine(req: Request, res: Response) {
   const employee = await companyEmployee(req);
-  const permissions = parseAdminPermissions(employee.role.permissions);
+  const permissions = employee.permissions;
   const departments = effectiveDepartments(permissions, Object.keys(COMPANY_DEPARTMENTS));
-  const [legacyRows, employerAssignments] = await Promise.all([
-    prisma.adminCompanyAssignment.findMany({ where: { employeeId: employee.id, company: { accountStatus: 'active' } }, include: { company: { select: { id: true, companyName: true } } }, orderBy: { company: { companyName: 'asc' } } }),
+  if (employee.kind === 'employer_employee') {
+    const company = await prisma.employerCompany.findFirst({
+      where: { id: employee.companyId, employerUserId: employee.employerUserId, accountStatus: 'active' },
+      select: { id: true, companyName: true, employerUserId: true },
+    });
+    if (!company) return res.json([]);
+    return res.json(departments.map(department => ({
+      id: `${employee.id}:${company.id}:${department}`,
+      employeeId: employee.id,
+      companyId: company.id,
+      department,
+      createdAt: null,
+      company,
+    })));
+  }
+  const [legacyRows, companyAssignments, employerAssignments] = await Promise.all([
+    prisma.adminCompanyAssignment.findMany({ where: { employeeId: employee.id, company: { accountStatus: 'active' } }, include: { company: { select: { id: true, companyName: true, employerUserId: true } } }, orderBy: { company: { companyName: 'asc' } } }),
+    prisma.adminEmployeeCompanyAssignment.findMany({ where: { employeeId: employee.id, company: { accountStatus: 'active' } }, include: { company: { select: { id: true, companyName: true, employerUserId: true } } }, orderBy: { company: { companyName: 'asc' } } }),
     prisma.adminEmployerAssignment.findMany({ where: { employeeId: employee.id }, select: { employerUserId: true } }),
   ]);
-  const companies = employerAssignments.length ? await prisma.employerCompany.findMany({ where: { employerUserId: { in: employerAssignments.map(row => row.employerUserId) }, accountStatus: 'active' }, select: { id: true, companyName: true }, orderBy: { companyName: 'asc' } }) : [];
+  const companies = employerAssignments.length ? await prisma.employerCompany.findMany({ where: { employerUserId: { in: employerAssignments.map(row => row.employerUserId) }, accountStatus: 'active' }, select: { id: true, companyName: true, employerUserId: true }, orderBy: { companyName: 'asc' } }) : [];
   const rows = [
     ...legacyRows.filter(row => effectiveDepartments(permissions, [row.department]).length),
+    ...companyAssignments.flatMap(row => departments.map(department => ({ id: `${employee.id}:${row.company.id}:${department}`, employeeId: employee.id, companyId: row.company.id, department, createdAt: row.createdAt, company: row.company }))),
     ...companies.flatMap(company => departments.map(department => ({ id: `${employee.id}:${company.id}:${department}`, employeeId: employee.id, companyId: company.id, department, createdAt: null, company }))),
   ];
   return res.json([...new Map(rows.map(row => [`${row.companyId}:${row.department}`, row])).values()]);
@@ -91,7 +108,7 @@ export async function workspace(req: Request, res: Response) {
   }
 }
 export async function action(req: Request, res: Response) {
-  const { company, employer } = await assignedCompany(req);
+  const { employee, company, employer } = await assignedCompany(req);
   const where = { id: req.params.record, companyId: company.id, employerUserId: employer.id };
   const department = req.params.department;
   const resource = req.params.resource;
@@ -114,8 +131,16 @@ export async function action(req: Request, res: Response) {
   }
   if (!handler) throw new HttpError(403, 'This action is unavailable for this department.');
   const actorId = req.user!.id;
+  const actorType = employee.kind;
   req.managedCompanyActorId = actorId;
-  res.once('finish', () => console.info('[managed-company-action]', JSON.stringify({ actorId, employerId: employer.id, companyId: company.id, department, resource, recordId: where.id, status: res.statusCode })));
+  res.once('finish', () => {
+    const audit = { actorId, actorType, employerId: employer.id, companyId: company.id, department, resource, recordId: where.id, status: res.statusCode };
+    console.info('[managed-company-action]', JSON.stringify(audit));
+    prisma.delegatedCompanyAudit.create({ data: {
+      actorUserId: actorId, actorType, employerUserId: employer.id, companyId: company.id,
+      department, resource, recordId: where.id, method: req.method, statusCode: res.statusCode,
+    } }).catch(error => console.error('[managed-company-audit-failed]', error));
+  });
   req.user = employer; // Reuse employer business rules only after assignment + record authorization.
   return handler(req, res);
 }

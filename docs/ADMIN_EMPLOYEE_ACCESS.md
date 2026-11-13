@@ -1,5 +1,7 @@
 # Super Admin roles and employees
 
+Client usage guide: [Company Employee and Granvia Employee Access Guide](COMPANY_EMPLOYEE_AND_GRANVIA_ACCESS_CLIENT_GUIDE.md).
+
 2026-10-26 extension: [Granvia managed company departments](GRANVIA_MANAGED_COMPANY_DEPARTMENTS.md) adds Company HR/Sales/Operations/Accounts permissions, employer/company staff allocations and a scoped department workspace. Roles may combine these scoped permissions with the platform-wide modules described below. The extension adds its own migrations; review their deployment status in the target environment.
 
 Implemented locally on 2026-10-23. The configured database tables and list queries are now verified. Deployed backend restart and real-account browser acceptance remain unverified.
@@ -46,4 +48,4 @@ Local verification: Prisma schema validation, backend/frontend production builds
 
 For the reported `undefined.findMany` deployment failure, rebuild the actual deployed backend (`npm run build`, which regenerates Prisma Client) and restart its existing API service. Generating on disk does not update a long-running Node process. `npm run dev` now generates the client before starting the watcher. Employee-management endpoints return a clear 503 for stale delegates or missing schema rather than a TypeError or a misleading empty list; these guards are not a substitute for deployment and schema setup.
 
-Release acceptance still needs real Super Admin role/employee CRUD, employee login including configured OTP, menu refresh, direct API denial, role inactivation, password reset, deletion and WhatsApp message review on the target environment. This work does not implement login or permission enforcement for the existing employer staff records.
+Release acceptance still needs real Super Admin role/employee CRUD, employee login including configured OTP, menu refresh, direct API denial, role inactivation, password reset, deletion and WhatsApp message review on the target environment. The 2026-11-13 company-employee extension activates Employer staff as `employer_employee` logins tied to one company and a Company-enabled role while preserving unactivated legacy staff records.

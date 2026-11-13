@@ -41,7 +41,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   req.user = user;
-  if (user.role === 'admin_employee') {
+  if (user.role === 'admin_employee' || user.role === 'employer_employee') {
     if (user.accountStatus !== 'active') return res.status(403).json({ message: 'Account is not active.' });
     try { await adminEmployeeSession(user); }
     catch (error) { return next(error); }

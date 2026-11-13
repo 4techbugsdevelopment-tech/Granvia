@@ -4,7 +4,7 @@ Implemented in source on 2026-10-26. Database installation, deployed service res
 
 ## Main functionality
 
-Granvia can manage selected departments of an employer's companies through its own Super Admin employees. An employee may manage several companies; a company may have different employees for HR, Sales, Operations and Accounts. Several employees may support the same department. Allocations are explicit, one company and department at a time; allocating ten companies to one HR employee requires ten allocations.
+Granvia can manage selected departments of an employer's companies through its own Super Admin employees. An employee may manage several explicitly selected companies; a company may have different employees for HR, Sales, Operations and Accounts. Several employees may support the same department. The employee editor now stores explicit company assignments and derives department rows from the employee's active Company permissions. The older allocation page remains available for individual company-and-department maintenance.
 
 1. Open **Super Admin Roles**. Create any role name, such as HR Executive, Regional Sales or Accounts Assistant, and choose the appropriate **Company HR**, **Company Sales**, **Company Operations**, or **Company Accounts** permission(s).
 2. Open **Super Admin Employees** and create or edit an employee using that role.

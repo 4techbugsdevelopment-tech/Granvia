@@ -5,6 +5,11 @@ export interface StaffMember {
   name: string;
   role: string;
   role_id: string | null;
+  user_id: string | null;
+  employer_user_id: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  login_status: string | null;
   email: string | null;
   mobile: string | null;
   status: 'Active' | 'Inactive';
@@ -28,14 +33,14 @@ export async function listEmployerStaff(): Promise<StaffMember[]> {
   return data;
 }
 
-export async function createEmployerStaff(input: Omit<StaffMember, 'id'> & { role_id: string }) {
+export async function createEmployerStaff(input: { name: string; role_id: string; company_id: string; email: string; mobile: string; password?: string; status: 'Active' | 'Inactive' }) {
   const { data } = await apiClient.post('/employer/staff', input);
-  return data as StaffMember;
+  return data as { staff: StaffMember; temporary_password: string | null };
 }
 
-export async function updateEmployerStaff(id: string, input: Partial<Omit<StaffMember, 'id'>>) {
+export async function updateEmployerStaff(id: string, input: Partial<{ name: string; role_id: string; company_id: string; email: string; mobile: string; password: string; status: 'Active' | 'Inactive' }>) {
   const { data } = await apiClient.patch(`/employer/staff/${id}`, input);
-  return data as StaffMember;
+  return data as { staff: StaffMember; temporary_password: string | null };
 }
 
 export async function deleteEmployerStaff(id: string) {

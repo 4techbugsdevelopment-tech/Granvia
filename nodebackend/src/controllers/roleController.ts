@@ -29,6 +29,10 @@ const ROLE_MODULES = [
   'Verification Queue',
   'Clients',
   'Documents',
+  'Company HR',
+  'Company Sales',
+  'Company Operations',
+  'Company Accounts',
 ] as const;
 
 const roleSchema = z.object({

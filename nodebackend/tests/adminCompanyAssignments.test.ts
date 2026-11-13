@@ -25,6 +25,8 @@ function fixtures(t: any, changes: { employee?: any; assignment?: any; employerA
   mock(t, prisma.adminEmployee, 'findUnique', async () => changes.employee ?? employee);
   mock(t, prisma.user, 'findUnique', async ({ where }: any) => where.id === owner.id ? changes.owner ?? owner : changes.employer ?? employer);
   mock(t, prisma.adminCompanyAssignment, 'findFirst', async ({ where }: any) => Object.prototype.hasOwnProperty.call(changes, 'assignment') ? changes.assignment : (where.companyId === company.id && where.department === 'hr' ? { company } : null));
+  mock(t, prisma.adminEmployeeCompanyAssignment, 'findUnique', async () => null);
+  mock(t, prisma.adminEmployeeCompanyAssignment, 'findMany', async () => []);
   mock(t, prisma.employerCompany, 'findUnique', async ({ where }: any) => where.id === company.id ? company : null);
   mock(t, prisma.adminEmployerAssignment, 'findUnique', async () => changes.employerAssignment ?? null);
 }
@@ -76,6 +78,31 @@ test('employee company list automatically includes every current company for che
   });
   const res = response(); await controller.mine(req('sales'), res);
   assert.deepEqual(res.body.map((row: any) => [row.companyId, row.department]), [[company.id, 'sales'], ['future-company', 'sales']]);
+});
+
+test('explicit company assignment expands only the current role departments', async t => {
+  fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["Company Sales","Company Accounts"]' } } });
+  mock(t, prisma.adminCompanyAssignment, 'findMany', async () => []);
+  mock(t, prisma.adminEmployeeCompanyAssignment, 'findMany', async () => [{ employeeId: employee.id, companyId: company.id, createdAt: new Date(), company }]);
+  mock(t, prisma.adminEmployerAssignment, 'findMany', async () => []);
+  const res = response(); await controller.mine(req('sales'), res);
+  assert.deepEqual(res.body.map((row: any) => [row.companyId, row.department]), [[company.id, 'sales'], [company.id, 'accounts']]);
+});
+
+test('employer employee uses the same department workspace but is limited to one assigned company', async t => {
+  const employerEmployeeUser = { id: 'company-staff-user', role: 'employer_employee', accountStatus: 'active' };
+  mock(t, prisma.staffMember, 'findUnique', async () => ({
+    id: 'company-staff', userId: employerEmployeeUser.id, employerUserId: employer.id, companyId: company.id,
+    status: 'Active', roleMaster: { id: 'company-sales-role', status: 'active', permissions: '["Company Sales"]' }, company,
+  }));
+  mock(t, prisma.user, 'findUnique', async () => employer);
+  mock(t, prisma.employerCompany, 'findFirst', async ({ where }: any) => where.id === company.id ? company : null);
+  const request = { user: employerEmployeeUser, params: { company: company.id, department: 'sales' } } as unknown as Request;
+  const result = await assignedCompany(request);
+  assert.equal(result.employee.kind, 'employer_employee');
+  assert.equal(result.company.id, company.id);
+  await assert.rejects(assignedCompany({ ...request, params: { company: 'foreign-company', department: 'sales' } } as any), /not assigned/);
+  await assert.rejects(assignedCompany({ ...request, params: { company: company.id, department: 'accounts' } } as any), /permission required/);
 });
 
 for (const [label, changes] of [

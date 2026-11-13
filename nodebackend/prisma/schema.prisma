@@ -42,6 +42,7 @@ model User {
   associateWallet                 AssociateWallet?
   associatePartnerAgreements      AssociatePartnerAgreement[]
   adminEmployee                   AdminEmployee?
+  staffMember                     StaffMember?                 @relation("StaffLogin")
   adminEmployerAssignments        AdminEmployerAssignment[]   @relation("AssignedAdminEmployers")
   salaryTemplates                 SalaryStructureTemplate[]   @relation("SalaryTemplateOwner")
   salaryStatutoryRules            SalaryStatutoryRule[]       @relation("SalaryRuleOwner")
@@ -80,6 +81,7 @@ model AdminEmployee {
   user                User                      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   role                AdminEmployeeRole         @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   companyAssignments  AdminCompanyAssignment[]
+  companyScopeAssignments AdminEmployeeCompanyAssignment[]
   employerAssignments AdminEmployerAssignment[]
 
   @@index([ownerUserId])
@@ -112,6 +114,19 @@ model AdminCompanyAssignment {
   @@unique([employeeId, companyId, department])
   @@index([companyId])
   @@map("admin_company_assignments")
+}
+
+model AdminEmployeeCompanyAssignment {
+  id         String          @id @default(uuid()) @db.NVarChar(36)
+  employeeId String          @map("employee_id") @db.NVarChar(36)
+  companyId  String          @map("company_id") @db.NVarChar(36)
+  createdAt  DateTime        @default(now()) @map("created_at")
+  employee   AdminEmployee   @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company    EmployerCompany @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([employeeId, companyId])
+  @@index([companyId])
+  @@map("admin_employee_company_assignments")
 }
 
 model Role {
@@ -274,6 +289,8 @@ model GuardProfile {
 
 model EmployerCompany {
   adminAssignments   AdminCompanyAssignment[]
+  adminEmployeeScopes AdminEmployeeCompanyAssignment[]
+  staffMembers       StaffMember[]
   id                 String                   @id @default(uuid()) @db.NVarChar(36)
   employerUserId     String                   @map("employer_user_id") @db.NVarChar(36)
   companyName        String                   @map("company_name")
@@ -1677,6 +1694,9 @@ model AssociatePartnerAgreementAudit {
 model StaffMember {
   id             String   @id @default(uuid()) @db.NVarChar(36)
   subAdminUserId String   @map("sub_admin_user_id") @db.NVarChar(36)
+  userId         String?  @unique @map("user_id") @db.NVarChar(36)
+  employerUserId String?  @map("employer_user_id") @db.NVarChar(36)
+  companyId      String?  @map("company_id") @db.NVarChar(36)
   roleId         String?  @map("role_id") @db.NVarChar(36)
   name           String
   role           String
@@ -1687,11 +1707,34 @@ model StaffMember {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
-  roleMaster Role? @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleMaster Role?            @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  user       User?            @relation("StaffLogin", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company    EmployerCompany? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([subAdminUserId])
+  @@index([employerUserId, status])
+  @@index([companyId, status])
   @@index([roleId])
   @@map("staff_members")
+}
+
+model DelegatedCompanyAudit {
+  id             String   @id @default(uuid()) @db.NVarChar(36)
+  actorUserId    String   @map("actor_user_id") @db.NVarChar(36)
+  actorType      String   @map("actor_type") @db.NVarChar(40)
+  employerUserId String   @map("employer_user_id") @db.NVarChar(36)
+  companyId      String   @map("company_id") @db.NVarChar(36)
+  department     String   @db.NVarChar(30)
+  resource       String   @db.NVarChar(80)
+  recordId       String?  @map("record_id") @db.NVarChar(36)
+  method         String   @db.NVarChar(10)
+  statusCode     Int      @map("status_code")
+  metadata       String?  @db.NVarChar(Max)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([actorUserId, createdAt])
+  @@index([companyId, createdAt])
+  @@map("delegated_company_audits")
 }
 
 model Discount {

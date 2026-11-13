@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
-import { parseJsonField, snakeKeys, toPrismaData } from '../utils/serialize';
+import { parseJsonField, snakeKeys } from '../utils/serialize';
 import { generateStrongPassword, strongPasswordSchema } from '../utils/validation';
 
 async function activeRole(roleId?: string | null, roleName?: string | null) {
@@ -35,10 +35,12 @@ async function uniqueEmailMobile(email?: string, mobile?: string, ignoreId?: str
 
 const staffSchema = z.object({
   name: z.string().min(2),
-  role_id: z.string().uuid().nullish(),
+  role_id: z.string().uuid(),
   role: z.string().min(2).nullish(),
-  email: z.string().email().nullish(),
-  mobile: z.string().nullish(),
+  company_id: z.string().uuid(),
+  email: z.string().email(),
+  mobile: z.string().min(10),
+  password: strongPasswordSchema.nullish(),
   status: z.enum(['Active', 'Inactive']).nullish(),
 });
 
@@ -48,15 +50,31 @@ function shapeStaff(row: Record<string, any>) {
     ...row,
     role: row.roleMaster?.name ?? row.role,
     role_id: row.roleId ?? row.roleMaster?.id ?? null,
+    user_id: row.userId ?? null,
+    employer_user_id: row.employerUserId ?? null,
+    company_id: row.companyId ?? null,
+    company_name: row.company?.companyName ?? null,
+    login_status: row.user?.accountStatus ?? null,
     permissions: Array.isArray(permissions) ? permissions : [],
   };
+}
+
+function companyPermissions(role: { permissions: string | null }) {
+  const parsed = parseJsonField(role.permissions ?? '[]');
+  return Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string' && value.startsWith('Company ')) : [];
+}
+
+async function assignedEmployerCompany(employerUserId: string, companyId: string) {
+  const company = await prisma.employerCompany.findFirst({ where: { id: companyId, employerUserId, accountStatus: 'active' } });
+  if (!company) throw new HttpError(422, 'Select one of your active companies.');
+  return company;
 }
 
 /** GET /employer/staff */
 export async function listStaff(req: Request, res: Response) {
   const rows = await prisma.staffMember.findMany({
     where: { subAdminUserId: req.user!.id },
-    include: { roleMaster: true },
+    include: { roleMaster: true, company: true, user: { select: { accountStatus: true } } },
     orderBy: { createdAt: 'desc' },
   });
   return res.json(shapeStaffList(rows));
@@ -66,16 +84,24 @@ export async function listStaff(req: Request, res: Response) {
 export async function storeStaff(req: Request, res: Response) {
   const data = staffSchema.parse(req.body);
   const role = await activeRole(data.role_id, data.role);
-  const created = await prisma.staffMember.create({
-    data: {
-      ...toPrismaData(data),
-      role: role.name,
-      roleId: role.id,
-      subAdminUserId: req.user!.id,
-    } as never,
+  if (!companyPermissions(role).length) throw new HttpError(422, 'Select a role with at least one Company department permission.');
+  await assignedEmployerCompany(req.user!.id, data.company_id);
+  await uniqueEmailMobile(data.email, data.mobile);
+  const temporaryPassword = data.password ?? generateStrongPassword(12);
+  const created = await prisma.$transaction(async tx => {
+    const user = await tx.user.create({ data: {
+      fullName: data.name, email: data.email.trim().toLowerCase(), mobile: data.mobile.trim(),
+      password: await hashPassword(temporaryPassword), role: 'employer_employee', profileType: 'employer_employee',
+      accountStatus: data.status === 'Inactive' ? 'inactive' : 'active', emailVerifiedAt: new Date(),
+    } });
+    return tx.staffMember.create({ data: {
+      name: data.name, email: data.email.trim().toLowerCase(), mobile: data.mobile.trim(), status: data.status ?? 'Active',
+      role: role.name, roleId: role.id, subAdminUserId: req.user!.id, employerUserId: req.user!.id,
+      companyId: data.company_id, userId: user.id,
+    } });
   });
-  const withRole = await prisma.staffMember.findUnique({ where: { id: created.id }, include: { roleMaster: true } });
-  return res.status(201).json(shapeStaff(withRole as unknown as Record<string, any>));
+  const withRole = await prisma.staffMember.findUnique({ where: { id: created.id }, include: { roleMaster: true, company: true, user: { select: { accountStatus: true } } } });
+  return res.status(201).json({ staff: shapeStaff(withRole as unknown as Record<string, any>), temporary_password: temporaryPassword });
 }
 
 /** PATCH /employer/staff/:staff */
@@ -86,15 +112,43 @@ export async function updateStaff(req: Request, res: Response) {
 
   const data = staffSchema.partial().parse(req.body);
   const role = data.role_id || data.role ? await activeRole(data.role_id ?? null, data.role ?? null) : null;
-  const updated = await prisma.staffMember.update({
-    where: { id: member.id },
-    data: {
-      ...toPrismaData(data),
+  if (role && !companyPermissions(role).length) throw new HttpError(422, 'Select a role with at least one Company department permission.');
+  const companyId = data.company_id ?? member.companyId;
+  if (!companyId) throw new HttpError(422, 'Select a company.');
+  await assignedEmployerCompany(req.user!.id, companyId);
+  if (data.email || data.mobile) await uniqueEmailMobile(data.email, data.mobile, member.userId ?? undefined);
+  const generatedPassword = !member.userId ? data.password ?? generateStrongPassword(12) : null;
+  const updated = await prisma.$transaction(async tx => {
+    let userId = member.userId;
+    if (!userId) {
+      if (!data.email || !data.mobile) throw new HttpError(422, 'Email and mobile are required to activate this legacy staff record.');
+      const user = await tx.user.create({ data: {
+        fullName: data.name ?? member.name, email: data.email.trim().toLowerCase(), mobile: data.mobile.trim(),
+        password: await hashPassword(generatedPassword!), role: 'employer_employee', profileType: 'employer_employee',
+        accountStatus: (data.status ?? member.status) === 'Inactive' ? 'inactive' : 'active', emailVerifiedAt: new Date(),
+      } });
+      userId = user.id;
+    } else {
+      const userData: Record<string, unknown> = {};
+      if (data.name !== undefined) userData.fullName = data.name;
+      if (data.email !== undefined) userData.email = data.email.trim().toLowerCase();
+      if (data.mobile !== undefined) userData.mobile = data.mobile.trim();
+      if (data.status !== undefined) userData.accountStatus = data.status === 'Active' ? 'active' : 'inactive';
+      if (data.password) userData.password = await hashPassword(data.password);
+      if (Object.keys(userData).length) await tx.user.update({ where: { id: userId }, data: userData });
+      if (data.password || data.status === 'Inactive') await tx.personalAccessToken.deleteMany({ where: { tokenableId: userId } });
+    }
+    return tx.staffMember.update({ where: { id: member.id }, data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined ? { email: data.email.trim().toLowerCase() } : {}),
+      ...(data.mobile !== undefined ? { mobile: data.mobile.trim() } : {}),
+      ...(data.status ? { status: data.status } : {}),
       ...(role ? { role: role.name, roleId: role.id } : {}),
-    } as never,
+      employerUserId: req.user!.id, companyId, userId,
+    } });
   });
-  const withRole = await prisma.staffMember.findUnique({ where: { id: updated.id }, include: { roleMaster: true } });
-  return res.json(shapeStaff(withRole as unknown as Record<string, any>));
+  const withRole = await prisma.staffMember.findUnique({ where: { id: updated.id }, include: { roleMaster: true, company: true, user: { select: { accountStatus: true } } } });
+  return res.json({ staff: shapeStaff(withRole as unknown as Record<string, any>), temporary_password: generatedPassword });
 }
 
 /** DELETE /employer/staff/:staff */
@@ -102,8 +156,14 @@ export async function destroyStaff(req: Request, res: Response) {
   const member = await prisma.staffMember.findUnique({ where: { id: req.params.staff } });
   if (!member) throw new HttpError(404, 'Not found.');
   if (member.subAdminUserId !== req.user!.id) throw new HttpError(403, 'Forbidden.');
-  await prisma.staffMember.delete({ where: { id: member.id } });
-  return res.json({ message: 'Staff member removed.' });
+  await prisma.$transaction(async tx => {
+    await tx.staffMember.update({ where: { id: member.id }, data: { status: 'Inactive' } });
+    if (member.userId) {
+      await tx.personalAccessToken.deleteMany({ where: { tokenableId: member.userId } });
+      await tx.user.update({ where: { id: member.userId }, data: { accountStatus: 'inactive' } });
+    }
+  });
+  return res.json({ message: 'Staff access archived and login revoked.' });
 }
 
 const subAdminSchema = z.object({

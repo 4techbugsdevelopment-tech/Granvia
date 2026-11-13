@@ -171,13 +171,14 @@ test('deleting an employee removes tokens, assignment and login in one transacti
   mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
     personalAccessToken: { deleteMany: async () => calls.push('tokens') },
     adminCompanyAssignment: { deleteMany: async () => calls.push('company-assignments') },
+    adminEmployeeCompanyAssignment: { deleteMany: async () => calls.push('company-scopes') },
     adminEmployerAssignment: { deleteMany: async () => calls.push('employer-assignments') },
     adminEmployee: { delete: async () => calls.push('assignment') },
     user: { delete: async () => calls.push('user') },
   }));
   const req = request('/employees', 'DELETE', owner); req.params.employee = employeeId;
   await controller.deleteEmployee(req, response() as unknown as Response);
-  assert.deepEqual(calls, ['tokens', 'company-assignments', 'employer-assignments', 'assignment', 'user']);
+  assert.deepEqual(calls, ['tokens', 'company-assignments', 'company-scopes', 'employer-assignments', 'assignment', 'user']);
 });
 
 test('session exposes effective modules and role name without a password', async t => {
@@ -281,6 +282,7 @@ test('employee edit replaces checked employers as one atomic assignment set', as
       createMany: async ({ data }: any) => { created = data; return { count: data.length }; },
     },
     adminCompanyAssignment: { deleteMany: async ({ where }: any) => { legacyDeletedFor = where.employeeId; return { count: 1 }; } },
+    adminEmployeeCompanyAssignment: { deleteMany: async () => ({ count: 0 }) },
   }));
   const req = request('/employees', 'PATCH', owner); req.params.employee = employeeId;
   req.body = { full_name: 'Assigned Employee', email: 'employee@example.com', mobile: '9876543210', role_id: roleId, account_status: 'active', employer_ids: employerIds };
@@ -288,6 +290,26 @@ test('employee edit replaces checked employers as one atomic assignment set', as
   assert.equal(deletedFor, employeeId);
   assert.equal(legacyDeletedFor, employeeId);
   assert.deepEqual(created, employerIds.map(employerUserId => ({ employeeId, employerUserId })));
+});
+
+test('employee edit replaces inherited employer access with explicit company department assignments', async t => {
+  const companyIds = ['10000000-0000-4000-8000-000000000020', '10000000-0000-4000-8000-000000000021'];
+  let companyRows: any[] = []; let employerCreates = 0;
+  mockMethod(t, prisma.adminEmployee, 'findFirst', async () => employee);
+  mockMethod(t, prisma.adminEmployeeRole, 'findFirst', async () => ({ ...role, permissions: '["Company Sales","Company Accounts"]' }));
+  mockMethod(t, prisma.user, 'findFirst', async () => null);
+  mockMethod(t, prisma.employerCompany, 'count', async ({ where }: any) => { assert.deepEqual(where.id.in, companyIds); return companyIds.length; });
+  mockMethod(t, prisma, '$transaction', async (callback: any) => callback({
+    user: { update: async () => ({}) }, adminEmployee: { update: async () => ({}) }, personalAccessToken: { deleteMany: async () => ({ count: 0 }) },
+    adminEmployerAssignment: { deleteMany: async () => ({ count: 1 }), createMany: async () => { employerCreates++; } },
+    adminCompanyAssignment: { deleteMany: async () => ({ count: 1 }) },
+    adminEmployeeCompanyAssignment: { deleteMany: async () => ({ count: 1 }), createMany: async ({ data }: any) => { companyRows = data; return { count: data.length }; } },
+  }));
+  const req = request('/employees', 'PATCH', owner); req.params.employee = employeeId;
+  req.body = { full_name: 'Assigned Employee', email: 'employee@example.com', mobile: '9876543210', role_id: roleId, account_status: 'active', company_ids: companyIds };
+  await controller.saveEmployee(req, response() as unknown as Response);
+  assert.equal(employerCreates, 0);
+  assert.deepEqual(companyRows, companyIds.map(companyId => ({ employeeId, companyId })));
 });
 
 test('frontend menu and page guard deny unassigned modules and management screens', () => {

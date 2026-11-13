@@ -104,8 +104,8 @@ export default function RoleMaster() {
   return (
     <motion.div className="p-6 space-y-5" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader
-        title="Employer Staff Roles"
-        subtitle="Manage the shared role definitions assigned to employer and sub-admin staff."
+        title="Employer Company Roles"
+        subtitle="Define company department access shared by Employer employees and Granvia company-support employees."
         action={<button onClick={startAdd} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2" style={{ background: '#0f1e3c' }}><Plus size={16} /> Add Role</button>}
       />
 

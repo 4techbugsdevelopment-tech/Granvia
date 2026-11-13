@@ -8,6 +8,7 @@ import MobileLogin from './mobile-guard/MobileLogin';
 import MobileApp from './mobile-guard/MobileApp';
 import EmployerAuth from './employer/EmployerAuth';
 import EmployerApp from './employer/EmployerApp';
+import CompanyEmployeeApp from './employer/CompanyEmployeeApp';
 import SalesAuth from './sales/SalesAuth';
 import SalesApp from './sales/SalesApp';
 import SubAdminAuth from './subadmin/SubAdminAuth';
@@ -55,7 +56,7 @@ function getModeForRole(role: string | undefined): AppMode | null {
   if (!role) return null;
   if (role === 'super_admin' || role === 'admin_employee') return 'admin';
   if (role === 'guard') return 'mobile';
-  if (role === 'employer') return 'employer';
+  if (role === 'employer' || role === 'employer_employee') return 'employer';
   if (role === 'sales_executive') return 'sales';
   if (role === 'sub_admin') return 'subadmin';
   if (role === 'operations') return 'operations';
@@ -317,7 +318,7 @@ function AppShell() {
       setMobileState(profile?.role === 'guard' ? 'app' : 'splash');
     }
     if (nextMode === 'employer') {
-      setEmployerState(profile?.role === 'employer' ? 'app' : 'login');
+      setEmployerState((profile?.role === 'employer' || profile?.role === 'employer_employee') ? 'app' : 'login');
     }
     if (nextMode === 'sales') {
       setSalesState(profile?.role === 'sales_executive' ? 'app' : 'login');
@@ -399,7 +400,7 @@ function AppShell() {
 
       if (routeMode === 'employer') {
         setMode('employer');
-        setEmployerState(profile?.role === 'employer' ? 'app' : 'login');
+        setEmployerState((profile?.role === 'employer' || profile?.role === 'employer_employee') ? 'app' : 'login');
         return;
       }
 
@@ -518,7 +519,9 @@ function AppShell() {
         )}
         {employerState === 'app' && (
           <motion.div key="emp-app" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <EmployerApp onLogout={() => { setEmployerState('login'); setMode('employer'); setPathForMode('employer', true); }} />
+            {profile?.role === 'employer_employee'
+              ? <CompanyEmployeeApp onLogout={() => { setEmployerState('login'); setMode('employer'); setPathForMode('employer', true); }} />
+              : <EmployerApp onLogout={() => { setEmployerState('login'); setMode('employer'); setPathForMode('employer', true); }} />}
           </motion.div>
         )}
       </AnimatePresence>

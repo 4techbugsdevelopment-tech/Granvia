@@ -12,6 +12,7 @@
     "test:esign": "tsx --test tests/esign.test.ts",
     "test:admin-employees": "tsx --test tests/adminEmployees.test.ts",
     "test:company-assignments": "tsx --test tests/adminCompanyAssignments.test.ts",
+    "test:company-employees": "tsx --test tests/employerCompanyEmployees.test.ts",
     "test:salary-structure": "tsx --test tests/salaryStructure.test.ts",
     "test:lwf-payroll": "tsx --test tests/lwfPayroll.test.ts",
     "test:minimum-wage": "tsx --test tests/minimumWage.test.ts",

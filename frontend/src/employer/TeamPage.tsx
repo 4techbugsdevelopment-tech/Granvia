@@ -17,6 +17,7 @@ import {
 import type { ReactNode } from 'react';
 import { useAppLayout } from '../subadmin/ui';
 import { passwordError } from '../lib/formValidation';
+import { listMyCompanies } from '../services/companyService';
 
 type Tab = 'staff' | 'subadmins';
 type Modal = { kind: 'staff' | 'subadmin'; id?: string } | null;
@@ -24,8 +25,10 @@ type Modal = { kind: 'staff' | 'subadmin'; id?: string } | null;
 type StaffDraft = {
   name: string;
   role_id: string;
+  company_id: string;
   email: string;
   mobile: string;
+  password: string;
   status: 'Active' | 'Inactive';
 };
 
@@ -38,7 +41,7 @@ type SubAdminDraft = {
   status: 'active' | 'inactive';
 };
 
-const EMPTY_STAFF: StaffDraft = { name: '', role_id: '', email: '', mobile: '', status: 'Active' };
+const EMPTY_STAFF: StaffDraft = { name: '', role_id: '', company_id: '', email: '', mobile: '', password: '', status: 'Active' };
 const EMPTY_SUBADMIN: SubAdminDraft = { full_name: '', email: '', mobile: '', branch_name: '', password: '', status: 'active' };
 
 export default function TeamPage() {
@@ -46,6 +49,7 @@ export default function TeamPage() {
   const [tab, setTab] = useState<Tab>('staff');
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [companies, setCompanies] = useState<Array<{ id: string; company_name: string; account_status: string }>>([]);
   const [subAdmins, setSubAdmins] = useState<EmployerSubAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
@@ -58,14 +62,16 @@ export default function TeamPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [nextRoles, nextStaff, nextSubAdmins] = await Promise.all([
+      const [nextRoles, nextStaff, nextSubAdmins, nextCompanies] = await Promise.all([
         listActiveRoles().catch(() => []),
         listEmployerStaff().catch(() => []),
         listEmployerSubAdmins().catch(() => []),
+        listMyCompanies().catch(() => []),
       ]);
       setRoles(nextRoles);
       setStaff(nextStaff);
       setSubAdmins(nextSubAdmins);
+      setCompanies(nextCompanies);
     } finally {
       setLoading(false);
     }
@@ -75,11 +81,11 @@ export default function TeamPage() {
     load().catch(() => setLoading(false));
   }, []);
 
-  const activeRoles = roles.filter((role) => role.status === 'active');
+  const activeRoles = roles.filter((role) => role.status === 'active' && role.permissions?.some(permission => permission.startsWith('Company ')));
 
   const startAddStaff = () => {
     setModal({ kind: 'staff' });
-    setStaffDraft({ ...EMPTY_STAFF, role_id: activeRoles[0]?.id ?? '' });
+    setStaffDraft({ ...EMPTY_STAFF, role_id: activeRoles[0]?.id ?? '', company_id: companies.find(company => company.account_status === 'active')?.id ?? '' });
   };
 
   const startEditStaff = (row: StaffMember) => {
@@ -87,8 +93,10 @@ export default function TeamPage() {
     setStaffDraft({
       name: row.name,
       role_id: row.role_id ?? activeRoles[0]?.id ?? '',
+      company_id: row.company_id ?? '',
       email: row.email ?? '',
       mobile: row.mobile ?? '',
+      password: '',
       status: row.status,
     });
   };
@@ -120,8 +128,14 @@ export default function TeamPage() {
       let message = modal.kind === 'staff' ? 'Staff saved.' : 'Sub admin saved.';
       if (modal.kind === 'staff') {
         if (!staffDraft.role_id) throw new Error('Select a role.');
-        if (modal.id) await updateEmployerStaff(modal.id, staffDraft);
-        else await createEmployerStaff(staffDraft as any);
+        if (!staffDraft.company_id) throw new Error('Select a company.');
+        if (staffDraft.password) {
+          const passwordMessage = passwordError(staffDraft.password);
+          if (passwordMessage) throw new Error(passwordMessage);
+        }
+        const staffInput = { ...staffDraft, password: staffDraft.password || undefined };
+        const result = modal.id ? await updateEmployerStaff(modal.id, staffInput) : await createEmployerStaff(staffInput);
+        if (result.temporary_password) message = `Company employee created. Temporary password: ${result.temporary_password}`;
       } else {
         if (!modal.id && subAdminDraft.password) {
           const passwordMessage = passwordError(subAdminDraft.password);
@@ -199,7 +213,7 @@ export default function TeamPage() {
           {staff.map((row) => (
             <div key={row.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><p className="font-semibold text-gray-900 break-words">{row.name}</p><p className="text-xs text-gray-500">{row.role}</p></div>
+                <div className="min-w-0"><p className="font-semibold text-gray-900 break-words">{row.name}</p><p className="text-xs text-gray-500">{row.role} · {row.company_name ?? 'Company not assigned'}</p></div>
                 <StatusPill status={row.status} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -228,7 +242,7 @@ export default function TeamPage() {
               {staff.map((row) => (
                 <tr key={row.id} className="border-b border-gray-50">
                   <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.role}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.role}<div className="text-xs text-gray-400">{row.company_name ?? 'Company not assigned'}</div></td>
                   <td className="px-4 py-3 text-sm text-gray-700">{row.email ?? '--'}<div className="text-xs text-gray-400">{row.mobile ?? '--'}</div></td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     <div className="flex flex-wrap gap-1.5 max-w-[260px]">
@@ -313,6 +327,14 @@ export default function TeamPage() {
               ))}
             </select>
           </label>
+          <label className="block mb-4">
+            <span className="text-xs font-semibold text-gray-500">Assigned Company</span>
+            <select value={staffDraft.company_id} onChange={(e) => setStaffDraft((cur) => ({ ...cur, company_id: e.target.value }))} className="form-input mt-1">
+              <option value="">Select one company</option>
+              {companies.filter(company => company.account_status === 'active' || company.id === staffDraft.company_id).map(company => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-gray-500">This employee can work only in this company.</span>
+          </label>
           <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold mb-2 text-slate-700">
               <ShieldCheck size={14} style={{ color: '#0f1e3c' }} /> Inherited Modules
@@ -336,6 +358,11 @@ export default function TeamPage() {
             <input value={staffDraft.mobile} onChange={(e) => setStaffDraft((cur) => ({ ...cur, mobile: e.target.value }))} className="form-input mt-1" />
           </label>
           <label className="block mb-4">
+            <span className="text-xs font-semibold text-gray-500">{modal.id ? 'New Password (optional)' : 'Password (leave blank to generate)'}</span>
+            <input type="password" value={staffDraft.password} onChange={(e) => setStaffDraft((cur) => ({ ...cur, password: e.target.value }))} className="form-input mt-1" />
+            <span className="mt-1 block text-xs text-gray-500">At least 6 characters with uppercase, lowercase, number and symbol.</span>
+          </label>
+          <label className="block mb-4">
             <span className="text-xs font-semibold text-gray-500">Status</span>
             <select value={staffDraft.status} onChange={(e) => setStaffDraft((cur) => ({ ...cur, status: e.target.value as StaffDraft['status'] }))} className="form-input mt-1">
               <option value="Active">Active</option>
@@ -344,7 +371,7 @@ export default function TeamPage() {
           </label>
           <div className="flex gap-2">
             <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#eef2f7', color: '#0f1e3c' }}>Cancel</button>
-            <button onClick={save} disabled={saving || !staffDraft.name.trim() || !staffDraft.role_id} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : 'Save'}</button>
+            <button onClick={save} disabled={saving || !staffDraft.name.trim() || !staffDraft.role_id || !staffDraft.company_id || !staffDraft.email.trim() || !staffDraft.mobile.trim()} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0f1e3c' }}>{saving ? 'Saving...' : 'Save'}</button>
           </div>
         </ModalShell>
       )}

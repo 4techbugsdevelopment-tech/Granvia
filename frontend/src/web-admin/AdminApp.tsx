@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu } from 'lucide-react';
+import { Building2, Menu } from 'lucide-react';
 import Sidebar, { AdminPage } from './Sidebar';
 import Dashboard from './pages/Dashboard';
 import GuardList from './pages/GuardList';
@@ -26,6 +26,7 @@ import PlaceholderPage from './pages/PlaceholderPage';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../services/authService';
 import NotificationBell from '../components/NotificationBell';
+import { apiClient } from '../lib/apiClient';
 
 interface AdminAppProps {
   onLogout: () => void;
@@ -42,7 +43,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   wallet: 'Wallet & Payments',
   reports: 'Reports',
   'email-logs': 'Email Logs',
-  roles: 'Employer Staff Roles',
+  roles: 'Employer Company Roles',
   'employee-roles': 'Super Admin Roles',
   employees: 'Super Admin Employees',
   'company-allocations': 'Company Staff Allocation',
@@ -91,7 +92,27 @@ function getAdminPath(page: AdminPage): string {
 export default function AdminApp({ onLogout }: AdminAppProps) {
   const [page, setPage] = useState<AdminPage>(() => getAdminPageFromPath(window.location.pathname));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [managedCompanies, setManagedCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [managedCompanyId, setManagedCompanyId] = useState(() => sessionStorage.getItem('granvia_managed_company_id') || '');
   const { profile } = useAuth();
+
+  useEffect(() => {
+    if (profile?.role !== 'admin_employee' || !canOpenAdminPage(profile, 'managed-companies')) { setManagedCompanies([]); return; }
+    apiClient.get('/managed-companies').then(({ data }) => {
+      const companies = [...new Map((data as any[]).map(row => [row.companyId, { id: row.companyId, name: row.company.companyName }])).values()];
+      setManagedCompanies(companies);
+      const next = companies.some(company => company.id === managedCompanyId) ? managedCompanyId : companies[0]?.id || '';
+      setManagedCompanyId(next);
+      if (next) sessionStorage.setItem('granvia_managed_company_id', next);
+    }).catch(() => setManagedCompanies([]));
+  }, [profile?.id, profile?.role, profile?.admin_permissions]);
+
+  const switchManagedCompany = (companyId: string) => {
+    setManagedCompanyId(companyId);
+    sessionStorage.setItem('granvia_managed_company_id', companyId);
+    window.dispatchEvent(new CustomEvent('granvia-company-change', { detail: companyId }));
+    navigate('managed-companies');
+  };
 
   const handleLogout = () => {
     signOut().finally(onLogout);
@@ -189,6 +210,7 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {profile?.role === 'admin_employee' && managedCompanies.length > 0 && <label className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 md:flex"><Building2 size={15} className="text-slate-500"/><span className="sr-only">Working company</span><select aria-label="Working company" value={managedCompanyId} onChange={event => switchManagedCompany(event.target.value)} className="max-w-52 bg-transparent text-sm font-semibold text-slate-700 outline-none">{managedCompanies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>}
             <NotificationBell />
             <div className="flex items-center gap-2.5">
               <div
