@@ -1,6 +1,12 @@
 import { apiClient } from '../lib/apiClient';
 
-export const ADMIN_EMPLOYEE_MODULES = ['Dashboard', 'Associate Management', 'Employer Management', 'Job Management', 'Minimum Wage Compliance', 'Attendance', 'Hiring Workflow', 'Wallet & Payments', 'Reports', 'Email Logs', 'Associate Types', 'City & State Master', 'Company HR', 'Company Sales', 'Company Operations', 'Company Accounts'] as const;
+export interface AdminEmployeeModuleOption {
+  key: string;
+  label: string;
+  description: string;
+  scope: 'platform' | 'company';
+  department?: 'hr' | 'sales' | 'operations' | 'accounts';
+}
 export interface AdminEmployeeRole {
   id: string; name: string; description: string | null; permissions: string[]; status: 'active' | 'inactive';
 }
@@ -10,6 +16,7 @@ export interface AdminEmployee {
 }
 export interface AdminEmployerOption { id: string; fullName: string; email: string }
 export const listAdminEmployeeRoles = async (): Promise<AdminEmployeeRole[]> => (await apiClient.get('/admin/employee-roles')).data;
+export const listAdminEmployeeRoleModules = async (): Promise<AdminEmployeeModuleOption[]> => (await apiClient.get('/admin/employee-role-modules')).data;
 export const saveAdminEmployeeRole = async (id: string | undefined, input: Omit<AdminEmployeeRole, 'id'>) => id ? apiClient.patch(`/admin/employee-roles/${id}`, input) : apiClient.post('/admin/employee-roles', input);
 export const deleteAdminEmployeeRole = async (id: string) => apiClient.delete(`/admin/employee-roles/${id}`);
 export const listAdminEmployees = async (): Promise<AdminEmployee[]> => (await apiClient.get('/admin/employees')).data;

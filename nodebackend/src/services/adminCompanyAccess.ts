@@ -1,7 +1,7 @@
 import { Request } from 'express';
 import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
-import { parseAdminPermissions } from '../utils/adminEmployeeAccess';
+import { companyModulesForDepartment, normalizeGranviaPermissions, parseAdminPermissions, type GranviaEmployeePermission } from '../utils/adminEmployeeAccess';
 
 export const COMPANY_DEPARTMENTS = { hr: 'Company HR', sales: 'Company Sales', operations: 'Company Operations', accounts: 'Company Accounts' } as const;
 export type CompanyDepartment = keyof typeof COMPANY_DEPARTMENTS;
@@ -13,13 +13,11 @@ export type CompanyEmployeeContext = {
   employerUserId?: string;
 };
 export function effectiveDepartments(permissions: string[], departments: string[]) {
-  return departments.filter((d): d is CompanyDepartment => d in COMPANY_DEPARTMENTS && permissions.includes(COMPANY_DEPARTMENTS[d as CompanyDepartment]));
+  const normalized = normalizeGranviaPermissions(permissions);
+  return departments.filter((d): d is CompanyDepartment => d in COMPANY_DEPARTMENTS && companyModulesForDepartment(d).some(module => normalized.includes(module)));
 }
-function jsonPermissions(value: string | null | undefined) {
-  try {
-    const parsed: unknown = JSON.parse(value ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch { return []; }
+export function requireCompanyModule(permissions: string[], module: GranviaEmployeePermission) {
+  if (!normalizeGranviaPermissions(permissions).includes(module)) throw new HttpError(403, 'This company module is not assigned to your role.');
 }
 export async function companyEmployee(req: Request): Promise<CompanyEmployeeContext> {
   if (!req.user || req.user.accountStatus !== 'active') throw new HttpError(403, 'Active employee access required.');
@@ -35,7 +33,7 @@ export async function companyEmployee(req: Request): Promise<CompanyEmployeeCont
     if (!member || !member.roleMaster || !member.company || member.status !== 'Active' || member.roleMaster.status !== 'active' || !employer || employer.role !== 'employer' || employer.accountStatus !== 'active' || member.company.accountStatus !== 'active' || member.company.employerUserId !== employer.id) {
       throw new HttpError(403, 'Your company employee role is unavailable.');
     }
-    return { id: member.id, kind: 'employer_employee', permissions: jsonPermissions(member.roleMaster.permissions), companyId: member.company.id, employerUserId: employer.id };
+    return { id: member.id, kind: 'employer_employee', permissions: parseAdminPermissions(member.roleMaster.permissions), companyId: member.company.id, employerUserId: employer.id };
   }
   throw new HttpError(403, 'Employee company access required.');
 }

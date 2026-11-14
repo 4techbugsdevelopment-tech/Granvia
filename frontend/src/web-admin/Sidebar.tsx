@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Briefcase, Clock, GitBranch,
-  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail, MapPin, Landmark, Scale
+  Wallet, BarChart3, Settings, LogOut, ChevronDown, Shield, Mail, MapPin, Landmark, Scale,
+  ClipboardList, CalendarCheck, FileText
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { canOpenAdminPage } from './adminAccess';
@@ -23,6 +24,13 @@ export type AdminPage =
   | 'employees'
   | 'company-allocations'
   | 'managed-companies'
+  | 'company-profile'
+  | 'company-jobs'
+  | 'company-associates'
+  | 'company-sites'
+  | 'company-attendance'
+  | 'company-billing'
+  | 'company-invoices'
   | 'roles'
   | 'associate-types'
   | 'locations'
@@ -47,8 +55,13 @@ export interface NavItem {
 }
 
 export const adminNavItems: NavItem[] = [
-  { id: 'company-allocations', label: 'Company Staff Allocation', icon: <Building2 size={18} /> },
-  { id: 'managed-companies', label: 'My Company Departments', icon: <Building2 size={18} /> },
+  { id: 'company-profile', label: 'Company Profile', icon: <Building2 size={18} /> },
+  { id: 'company-jobs', label: 'Manage Jobs', icon: <Briefcase size={18} /> },
+  { id: 'company-associates', label: 'Hired / Current Associates', icon: <ClipboardList size={18} /> },
+  { id: 'company-sites', label: 'Manage Sites', icon: <MapPin size={18} /> },
+  { id: 'company-attendance', label: 'Attendance Verification', icon: <CalendarCheck size={18} /> },
+  { id: 'company-billing', label: 'Billing Details', icon: <FileText size={18} /> },
+  { id: 'company-invoices', label: 'Invoices / Receipts', icon: <FileText size={18} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'guards', label: 'Manage Associates', icon: <Shield size={18} /> },
   { id: 'employers', label: 'Manage Employers', icon: <Building2 size={18} /> },
@@ -58,8 +71,8 @@ export const adminNavItems: NavItem[] = [
   { id: 'wallet', label: 'Wallet & Payments', icon: <Wallet size={18} /> },
   { id: 'reports', label: 'Reports', icon: <BarChart3 size={18} /> },
   { id: 'email-logs', label: 'Email Logs', icon: <Mail size={18} /> },
-  { id: 'employee-roles', label: 'Super Admin Roles', icon: <Shield size={18} /> },
-  { id: 'employees', label: 'Super Admin Employees', icon: <Shield size={18} /> },
+  { id: 'employee-roles', label: 'Granvia Employee Roles', icon: <Shield size={18} /> },
+  { id: 'employees', label: 'Granvia Employees', icon: <Shield size={18} /> },
   { id: 'roles', label: 'Employer Company Roles', icon: <Shield size={18} /> },
   { id: 'associate-types', label: 'Associate Types', icon: <Briefcase size={18} /> },
   { id: 'locations', label: 'City & State Master', icon: <MapPin size={18} /> },

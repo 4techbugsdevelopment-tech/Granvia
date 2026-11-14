@@ -16,6 +16,8 @@ declare global {
         actor_id: string; actor_name: string; employer_id: string;
         employer_name: string; employer_status: string;
       };
+      delegatedAdminOwnerId?: string;
+      delegatedAdminPermissions?: string[];
     }
   }
 }

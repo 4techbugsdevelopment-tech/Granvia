@@ -588,9 +588,10 @@ export async function scheduleInterview(req: Request, res: Response) {
   const admin = req.user!.role === 'super_admin';
   const application = await applicationWithScope(req.params.application, req.user!, admin);
   const data = schedulingSchema.parse(req.body);
+  const actorId = req.managedCompanyActorId ?? req.user!.id;
   const [updated] = await prisma.$transaction([
-    prisma.jobApplication.update({ where: { id: application.id }, data: { status: 'scheduled', notes: data.remarks, reviewedAt: new Date(), reviewedBy: req.user!.id } }),
-    prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: req.user!.id, oldStatus: application.status, newStatus: 'scheduled', remarks: data.remarks } }),
+    prisma.jobApplication.update({ where: { id: application.id }, data: { status: 'scheduled', notes: data.remarks, reviewedAt: new Date(), reviewedBy: actorId } }),
+    prisma.applicationStatusLog.create({ data: { applicationId: application.id, changedBy: actorId, oldStatus: application.status, newStatus: 'scheduled', remarks: data.remarks } }),
     prisma.interviewRequest.create({ data: { applicationId: application.id, jobId: application.jobId, guardUserId: application.guardUserId, employerUserId: application.employerUserId, companyId: application.companyId, requestType: 'Offline Interview', message: data.remarks, status: 'scheduled' } }),
   ]);
   await notifyApplicationParties(application, 'Interview scheduled', interviewNotificationMessage(application, data.remarks), 'interview_scheduled');

@@ -5,11 +5,11 @@ import { prisma } from '../prisma';
 import { HttpError } from '../utils/http';
 import { hashPassword } from '../utils/password';
 import { humanNameSchema, indianMobileSchema, normalizedEmailSchema, strongPasswordSchema } from '../utils/validation';
-import { ADMIN_EMPLOYEE_MODULES, parseAdminPermissions } from '../utils/adminEmployeeAccess';
+import { companyDepartmentsForPermissions, GRANVIA_EMPLOYEE_MODULE_CATALOG, GRANVIA_EMPLOYEE_PERMISSIONS, parseAdminPermissions } from '../utils/adminEmployeeAccess';
 
 const roleSchema = z.object({
   name: z.string().trim().min(2).max(150), description: z.string().trim().max(2000).nullable().optional(),
-  permissions: z.array(z.enum(ADMIN_EMPLOYEE_MODULES)), status: z.enum(['active', 'inactive']),
+  permissions: z.array(z.enum(GRANVIA_EMPLOYEE_PERMISSIONS)).min(1, 'Select at least one module.'), status: z.enum(['active', 'inactive']),
 });
 const employeeSchema = z.object({
   full_name: humanNameSchema('Full name'), email: normalizedEmailSchema,
@@ -18,7 +18,11 @@ const employeeSchema = z.object({
   employer_ids: z.array(z.string().uuid()).max(500).optional(),
   company_ids: z.array(z.string().uuid()).max(1000).optional(),
 });
-const ownerId = (req: Request) => req.user!.id;
+const ownerId = (req: Request) => req.delegatedAdminOwnerId ?? req.user!.id;
+const withinPermissionCeiling = (req: Request, permissions: readonly string[]) => !req.delegatedAdminPermissions || permissions.every(permission => req.delegatedAdminPermissions!.includes(permission));
+function assertPermissionCeiling(req: Request, permissions: readonly string[]) {
+  if (!withinPermissionCeiling(req, permissions)) throw new HttpError(403, 'You cannot assign modules outside your own Granvia employee access.');
+}
 const roleOut = (role: { permissions: string } & Record<string, any>) => ({ ...role, permissions: parseAdminPermissions(role.permissions) });
 function conflict(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new HttpError(422, 'This name, email, or mobile is already in use.');
@@ -30,17 +34,25 @@ async function ownedRole(id: string, ownerUserId: string, active = false) {
   return role;
 }
 async function ownedEmployee(req: Request) {
-  const employee = await prisma.adminEmployee.findFirst({ where: { id: req.params.employee, ownerUserId: ownerId(req) } });
+  const employee = await prisma.adminEmployee.findFirst({ where: { id: req.params.employee, ownerUserId: ownerId(req) }, include: { role: true } });
   if (!employee) throw new HttpError(404, 'Employee not found.');
+  if (!withinPermissionCeiling(req, parseAdminPermissions(employee.role.permissions))) throw new HttpError(403, 'You cannot manage an employee with broader access than your own.');
   return employee;
 }
 export async function roles(req: Request, res: Response) {
   const rows = await prisma.adminEmployeeRole.findMany({ where: { ownerUserId: ownerId(req) }, orderBy: { name: 'asc' } });
-  return res.json(rows.map(roleOut));
+  return res.json(rows.map(roleOut).filter(role => withinPermissionCeiling(req, role.permissions)));
+}
+export async function roleModules(req: Request, res: Response) {
+  return res.json(GRANVIA_EMPLOYEE_MODULE_CATALOG.filter(module => !req.delegatedAdminPermissions || req.delegatedAdminPermissions.includes(module.key)));
 }
 export async function saveRole(req: Request, res: Response) {
   const data = roleSchema.parse(req.body);
-  if (req.params.role) await ownedRole(req.params.role, ownerId(req));
+  assertPermissionCeiling(req, data.permissions);
+  if (req.params.role) {
+    const current = await ownedRole(req.params.role, ownerId(req));
+    assertPermissionCeiling(req, parseAdminPermissions(current.permissions));
+  }
   try {
     const payload = { ...data, permissions: JSON.stringify([...new Set(data.permissions)]) };
     const role = req.params.role
@@ -50,7 +62,8 @@ export async function saveRole(req: Request, res: Response) {
   } catch (error) { conflict(error); }
 }
 export async function deleteRole(req: Request, res: Response) {
-  await ownedRole(req.params.role, ownerId(req));
+  const current = await ownedRole(req.params.role, ownerId(req));
+  assertPermissionCeiling(req, parseAdminPermissions(current.permissions));
   if (await prisma.adminEmployee.count({ where: { roleId: req.params.role } })) throw new HttpError(422, 'Reassign employees before deleting this role.');
   try { await prisma.adminEmployeeRole.delete({ where: { id: req.params.role } }); }
   catch (error) {
@@ -66,7 +79,7 @@ export async function employees(req: Request, res: Response) {
   const inheritedEmployerIds = [...new Set(rows.flatMap(row => row.employerAssignments.map(item => item.employerUserId)))];
   const inheritedCompanies = inheritedEmployerIds.length ? await prisma.employerCompany.findMany({ where: { employerUserId: { in: inheritedEmployerIds }, accountStatus: 'active' }, select: { id: true, employerUserId: true } }) : [];
   res.set('Cache-Control', 'no-store');
-  return res.json(rows.map(row => ({ id: row.id, full_name: row.user.fullName, email: row.user.email, mobile: row.user.mobile, account_status: row.user.accountStatus, role_id: row.roleId, role_name: row.role.name, role_status: row.role.status, permissions: parseAdminPermissions(row.role.permissions), employer_ids: row.employerAssignments.map(item => item.employerUserId), company_ids: [...new Set([...(row.companyScopeAssignments ?? []).map(item => item.companyId), ...(row.companyAssignments ?? []).map(item => item.companyId), ...inheritedCompanies.filter(company => row.employerAssignments.some(item => item.employerUserId === company.employerUserId)).map(company => company.id)])] })));
+  return res.json(rows.map(row => ({ id: row.id, full_name: row.user.fullName, email: row.user.email, mobile: row.user.mobile, account_status: row.user.accountStatus, role_id: row.roleId, role_name: row.role.name, role_status: row.role.status, permissions: parseAdminPermissions(row.role.permissions), employer_ids: row.employerAssignments.map(item => item.employerUserId), company_ids: [...new Set([...(row.companyScopeAssignments ?? []).map(item => item.companyId), ...(row.companyAssignments ?? []).map(item => item.companyId), ...inheritedCompanies.filter(company => row.employerAssignments.some(item => item.employerUserId === company.employerUserId)).map(company => company.id)])] })).filter(row => withinPermissionCeiling(req, row.permissions)));
 }
 export async function saveEmployee(req: Request, res: Response) {
   const existing = req.params.employee ? await ownedEmployee(req) : null;
@@ -85,8 +98,9 @@ export async function saveEmployee(req: Request, res: Response) {
     if (activeCompanies !== companyIds.length) throw new HttpError(422, 'Select only active companies.');
   }
   const rolePermissions = parseAdminPermissions(selectedRole.permissions);
-  const departments = ([['Company HR', 'hr'], ['Company Sales', 'sales'], ['Company Operations', 'operations'], ['Company Accounts', 'accounts']] as const).filter(([permission]) => rolePermissions.includes(permission)).map(([, department]) => department);
-  if (companyIds.length && !departments.length) throw new HttpError(422, 'The selected role needs at least one Company permission before companies can be assigned.');
+  assertPermissionCeiling(req, rolePermissions);
+  const departments = companyDepartmentsForPermissions(rolePermissions);
+  if ((employerIds.length || companyIds.length) && !departments.length) throw new HttpError(422, 'Company assignments require at least one company work module in the selected role.');
   const duplicate = await prisma.user.findFirst({ where: { OR: [{ email: data.email }, { mobile: data.mobile }], ...(existing ? { NOT: { id: existing.userId } } : {}) } });
   if (duplicate) throw new HttpError(422, 'The email or mobile is already in use.');
   const password = data.password ? await hashPassword(data.password) : undefined;

@@ -11,38 +11,48 @@ Both employee types use the same protected company workspace. Their role decides
 | Employee type | Login page | Company access | Who creates the account |
 |---|---|---|---|
 | Employer company employee | `/employer` | One assigned company | Employer from **Manage Team** |
-| Granvia employee | `/admin` | One or more explicitly selected companies | Super Admin from **Super Admin Employees** |
+| Granvia employee | `/admin` | One or more explicitly selected companies | Super Admin from **Granvia Employees** |
 
 An employee never receives access because they know or change a company ID in the browser. The server checks the employee account, role, company assignment, Employer status and company status on every request.
 
-## Available company departments
+## Available Granvia employee modules
 
-### Company HR
+Granvia Employee Roles assign each menu independently. A Super Admin can combine any of these modules in one role:
 
-- View the selected company's jobs.
-- View applicants for those jobs.
-- Shortlist or reject an applicant.
-- Send a hire proposal using the existing hiring rules.
+Platform modules:
 
-### Company Sales
+- **Dashboard**
+- **Manage Associates**
+- **Manage Employers**
+- **Manage Platform Jobs**
+- **Attendance**
+- **Hiring Workflow**
+- **Wallet & Payments**
+- **Reports**
+- **Email Logs**
+- **Granvia Employee Access**
+- **Employer Company Roles**
+- **Associate Types**
+- **City & State Master**
+- **LWF Master**
+- **Minimum Wage**
+- **Settings**
 
-- View the selected company's contact information.
-- Update company email, phone, website and description.
+Assigned-company modules:
 
-### Company Operations
+- **Company Profile**: view and update the selected company's permitted profile fields.
+- **Manage Jobs**: create, view, edit, publish, close and delete jobs. Wage-checked jobs archive instead of losing compliance history.
+- **Hired / Current Associates**: review applicants, schedule interviews and complete hiring actions.
+- **Manage Sites**: create, view, edit, activate, deactivate and delete sites while preserving operational history.
+- **Attendance Verification**: review and decide attendance using existing settlement rules.
+- **Billing Details**: view and update company GST and billing details.
+- **Invoices / Receipts**: view company-linked invoices and their current payment status.
 
-- View company sites.
-- Update site contact person, contact mobile and notes.
-- View company attendance.
-- Approve or reject attendance using the existing attendance and settlement rules.
+Every platform API is checked against the selected module on the server. A hidden menu or a changed URL does not grant access. **Granvia Employee Access** may delegate role and employee administration, but the delegated employee cannot create, assign, edit or remove access broader than their own role.
 
-### Company Accounts
+“Manage” means the employee can perform the available create, view, update and delete/lifecycle actions for that assigned company. It does not bypass the platform's business-record safeguards: invoices are system-generated, attendance is decided rather than deleted, and statutory or financial history is retained.
 
-- View company GST and billing details.
-- Update the company billing address.
-- View company-linked invoices and their current payment status.
-
-Employer wallet balances and employer-wide payment functions are not included in a company department role because they can cover more than one company.
+Employer wallet balances and employer-wide payment functions require the separate **Wallet & Payments** platform module because they can cover more than one company.
 
 ## Part 1: Create company roles
 
@@ -56,11 +66,7 @@ Login role required: **Super Admin**.
    - Company HR Executive
    - Company Operations Executive
    - Company Accounts Executive
-5. Select one or more Company permissions:
-   - Company HR
-   - Company Sales
-   - Company Operations
-   - Company Accounts
+5. Select any combination of company modules required by this role. Each menu is independent.
 6. Set the role to **Active**.
 7. Select **Save**.
 
@@ -90,39 +96,40 @@ The company selector is locked because an Employer company employee has only one
 
 Login role required: **Super Admin**.
 
-### Create the Granvia role
+### Create the Granvia employee role
 
 1. Sign in at `/admin`.
-2. Open **Super Admin Roles**.
+2. Open **Granvia Employee Roles**.
 3. Select **Add Role**.
 4. Enter a role name, for example **Granvia Sales Executive**.
-5. Select the required Company permission, for example **Company Sales**.
-6. You may combine several Company permissions in one role.
-7. Add platform permissions only when the employee genuinely needs platform-wide access. Platform permissions are not limited to assigned companies.
+5. Select the exact platform and/or assigned-company modules required by the role.
+6. You may combine platform and company-work permissions in one role.
+7. If any assigned-company module is selected, assign the allowed companies on the employee account.
 8. Set the role to **Active** and save it.
 
 ### Create the employee and assign companies
 
-1. Open **Super Admin Employees**.
+1. Open **Granvia Employees**.
 2. Select **Add Employee**.
 3. Enter name, login email, mobile and password.
 4. Select the Granvia role created above.
-5. In **Assign companies**, select every company the employee may manage.
+5. If the role contains assigned-company modules, select every company the employee may manage. Platform-only roles do not need a company assignment.
 6. Set the account to **Active**.
 7. Select **Save Employee**.
 8. Share the `/admin` login details securely.
 
 The selected company list is explicit. Adding a new company later does not automatically grant it to the Granvia employee.
 
-## Part 4: Switch companies as a Granvia employee
+## Part 4: Work as a Granvia employee
 
 1. Sign in at `/admin`.
-2. Open **My Company Departments**.
-3. Use the **Working Company** selector in the top header or on the workspace page.
-4. Select the required company.
-5. Select one of the **Allowed Departments** shown below the selector.
-6. Complete the required work.
-7. Select another company when required.
+2. For assigned-company work, use the single **Working Company** selector in the top header.
+3. Select the required assigned company.
+4. Use only the company menu links individually selected on the Granvia Employee Role.
+5. Complete the required work.
+6. Select another assigned company when required.
+
+Platform-wide functions appear only when their exact platform module is enabled on the employee role.
 
 The selected company is remembered only for the current browser session. If access to that company is removed, the system automatically selects another allowed company or shows that no company is available.
 
@@ -141,7 +148,7 @@ Always check the company name and selected department before saving a change.
 ### Granvia employee
 
 1. Super Admin signs in at `/admin`.
-2. Open **Super Admin Employees** and edit the employee.
+2. Open **Granvia Employees** and edit the employee.
 3. Add or remove companies, change the role or change account status.
 4. Saving the company list replaces the previous company assignments.
 5. Removing a Company permission from the role revokes that department on the next request.
@@ -166,7 +173,7 @@ Check that:
 
 1. The employee account is Active.
 2. The assigned role is Active.
-3. The role contains at least one Company permission.
+3. The role contains at least one assigned-company module.
 4. The company is Active.
 5. The Employer account is Active.
 6. The company is selected in the employee assignment.

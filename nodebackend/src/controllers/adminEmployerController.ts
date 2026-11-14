@@ -66,8 +66,9 @@ async function assertUnique(email?: string, mobile?: string, ignoreId?: string) 
   }
 }
 
-async function assertSuperAdminUploader(userId: string) {
-  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, accountStatus: true } });
+async function assertSuperAdminUploader(req: Request) {
+  if (req.delegatedAdminPermissions?.includes('platform.employers')) return;
+  const actor = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { role: true, accountStatus: true } });
   if (!actor || actor.role !== 'super_admin' || actor.accountStatus !== 'active') throw new HttpError(403, 'Only an active Super Admin can upload employer branding.');
 }
 
@@ -233,7 +234,7 @@ export async function update(req: Request, res: Response) {
 
 /** POST /admin/employers/:employer/logo -- Super Admin-only employer portal branding. */
 export async function uploadEmployerLogo(req: Request, res: Response) {
-  await assertSuperAdminUploader(req.user!.id);
+  await assertSuperAdminUploader(req);
   const employer = await prisma.user.findUnique({ where: { id: req.params.employer }, include: { employerProfile: true } });
   if (!employer || employer.role !== 'employer' || !employer.employerProfile) throw new HttpError(404, 'Employer profile not found.');
   const stored = storeFile('employer-logos', employer.id, brandImage(req));
@@ -243,7 +244,7 @@ export async function uploadEmployerLogo(req: Request, res: Response) {
 
 /** POST /admin/employers/:employer/companies/:company/logo -- Super Admin-only company branding. */
 export async function uploadCompanyLogo(req: Request, res: Response) {
-  await assertSuperAdminUploader(req.user!.id);
+  await assertSuperAdminUploader(req);
   const company = await prisma.employerCompany.findFirst({ where: { id: req.params.company, employerUserId: req.params.employer } });
   if (!company) throw new HttpError(404, 'Company does not belong to this employer.');
   const stored = storeFile('company-logos', company.id, brandImage(req));

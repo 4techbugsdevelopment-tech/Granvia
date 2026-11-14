@@ -44,10 +44,17 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   reports: 'Reports',
   'email-logs': 'Email Logs',
   roles: 'Employer Company Roles',
-  'employee-roles': 'Super Admin Roles',
-  employees: 'Super Admin Employees',
+  'employee-roles': 'Granvia Employee Roles',
+  employees: 'Granvia Employees',
   'company-allocations': 'Company Staff Allocation',
   'managed-companies': 'My Company Departments',
+  'company-profile': 'Company Profile',
+  'company-jobs': 'Manage Jobs',
+  'company-associates': 'Hired / Current Associates',
+  'company-sites': 'Manage Sites',
+  'company-attendance': 'Attendance Verification',
+  'company-billing': 'Billing Details',
+  'company-invoices': 'Invoices / Receipts',
   'associate-types': 'Associate Types',
   locations: 'City & State Master',
   'lwf-master': 'LWF Master',
@@ -66,8 +73,15 @@ function getAdminPageFromPath(pathname: string): AdminPage {
   if (pathname === '/admin/wallet') return 'wallet';
   if (pathname === '/admin/reports') return 'reports';
   if (pathname === '/admin/employee-roles') return 'employee-roles';
-  if (pathname === '/admin/company-allocations') return 'company-allocations';
+  if (pathname === '/admin/company-allocations') return 'employees';
   if (pathname === '/admin/managed-companies') return 'managed-companies';
+  if (pathname === '/admin/company-profile') return 'company-profile';
+  if (pathname === '/admin/company-jobs') return 'company-jobs';
+  if (pathname === '/admin/company-associates') return 'company-associates';
+  if (pathname === '/admin/company-sites') return 'company-sites';
+  if (pathname === '/admin/company-attendance') return 'company-attendance';
+  if (pathname === '/admin/company-billing') return 'company-billing';
+  if (pathname === '/admin/company-invoices') return 'company-invoices';
   if (pathname === '/admin/employees') return 'employees';
   if (pathname === '/admin/roles') return 'roles';
   if (pathname === '/admin/associate-types') return 'associate-types';
@@ -97,21 +111,20 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
   const { profile } = useAuth();
 
   useEffect(() => {
-    if (profile?.role !== 'admin_employee' || !canOpenAdminPage(profile, 'managed-companies')) { setManagedCompanies([]); return; }
-    apiClient.get('/managed-companies').then(({ data }) => {
-      const companies = [...new Map((data as any[]).map(row => [row.companyId, { id: row.companyId, name: row.company.companyName }])).values()];
+    if (profile?.role !== 'admin_employee' || !(profile.admin_permissions ?? []).some(permission => permission.startsWith('company.') || permission.startsWith('Company '))) { setManagedCompanies([]); return; }
+    apiClient.get<Array<{ companyId: string; company: { companyName: string } }>>('/managed-companies').then(({ data }) => {
+      const companies = [...new Map(data.map(row => [row.companyId, { id: row.companyId, name: row.company.companyName }])).values()];
       setManagedCompanies(companies);
       const next = companies.some(company => company.id === managedCompanyId) ? managedCompanyId : companies[0]?.id || '';
       setManagedCompanyId(next);
       if (next) sessionStorage.setItem('granvia_managed_company_id', next);
     }).catch(() => setManagedCompanies([]));
-  }, [profile?.id, profile?.role, profile?.admin_permissions]);
+  }, [profile?.id, profile?.role, profile?.admin_permissions, managedCompanyId]);
 
   const switchManagedCompany = (companyId: string) => {
     setManagedCompanyId(companyId);
     sessionStorage.setItem('granvia_managed_company_id', companyId);
     window.dispatchEvent(new CustomEvent('granvia-company-change', { detail: companyId }));
-    navigate('managed-companies');
   };
 
   const handleLogout = () => {
@@ -128,11 +141,15 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
   };
 
   useEffect(() => {
-    if (profile?.role === 'admin_employee' && window.location.pathname === '/admin' && !canOpenAdminPage(profile, 'dashboard')) {
+    if (profile?.role === 'admin_employee' && !canOpenAdminPage(profile, page)) {
       const first = (Object.keys(PAGE_TITLES) as AdminPage[]).find(item => canOpenAdminPage(profile, item));
-      if (first) navigate(first);
+      if (first) {
+        setPage(first);
+        const nextPath = getAdminPath(first);
+        if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+      }
     }
-  }, [profile]);
+  }, [profile, page]);
 
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
 
@@ -152,7 +169,13 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
       case 'employee-roles': return <AdminEmployeeRoles />;
       case 'employees': return <AdminEmployees />;
       case 'company-allocations': return <CompanyDepartments allocation />;
-      case 'managed-companies': return <CompanyDepartments />;
+      case 'company-profile': return <CompanyDepartments view="profile" />;
+      case 'company-jobs': return <CompanyDepartments view="jobs" />;
+      case 'company-associates': return <CompanyDepartments view="associates" />;
+      case 'company-sites': return <CompanyDepartments view="sites" />;
+      case 'company-attendance': return <CompanyDepartments view="attendance" />;
+      case 'company-billing': return <CompanyDepartments view="billing" />;
+      case 'company-invoices': return <CompanyDepartments view="invoices" />;
       case 'roles': return <RoleMaster />;
       case 'associate-types': return <AssociateTypeMaster />;
       case 'locations': return <LocationMaster />;
@@ -206,11 +229,11 @@ export default function AdminApp({ onLogout }: AdminAppProps) {
             </button>
             <div>
               <h2 className="font-bold text-gray-900 text-sm">{PAGE_TITLES[page]}</h2>
-              <p className="text-xs text-gray-400">Granvia Admin Panel</p>
+              <p className="text-xs text-gray-400">{profile?.role === 'admin_employee' ? 'Assigned Company Workspace' : 'Granvia Admin Panel'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {profile?.role === 'admin_employee' && managedCompanies.length > 0 && <label className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 md:flex"><Building2 size={15} className="text-slate-500"/><span className="sr-only">Working company</span><select aria-label="Working company" value={managedCompanyId} onChange={event => switchManagedCompany(event.target.value)} className="max-w-52 bg-transparent text-sm font-semibold text-slate-700 outline-none">{managedCompanies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>}
+            {profile?.role === 'admin_employee' && managedCompanies.length > 0 && <label className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5"><Building2 size={15} className="hidden shrink-0 text-slate-500 sm:block"/><span className="sr-only">Working company</span><select aria-label="Working company" value={managedCompanyId} onChange={event => switchManagedCompany(event.target.value)} className="w-32 truncate bg-transparent text-sm font-semibold text-slate-700 outline-none sm:w-auto sm:max-w-52">{managedCompanies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>}
             <NotificationBell />
             <div className="flex items-center gap-2.5">
               <div

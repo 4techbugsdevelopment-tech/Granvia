@@ -76,14 +76,15 @@ async function assertNoPolicyOverlap(tx: Prisma.TransactionClient, candidate: Re
   if (overlaps) throw new HttpError(409, 'An LWF policy already covers this state, establishment and effective-date range. Close or supersede that version first.');
 }
 
-async function assertPersistedSuperAdmin(userId: string) {
-  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, accountStatus: true } });
+async function assertPersistedSuperAdmin(req: Request) {
+  if (req.delegatedAdminPermissions?.includes('platform.lwf')) return;
+  const actor = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { role: true, accountStatus: true } });
   if (!actor || actor.role !== 'super_admin' || actor.accountStatus !== 'active') throw new HttpError(403, 'Only an active Super Admin can manage the standard LWF rates.');
 }
 
 /** GET /admin/lwf-master */
 export async function master(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const row = await prisma.lwfMasterSetting.findUnique({ where: { scopeKey: 'STANDARD' } });
   return res.json({ setting: snakeKeys(row) });
 }
@@ -97,7 +98,7 @@ export async function adminEffective(req: Request, res: Response) {
 
 /** POST /admin/lwf-master -- create or replace the platform standard. */
 export async function saveMaster(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const data = settingSchema.parse(req.body);
   const payload = {
     employeeAmount: new Prisma.Decimal(data.employee_amount),
@@ -155,7 +156,7 @@ export async function resetEmployerSetting(req: Request, res: Response) {
 
 /** GET /admin/lwf-policies */
 export async function policies(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const stateId = typeof req.query.state_id === 'string' ? req.query.state_id : undefined;
   const rows = await prisma.lwfPolicyVersion.findMany({
     where: stateId ? { stateId } : undefined,
@@ -167,7 +168,7 @@ export async function policies(req: Request, res: Response) {
 
 /** POST /admin/lwf-policies */
 export async function createPolicy(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const data = policySchema.parse(req.body);
   const payload = normalizedPolicyData(data);
   const state = await prisma.stateMaster.findFirst({ where: { id: data.state_id, status: 'active' } });
@@ -184,7 +185,7 @@ export async function createPolicy(req: Request, res: Response) {
 
 /** PATCH /admin/lwf-policies/:policy -- draft versions only. */
 export async function updatePolicy(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const existing = await prisma.lwfPolicyVersion.findUnique({ where: { id: req.params.policy } });
   if (!existing) throw new HttpError(404, 'LWF policy version not found.');
   if (existing.status !== 'draft') throw new HttpError(409, 'Activated or historical LWF policy versions are immutable. Create a new version instead.');
@@ -202,7 +203,7 @@ export async function updatePolicy(req: Request, res: Response) {
 const closeSchema = z.object({ effective_to: z.coerce.date(), reason: z.string().trim().min(5).max(1000) }).strict();
 /** POST /admin/lwf-policies/:policy/close */
 export async function closePolicy(req: Request, res: Response) {
-  await assertPersistedSuperAdmin(req.user!.id);
+  await assertPersistedSuperAdmin(req);
   const data = closeSchema.parse(req.body);
   const existing = await prisma.lwfPolicyVersion.findUnique({ where: { id: req.params.policy } });
   if (!existing) throw new HttpError(404, 'LWF policy version not found.');

@@ -33,6 +33,7 @@ const brandUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 
 // mirrors routes/api/admin.php — all under auth:sanctum + role:super_admin
 router.use('/admin', requireAuth, asyncHandler(requireAdminPanel));
+router.get('/admin/employee-role-modules', asyncHandler(adminEmployees.roleModules));
 router.get('/admin/employee-roles', asyncHandler(withAdminEmployeeStorage(adminEmployees.roles)));
 router.post('/admin/employee-roles', asyncHandler(withAdminEmployeeStorage(adminEmployees.saveRole)));
 router.patch('/admin/employee-roles/:role', asyncHandler(withAdminEmployeeStorage(adminEmployees.saveRole)));

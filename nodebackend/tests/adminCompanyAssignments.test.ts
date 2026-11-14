@@ -37,7 +37,9 @@ test('department permissions intersect assignments and never imply platform acce
   assert.deepEqual(effectiveDepartments(['Company HR'], ['hr', 'sales', 'accounts', 'operations', 'unknown']), ['hr']);
   assert.deepEqual(effectiveDepartments(['Hiring Workflow'], ['hr']), []);
   const profile = { role: 'admin_employee', account_status: 'active', admin_permissions: ['Company HR'] } as any;
-  assert.equal(canOpenAdminPage(profile, 'managed-companies'), true);
+  assert.equal(canOpenAdminPage(profile, 'company-jobs'), true);
+  assert.equal(canOpenAdminPage(profile, 'company-associates'), true);
+  assert.equal(canOpenAdminPage(profile, 'company-profile'), false);
   for (const page of ['employers', 'hiring', 'employees', 'company-allocations', 'wallet', 'reports'] as const) assert.equal(canOpenAdminPage(profile, page), false);
 });
 
@@ -151,17 +153,20 @@ test('Sales cannot alter ownership, status or billing fields', async t => {
   await assert.rejects(controller.action(request, response()));
 });
 
-test('roles can combine scoped company and platform-wide permissions', async t => {
+test('roles can combine granular company module permissions', async t => {
   let savedPermissions = '';
   mock(t, prisma.adminEmployeeRole, 'create', async ({ data }: any) => {
     savedPermissions = data.permissions;
     return { id: 'mixed-role', description: null, createdAt: new Date(), updatedAt: new Date(), ...data };
   });
   const res = response();
-  await saveRole({ user: owner, params: {}, body: { name: 'HR and Hiring', permissions: ['Company HR', 'Hiring Workflow'], status: 'active' } } as unknown as Request, res);
+  await saveRole({ user: owner, params: {}, body: { name: 'Jobs and Profile', permissions: ['company.jobs', 'company.profile'], status: 'active' } } as unknown as Request, res);
   assert.equal(res.statusCode, 201);
-  assert.deepEqual(JSON.parse(savedPermissions), ['Company HR', 'Hiring Workflow']);
-  assert.deepEqual(res.body.permissions, ['Company HR', 'Hiring Workflow']);
+  assert.deepEqual(JSON.parse(savedPermissions), ['company.jobs', 'company.profile']);
+  assert.deepEqual(res.body.permissions, ['company.jobs', 'company.profile']);
+  await assert.rejects(
+    saveRole({ user: owner, params: {}, body: { name: 'Legacy platform role', permissions: ['Hiring Workflow'], status: 'active' } } as unknown as Request, response()),
+  );
 });
 
 test('Sales updates reuse company validation and preserve the true employee actor', async t => {
@@ -188,6 +193,47 @@ test('Operations cannot approve another company attendance or edit its sites', a
   }
 });
 
+test('Operations can create a site only inside the assigned company', async t => {
+  fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["Company Operations"]' } }, assignment: { company } });
+  mock(t, prisma.employerCompany, 'findFirst', async ({ where }: any) => {
+    assert.deepEqual(where, { id: company.id, employerUserId: employer.id });
+    return company;
+  });
+  mock(t, prisma.companySite, 'create', async ({ data }: any) => {
+    assert.equal(data.companyId, company.id);
+    assert.equal(data.employerUserId, employer.id);
+    return { id: 'site-created', siteName: data.siteName, companyId: data.companyId, employerUserId: data.employerUserId, status: data.status };
+  });
+  const request = req('operations');
+  request.method = 'POST'; request.params.resource = 'sites';
+  request.body = { company_id: '20000000-0000-4000-8000-000000000099', site_name: 'Assigned Site', address: 'Assigned address', contact_mobile: '9876543210', status: 'active' };
+  const res = response(); await controller.create(request, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.company_id, company.id);
+});
+
+test('HR cannot move a managed job to a foreign site', async t => {
+  fixtures(t);
+  mock(t, prisma.jobPost, 'findFirst', async ({ where }: any) => { assert.equal(where.companyId, company.id); return { id: 'job', ...where }; });
+  mock(t, prisma.companySite, 'findFirst', async ({ where }: any) => { assert.equal(where.companyId, company.id); return null; });
+  const request = req('hr'); request.params.resource = 'jobs'; request.params.record = 'job'; request.body = { site_id: '20000000-0000-4000-8000-000000000099' };
+  await assert.rejects(controller.action(request, response()), /site from the assigned company/);
+});
+
+test('HR cannot schedule an interview for another company application', async t => {
+  fixtures(t);
+  mock(t, prisma.jobApplication, 'findFirst', async ({ where }: any) => { assert.equal(where.companyId, company.id); assert.equal(where.job.companyId, company.id); return null; });
+  const request = req('hr'); request.params.resource = 'applications'; request.params.record = 'foreign-application'; request.params.operation = 'schedule-interview'; request.body = { remarks: 'Tomorrow at 10 AM' };
+  await assert.rejects(controller.operation(request, response()), /not found in this company/);
+});
+
+test('Operations cannot delete a site outside the assigned company', async t => {
+  fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["Company Operations"]' } }, assignment: { company } });
+  mock(t, prisma.companySite, 'findFirst', async ({ where }: any) => { assert.equal(where.companyId, company.id); assert.equal(where.employerUserId, employer.id); return null; });
+  const request = req('operations'); request.params.resource = 'sites'; request.params.record = 'foreign-site';
+  await assert.rejects(controller.destroy(request, response()), /not found in this company/);
+});
+
 test('Accounts cannot access attendance actions or change company contacts', async t => {
   fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["Company Accounts"]' } }, assignment: { company } });
   const request = req('accounts'); request.params.resource = 'attendance'; request.params.record = 'record';
@@ -196,9 +242,24 @@ test('Accounts cannot access attendance actions or change company contacts', asy
   await assert.rejects(controller.action(request, response()));
 });
 
+test('granular HR modules do not grant their sibling page or data', async t => {
+  fixtures(t, { employee: { ...employee, role: { ...role, permissions: '["company.jobs"]' } } });
+  mock(t, prisma.jobPost, 'findMany', async () => []);
+  mock(t, prisma.companySite, 'findMany', async () => []);
+  mock(t, prisma.associateType, 'findMany', async () => []);
+  const jobsRequest = req('hr'); jobsRequest.query = { module: 'company.jobs' };
+  const jobsResponse = response(); await controller.workspace(jobsRequest, jobsResponse);
+  assert.deepEqual(jobsResponse.body.jobs, []);
+  assert.equal(jobsResponse.body.applications, undefined);
+  const associatesRequest = req('hr'); associatesRequest.query = { module: 'company.associates' };
+  await assert.rejects(controller.workspace(associatesRequest, response()), /module is not assigned/);
+});
+
 test('HR workspace scopes both application and job to the assigned company and exposes only associate names', async t => {
   fixtures(t);
   mock(t, prisma.jobPost, 'findMany', async ({ where }: any) => { assert.deepEqual(where, { companyId: company.id, employerUserId: employer.id }); return []; });
+  mock(t, prisma.companySite, 'findMany', async ({ where }: any) => { assert.deepEqual(where, { companyId: company.id, employerUserId: employer.id }); return []; });
+  mock(t, prisma.associateType, 'findMany', async () => []);
   mock(t, prisma.jobApplication, 'findMany', async ({ where }: any) => {
     assert.equal(where.companyId, company.id); assert.equal(where.job.companyId, company.id); assert.equal(where.job.employerUserId, employer.id);
     return [{ id: 'application', guardUserId: 'associate-1', job: { title: 'Security' } }];

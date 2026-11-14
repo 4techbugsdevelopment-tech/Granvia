@@ -10,9 +10,7 @@ export async function adminEmployeeSession<T extends { id: string; role: string 
     if (!member || !member.roleMaster || !member.company || member.status !== 'Active' || member.roleMaster.status !== 'active' || employer?.role !== 'employer' || employer.accountStatus !== 'active' || member.company.accountStatus !== 'active' || member.company.employerUserId !== employer.id) {
       throw new HttpError(403, 'Your company employee role is unavailable. Contact your Employer.');
     }
-    let permissions: string[] = [];
-    try { const parsed = JSON.parse(member.roleMaster.permissions ?? '[]'); permissions = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : []; } catch { permissions = []; }
-    return { ...user, adminPermissions: permissions, adminRoleName: member.roleMaster.name };
+    return { ...user, adminPermissions: parseAdminPermissions(member.roleMaster.permissions), adminRoleName: member.roleMaster.name };
   }
   if (user.role !== 'admin_employee') return { ...user, adminPermissions: undefined, adminRoleName: undefined };
   assertAdminEmployeeClient();
@@ -21,5 +19,5 @@ export async function adminEmployeeSession<T extends { id: string; role: string 
   if (!employee || employee.role.ownerUserId !== employee.ownerUserId || employee.role.status !== 'active' || owner?.role !== 'super_admin' || owner.accountStatus !== 'active') {
     throw new HttpError(403, 'Your employee role is unavailable. Contact your Super Admin.');
   }
-  return { ...user, adminPermissions: parseAdminPermissions(employee.role.permissions), adminRoleName: employee.role.name };
+  return { ...user, adminPermissions: parseAdminPermissions(employee.role.permissions), adminRoleName: employee.role.name, adminOwnerUserId: employee.ownerUserId };
 }

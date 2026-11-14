@@ -28,7 +28,7 @@ const ownerId = '10000000-0000-4000-8000-000000000001';
 const roleId = '10000000-0000-4000-8000-000000000002';
 const employeeId = '10000000-0000-4000-8000-000000000003';
 const owner = { id: ownerId, role: 'super_admin', accountStatus: 'active' };
-const role = { id: roleId, ownerUserId: ownerId, name: 'Attendance Clerk', status: 'active', permissions: '["Attendance"]' };
+const role = { id: roleId, ownerUserId: ownerId, name: 'Operations Clerk', status: 'active', permissions: '["Company Operations"]' };
 const employee = { id: employeeId, userId: 'employee-user', ownerUserId: ownerId, roleId, role };
 const user = { id: 'employee-user', role: 'admin_employee', accountStatus: 'active' };
 function response() {
@@ -43,19 +43,13 @@ async function gate(req: Request) {
   return { ...res, allowed };
 }
 
-test('employee can use only assigned modules, including direct API calls and writes', async t => {
+test('company-only Granvia employee cannot enter unassigned platform administration routes', async t => {
   mockMethod(t, prisma.adminEmployee, 'findUnique', async () => employee);
   mockMethod(t, prisma.user, 'findUnique', async () => owner);
-  for (const method of ['GET', 'PATCH']) {
-    const req = request('/attendance/record/status', method);
-    assert.equal((await gate(req)).allowed, true);
-    assert.equal(req.user?.role, 'super_admin');
-    assert.equal(user.role, 'admin_employee'); // Never change the persisted user.
-    assert.equal((await gate(request('/wallets', method))).statusCode, 403);
-  }
-  for (const path of ['/employees', '/employee-roles', '/roles', '/internal-staff', '/unregistered-module', '/employers/id/wallet-credit']) {
+  for (const path of ['/attendance/record/status', '/wallets', '/employees', '/employee-roles', '/roles', '/internal-staff', '/unregistered-module', '/employers/id/wallet-credit']) {
     assert.equal((await gate(request(path, 'POST'))).statusCode, 403, path);
   }
+  assert.equal(user.role, 'admin_employee');
 });
 
 test('inactive roles and inactive owners stop existing employee access', async t => {
@@ -78,17 +72,22 @@ test('blocked employees, other portal roles, missing assignments and cross-owner
   assert.equal((await gate(request('/employees', 'POST', owner))).allowed, true);
 });
 
-test('permission updates are read afresh and malformed permissions fail closed', async t => {
-  const assignment = mockMethod(t, prisma.adminEmployee, 'findUnique', async () => employee);
-  mockMethod(t, prisma.user, 'findUnique', async () => owner);
-  assert.equal((await gate(request())).allowed, true);
-  assignment.mock.mockImplementation(async () => ({ ...employee, role: { ...role, permissions: '["Reports"]' } }));
-  assert.equal((await gate(request())).statusCode, 403);
-  assert.equal((await gate(request('/reports/attendance'))).allowed, true);
-  assignment.mock.mockImplementation(async () => ({ ...employee, role: { ...role, ownerUserId: 'someone-else' } }));
-  assert.equal((await gate(request('/reports/attendance'))).statusCode, 403);
+test('legacy permissions normalize to granular keys and malformed values fail closed', () => {
   assert.deepEqual(parseAdminPermissions('{broken'), []);
-  assert.deepEqual(parseAdminPermissions('["Super Admin Employees","Attendance",1]'), ['Attendance']);
+  assert.deepEqual(parseAdminPermissions('["Super Admin Employees","Attendance",1]'), ['platform.attendance']);
+  assert.deepEqual(parseAdminPermissions('["Wallet & Payments","Reports","Email Logs"]'), ['platform.wallet', 'platform.reports', 'platform.email_logs']);
+});
+
+test('assigned platform modules open only their matching backend routes', async t => {
+  const platformRole = { ...role, permissions: '["platform.wallet","platform.reports","platform.email_logs","platform.employers"]' };
+  mockMethod(t, prisma.adminEmployee, 'findUnique', async () => ({ ...employee, role: platformRole }));
+  mockMethod(t, prisma.user, 'findUnique', async () => owner);
+  for (const [path, method] of [['/wallets', 'GET'], ['/wallet-recharge-requests/id/complete', 'POST'], ['/reports/analytics', 'GET'], ['/email-logs', 'GET'], ['/employers/id', 'PATCH']] as const) {
+    const result = await gate(request(path, method));
+    assert.equal(result.allowed, true, `${method} ${path}`);
+    assert.equal(result.statusCode, 200, `${method} ${path}`);
+  }
+  for (const path of ['/employees', '/employee-roles', '/guards', '/unregistered-module']) assert.equal((await gate(request(path))).statusCode, 403, path);
 });
 
 test('employee creation stores a hashed password and a separate login identity', async t => {
@@ -186,7 +185,7 @@ test('session exposes effective modules and role name without a password', async
   mockMethod(t, prisma.user, 'findUnique', async () => owner);
   const session = serializeUser(await adminEmployeeSession({ ...user, password: 'DO NOT EXPOSE' }));
   assert.equal(session.role, 'admin_employee');
-  assert.deepEqual(session.admin_permissions, ['Attendance']);
+  assert.deepEqual(session.admin_permissions, ['company.sites', 'company.attendance']);
   assert.equal(session.admin_role_name, role.name);
   assert.ok(!JSON.stringify(session).includes('DO NOT EXPOSE'));
 });
@@ -205,7 +204,7 @@ test('employee uses the existing web admin password login and cannot use another
   await login(req, res as unknown as Response);
   assert.equal(issued, 1);
   assert.equal(res.body.user.role, 'admin_employee');
-  assert.deepEqual(res.body.user.admin_permissions, ['Attendance']);
+  assert.deepEqual(res.body.user.admin_permissions, ['company.sites', 'company.attendance']);
   assert.ok(res.body.token.startsWith('12|'));
   assert.ok(!JSON.stringify(res.body).includes(password));
   req.body.role = 'employer';
@@ -213,7 +212,7 @@ test('employee uses the existing web admin password login and cannot use another
   assert.equal(issued, 1);
 });
 
-test('mounted HTTP admin guard checks the module before projecting the employee role', async t => {
+test('mounted HTTP admin guard keeps platform routes closed to Granvia employees', async t => {
   mockMethod(t, prisma.adminEmployee, 'findUnique', async () => employee);
   mockMethod(t, prisma.user, 'findUnique', async () => owner);
   const app = express();
@@ -225,9 +224,8 @@ test('mounted HTTP admin guard checks the module before projecting the employee 
   await new Promise<void>(resolve => server.once('listening', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const allowed = await fetch(`${base}/admin/attendance`);
-  assert.equal(allowed.status, 200);
-  assert.deepEqual(await allowed.json(), { effectiveRole: 'super_admin' });
+  const attendance = await fetch(`${base}/admin/attendance`);
+  assert.equal(attendance.status, 403);
   const forbidden = await fetch(`${base}/admin/employees`, { method: 'POST' });
   assert.equal(forbidden.status, 403);
 });
@@ -240,18 +238,43 @@ test('role CRUD retains ownership and normalizes module grants', async t => {
   mockMethod(t, prisma.adminEmployeeRole, 'delete', async () => role);
   mockMethod(t, prisma.adminEmployee, 'count', async () => 0);
   const req = request('/employee-roles', 'POST', owner);
-  req.body = { name: '  Attendance Clerk  ', permissions: ['Attendance', 'Attendance'], status: 'active' };
+  req.body = { name: '  Site Clerk  ', permissions: ['company.sites', 'company.sites'], status: 'active' };
   const res = response();
   await controller.saveRole(req, res as unknown as Response);
   assert.equal(payload.ownerUserId, ownerId);
-  assert.equal(payload.name, 'Attendance Clerk');
-  assert.equal(payload.permissions, '["Attendance"]');
-  assert.deepEqual(res.body.permissions, ['Attendance']);
+  assert.equal(payload.name, 'Site Clerk');
+  assert.equal(payload.permissions, '["company.sites"]');
+  assert.deepEqual(res.body.permissions, ['company.sites']);
   req.params.role = roleId; req.body.status = 'inactive';
   await controller.saveRole(req, response() as unknown as Response);
   assert.equal(payload.status, 'inactive');
   assert.ok(!('ownerUserId' in payload));
   await controller.deleteRole(req, response() as unknown as Response);
+});
+
+test('role module catalog exposes every platform and company menu independently', async () => {
+  const res = response();
+  await controller.roleModules(request('/employee-role-modules', 'GET', owner), res as unknown as Response);
+  assert.deepEqual(res.body.map((module: any) => module.key), [
+    'platform.dashboard', 'platform.associates', 'platform.employers', 'platform.jobs', 'platform.attendance', 'platform.hiring',
+    'platform.wallet', 'platform.reports', 'platform.email_logs', 'platform.access', 'platform.employer_roles', 'platform.associate_types',
+    'platform.locations', 'platform.lwf', 'platform.minimum_wages', 'platform.settings',
+    'company.profile', 'company.jobs', 'company.associates', 'company.sites', 'company.attendance', 'company.billing', 'company.invoices',
+  ]);
+  assert.equal(new Set(res.body.map((module: any) => module.label)).size, 23);
+  assert.equal(res.body.filter((module: any) => module.scope === 'platform').length, 16);
+  assert.equal(res.body.filter((module: any) => module.scope === 'company').length, 7);
+});
+
+test('delegated access manager cannot grant modules broader than their own role', async () => {
+  const req = request('/employee-roles', 'POST', owner);
+  req.delegatedAdminOwnerId = ownerId;
+  req.delegatedAdminPermissions = ['platform.access', 'company.sites'];
+  req.body = { name: 'Escalated Role', permissions: ['platform.wallet'], status: 'active' };
+  await assert.rejects(controller.saveRole(req, response() as unknown as Response), /outside your own Granvia employee access/);
+  const res = response();
+  await controller.roleModules(req, res as unknown as Response);
+  assert.deepEqual(res.body.map((module: any) => module.key), ['platform.access', 'company.sites']);
 });
 
 test('employee list queries only owned assignments and public user fields', async t => {
@@ -261,7 +284,7 @@ test('employee list queries only owned assignments and public user fields', asyn
   await controller.employees(request('/employees', 'GET', owner), res as unknown as Response);
   assert.equal(query.where.ownerUserId, ownerId);
   assert.deepEqual(Object.keys(query.include.user.select).sort(), ['accountStatus', 'email', 'fullName', 'mobile']);
-  assert.deepEqual(res.body[0].permissions, ['Attendance']);
+  assert.deepEqual(res.body[0].permissions, ['company.sites', 'company.attendance']);
   assert.deepEqual(res.body[0].employer_ids, ['employer-1']);
 });
 
@@ -312,11 +335,14 @@ test('employee edit replaces inherited employer access with explicit company dep
   assert.deepEqual(companyRows, companyIds.map(companyId => ({ employeeId, companyId })));
 });
 
-test('frontend menu and page guard deny unassigned modules and management screens', () => {
-  const profile: any = { role: 'admin_employee', account_status: 'active', admin_permissions: ['Attendance', 'Job Management'] };
-  assert.equal(canOpenAdminPage(profile, 'attendance'), true);
-  assert.equal(canOpenAdminPage(profile, 'jobs'), true);
-  for (const page of ['employees', 'employee-roles', 'roles', 'settings', 'dashboard', 'wallet', 'reports'] as const) assert.equal(canOpenAdminPage(profile, page), false);
+test('frontend menu exposes only individually selected platform and company modules', () => {
+  const profile: any = { role: 'admin_employee', account_status: 'active', admin_permissions: ['company.sites', 'platform.wallet', 'platform.reports', 'platform.email_logs'] };
+  assert.equal(canOpenAdminPage(profile, 'company-sites'), true);
+  assert.equal(canOpenAdminPage(profile, 'company-attendance'), false);
+  assert.equal(canOpenAdminPage(profile, 'attendance'), false);
+  assert.equal(canOpenAdminPage(profile, 'jobs'), false);
+  for (const page of ['wallet', 'reports', 'email-logs'] as const) assert.equal(canOpenAdminPage(profile, page), true);
+  for (const page of ['employees', 'employee-roles', 'roles', 'settings', 'dashboard'] as const) assert.equal(canOpenAdminPage(profile, page), false);
   assert.equal(canOpenAdminPage({ ...profile, account_status: 'blocked' }, 'attendance'), false);
   assert.equal(canOpenAdminPage({ ...profile, role: 'super_admin' }, 'employees'), true);
   assert.equal(canOpenAdminPage(null, 'dashboard'), false);

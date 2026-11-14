@@ -28,7 +28,7 @@ export default function SettingsPage() {
         <div className="grid grid-cols-2 gap-4">
           <div><div className="text-xs text-gray-400">Name</div><div className="text-sm font-semibold text-gray-800 mt-0.5">{profile?.full_name || 'Super Admin'}</div></div>
           <div><div className="text-xs text-gray-400">Email</div><div className="text-sm font-semibold text-gray-800 mt-0.5">{profile?.email || '—'}</div></div>
-          <div><div className="text-xs text-gray-400">Role</div><div className="text-sm font-semibold text-gray-800 mt-0.5">Super Admin</div></div>
+          <div><div className="text-xs text-gray-400">Role</div><div className="text-sm font-semibold text-gray-800 mt-0.5">{profile?.admin_role_name || (profile?.role === 'super_admin' ? 'Super Admin' : 'Granvia Employee')}</div></div>
           <div><div className="text-xs text-gray-400">Mobile</div><div className="text-sm font-semibold text-gray-800 mt-0.5">{profile?.mobile || '—'}</div></div>
         </div>
       </Card>
