@@ -2084,6 +2084,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
       site_id:             job.site_id ?? '',
       guards_required:     String(job.guards_required ?? 1),
       payment_type:        job.payment_type ?? 'Monthly',
+      status:              job.status === 'draft' ? 'draft' : 'active',
       shift_type:          job.shift_type ?? 'Day',
       duty_hours:          job.duty_hours ?? '8 hours',
       start_date:          job.start_date ?? '',
@@ -2125,7 +2126,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
         guard_type:          editForm.guard_type,
         description:         editForm.description,
         required_skills:     editForm.required_skills.split(',').map((s: string) => s.trim()).filter(Boolean),
-        status:              'active',
+        status:              editForm.status,
       });
       setEditingJob(null);
       reload();
@@ -2324,6 +2325,7 @@ function JobsPage({ employer: _employer, company, onChanged, onCreate, initialEd
                 <Input label="Associates Required" value={ef.guards_required} error={editErrors.guards_required} onChange={v => set('guards_required')(v.replace(/\D/g, ''))} />
                 <Sel   label="Associate Type"  value={ef.guard_type}          error={editErrors.guard_type} options={associateTypes.map(type => type.code)} labels={Object.fromEntries(associateTypes.map(type => [type.code, type.name]))} onChange={set('guard_type')} />
                 <Sel   label="Payment Type"    value={ef.payment_type}        error={editErrors.payment_type} options={['Monthly','Weekly','Daily']} labels={{Monthly:'Monthly',Weekly:'Weekly',Daily:'Daily'}} onChange={set('payment_type')} />
+                <Sel   label="Job Status"      value={ef.status}              error={editErrors.status} options={['draft','active']} labels={{draft:'Draft',active:'Active'}} onChange={set('status')} />
                 <Sel   label="Shift"           value={ef.shift_type}          options={['Day','Night','Rotating']} labels={{Day:'Day',Night:'Night',Rotating:'Rotating'}} onChange={set('shift_type')} />
                 <Input label="Duty Hours"      value={ef.duty_hours}          onChange={set('duty_hours')} />
                 <Input label="Start Date"      value={ef.start_date}          error={editErrors.start_date} onChange={set('start_date')} />

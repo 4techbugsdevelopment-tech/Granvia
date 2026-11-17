@@ -6,7 +6,7 @@ import { HttpError } from '../utils/http';
 import { snakeKeys, serializeOut, toPrismaData, parseJsonField } from '../utils/serialize';
 import { moneySchema } from '../utils/validation';
 import { salaryStructureInclude, salaryStructureInputSchema, saveJobSalaryStructure } from '../services/salaryStructureService';
-import { assessAndSnapshotJobMinimumWage, assertMinimumWagePublishable } from '../services/minimumWageService';
+import { assessAndSnapshotJobMinimumWage } from '../services/minimumWageService';
 
 const OUT_JSON = ['required_skills', 'language_requirements'];
 
@@ -112,8 +112,7 @@ export async function store(req: Request, res: Response) {
       const calculated = await saveJobSalaryStructure(tx, created.id, req.user!.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure, data.payment_type);
       await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
     }
-    const wageResult = await assessAndSnapshotJobMinimumWage(tx, created.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, 'job_created');
-    if (data.status !== 'draft') assertMinimumWagePublishable(wageResult);
+    await assessAndSnapshotJobMinimumWage(tx, created.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, 'job_created');
     return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
   });
   return res.status(201).json(serializeOut(job, OUT_JSON));
@@ -135,8 +134,7 @@ export async function update(req: Request, res: Response) {
     let grossSalary: string | undefined;
     if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, job.employerUserId, req.adminEmployerAccess?.actor_id ?? req.user!.id, salary_structure, data.payment_type ?? job.paymentType)).gross_monthly;
     await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
-    const wageResult = await assessAndSnapshotJobMinimumWage(tx, job.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, 'job_updated');
-    if ((data.status ?? job.status) === 'active') assertMinimumWagePublishable(wageResult);
+    await assessAndSnapshotJobMinimumWage(tx, job.id, req.adminEmployerAccess?.actor_id ?? req.user!.id, 'job_updated');
     return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });
   return res.json(serializeOut(updated, OUT_JSON));
@@ -232,8 +230,7 @@ export async function approve(req: Request, res: Response) {
   if (!job.guardType) throw new HttpError(422, 'Select an associate type before approving this job.');
   await assertActiveAssociateType(job.guardType);
   const updated = await prisma.$transaction(async tx => {
-    const wageResult = await assessAndSnapshotJobMinimumWage(tx, job.id, req.user!.id, 'job_approved');
-    assertMinimumWagePublishable(wageResult);
+    await assessAndSnapshotJobMinimumWage(tx, job.id, req.user!.id, 'job_approved');
     return tx.jobPost.update({
       where: { id: job.id },
       data: { status: 'active', rejectionReason: null },
@@ -263,8 +260,7 @@ export async function adminStore(req: Request, res: Response) {
       const calculated = await saveJobSalaryStructure(tx, created.id, company.employerUserId, req.user!.id, salary_structure, data.payment_type);
       await tx.jobPost.update({ where: { id: created.id }, data: { salaryAmount: calculated.gross_monthly } });
     }
-    const wageResult = await assessAndSnapshotJobMinimumWage(tx, created.id, req.user!.id, 'admin_job_created');
-    if (data.status === 'active') assertMinimumWagePublishable(wageResult);
+    await assessAndSnapshotJobMinimumWage(tx, created.id, req.user!.id, 'admin_job_created');
     return tx.jobPost.findUniqueOrThrow({ where: { id: created.id }, include: employerJobInclude });
   });
   return res.status(201).json(serializeOut(job, OUT_JSON));
@@ -298,8 +294,7 @@ export async function adminUpdate(req: Request, res: Response) {
     let grossSalary: string | undefined;
     if (salary_structure) grossSalary = (await saveJobSalaryStructure(tx, job.id, employerUserId ?? job.employerUserId, req.user!.id, salary_structure, data.payment_type ?? job.paymentType)).gross_monthly;
     await tx.jobPost.update({ where: { id: job.id }, data: { ...toPrismaData(jobData, JSON_FIELDS), ...(employerUserId ? { employerUserId } : {}), ...(grossSalary ? { salaryAmount: grossSalary } : !job.salaryStructure && salary_amount != null ? { salaryAmount: salary_amount } : {}) } as never });
-    const wageResult = await assessAndSnapshotJobMinimumWage(tx, job.id, req.user!.id, 'admin_job_updated');
-    if ((data.status ?? job.status) === 'active') assertMinimumWagePublishable(wageResult);
+    await assessAndSnapshotJobMinimumWage(tx, job.id, req.user!.id, 'admin_job_updated');
     return tx.jobPost.findUniqueOrThrow({ where: { id: job.id }, include: employerJobInclude });
   });
   return res.json(serializeOut(updated, OUT_JSON));

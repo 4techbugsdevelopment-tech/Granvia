@@ -14,7 +14,7 @@ The feature is a separate compliance module. It does not replace salary calculat
 4. The resolver uses work state/UT, government sphere, district/zone where required, employment/occupation/skill classification, effective date, and wage unit.
 5. Exactly one best approved match returns `VERIFIED`. Missing facts, no data, conflicts, stale review, invalid location, or invalid classification return explicit non-verified statuses.
 6. The compliance comparer sums only earning components explicitly named by the approved rate. It never uses CTC, net pay, employer contributions, or an arbitrary conversion.
-7. Job create/edit/approval writes an immutable decision snapshot. Active publication and approval require `VERIFIED` plus `COMPLIANT`; draft/pending work can remain under review.
+7. Job create/edit/approval writes an immutable decision snapshot. The result is advisory: non-verified and non-compliant results remain visible and auditable but do not block saving, activation, or approval.
 
 ## Resolution statuses
 

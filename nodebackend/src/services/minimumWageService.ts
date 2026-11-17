@@ -261,15 +261,3 @@ export async function assessAndSnapshotJobMinimumWage(db: JobAssessmentDb, jobId
   return { resolution, comparison, snapshot };
 }
 
-export function assertMinimumWagePublishable(result: Awaited<ReturnType<typeof assessAndSnapshotJobMinimumWage>>) {
-  if (result.resolution.status !== 'VERIFIED') {
-    throw new HttpError(422, `Minimum wage review required: ${result.resolution.reason}`, { errors: { minimum_wage: [result.resolution.reason] }, minimum_wage: result.resolution });
-  }
-  if (result.comparison.complianceStatus !== 'COMPLIANT') {
-    const message = result.comparison.shortfall
-      ? `The qualifying wage is below the approved minimum by INR ${result.comparison.shortfall}.`
-      : 'The salary structure cannot yet be confirmed against the approved minimum wage.';
-    throw new HttpError(422, message, { errors: { salary_structure: [message] }, minimum_wage: { resolution: result.resolution, comparison: result.comparison } });
-  }
-}
-

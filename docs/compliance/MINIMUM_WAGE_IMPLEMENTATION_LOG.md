@@ -17,7 +17,7 @@
 ### Phases A4-A6
 
 - Added read-only debounced checks to Employer and Super Admin job forms.
-- Added active publishing and approval enforcement inside job transactions.
+- Added minimum-wage assessment and immutable audit snapshots inside job transactions. The original active publishing and approval enforcement was later changed to advisory-only behavior, so the result no longer blocks job saves or approval.
 - Added `/admin/minimum-wages` and the `Minimum Wage Compliance` role permission.
 - Added coverage, notification, mapping, job compliance, and audit screens.
 

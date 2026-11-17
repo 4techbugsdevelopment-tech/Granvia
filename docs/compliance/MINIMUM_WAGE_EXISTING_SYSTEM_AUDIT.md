@@ -39,7 +39,7 @@ Employer or Super Admin submits salary components with a Monthly or Daily paymen
 
 ## 5. Integration points
 
-Minimum-wage resolution belongs in a separate backend service. Job create/edit must resolve after the job and salary structure are available inside the same transaction, save an immutable decision snapshot, and block publication/approval unless the decision is verified and compliant. Draft records may remain review-required. Employer and Super Admin job forms should request a read-only preview whenever location, category, start date, payment frequency, or salary components change. Payroll may display the saved decision but must not invent monthly-to-daily conversion.
+Minimum-wage resolution belongs in a separate backend service. Job create/edit resolves after the job and salary structure are available inside the same transaction and saves an immutable decision snapshot. The initial audit recommended blocking publication/approval unless verified and compliant; the implemented policy is now advisory-only and does not block saving, activation, or approval. Employer and Super Admin job forms request a read-only preview whenever location, category, start date, payment frequency, or salary components change. Payroll may display the saved decision but must not invent monthly-to-daily conversion.
 
 ## 6. Regression risks
 
@@ -69,7 +69,7 @@ Use one additive SQL Server migration. Do not alter or backfill historical salar
 1. A1: Add additive Prisma models and SQL migration.
 2. A2: Add the resolver, compliance comparison, snapshots, and unit tests.
 3. A3: Add Super Admin notification/rate/coverage management and approval APIs/UI.
-4. A4: Add Employer and Super Admin job previews and server-side publish/approval blocking.
+4. A4: Add Employer and Super Admin job previews and server-side audited advisory checks without publish/approval blocking.
 5. A5: Reuse existing salary results for qualifying-wage comparison without replacing salary calculation.
 6. A6: Add coverage, notification, job-compliance, and audit views.
 7. A7: Record monitoring/discovery candidates for review; never auto-approve.

@@ -256,9 +256,9 @@ test('structured daily attendance settles the job daily net after its deductions
   }), 875);
 });
 
-test('editing a historical job without a structure preserves its legacy salary amount', async t => {
+test('editing an active historical job is not blocked by an unresolved minimum-wage check', async t => {
   let updateData: any;
-  mock(t, prisma.jobPost, 'findUnique', async () => ({ id: 'job-1', employerUserId: 'employer-1', salaryAmount: new Prisma.Decimal(9000), salaryStructure: null }));
+  mock(t, prisma.jobPost, 'findUnique', async () => ({ id: 'job-1', employerUserId: 'employer-1', salaryAmount: new Prisma.Decimal(9000), salaryStructure: null, status: 'active' }));
   const fakeTx = {
     jobPost: {
       findUnique: async () => ({ id: 'job-1', startDate: null, paymentType: 'Monthly', site: null, company: null, guardType: null, category: null, salaryStructure: null }),
@@ -269,8 +269,9 @@ test('editing a historical job without a structure preserves its legacy salary a
     minimumWageComplianceAudit: { create: async () => ({ id: 'wage-audit-1' }) },
   };
   mock(t, prisma, '$transaction', async (callback: any) => callback(fakeTx));
-  await updateJob({ user: { id: 'employer-1' }, params: { job: 'job-1' }, body: { title: 'Updated' } } as unknown as Request, responseCapture().response);
+  await updateJob({ user: { id: 'employer-1' }, params: { job: 'job-1' }, body: { title: 'Updated', status: 'active' } } as unknown as Request, responseCapture().response);
   assert.equal(updateData.salaryAmount, undefined);
+  assert.equal(updateData.status, 'active');
 });
 
 test('employer LWF override wins over the Super Admin master and is injected server-side', async () => {

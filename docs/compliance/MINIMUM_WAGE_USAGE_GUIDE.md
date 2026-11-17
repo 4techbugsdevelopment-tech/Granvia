@@ -35,9 +35,9 @@ An **Admin Employee** can do the same only when the Super Admin gives that emplo
 4. Enter the salary structure.
 5. The **Applicable Minimum Wage** box checks the rule automatically.
 6. The Employer can view the required wage, offered qualifying wage, government notice and result. The required wage cannot be edited.
-7. If the result is **Compliant**, the active job can be saved.
-8. If the salary is below the minimum, Granvia shows the shortfall and blocks active publishing.
-9. If data is missing, unclear, conflicting or stale, save as **Draft** and ask the Super Admin/compliance team to review it.
+7. The job can be saved as **Active** or **Draft** regardless of the result.
+8. If the salary is below the minimum, Granvia shows the shortfall as an advisory warning and still allows saving.
+9. If data is missing, unclear, conflicting or stale, Granvia records the result for review without blocking the job.
 
 ## 4. Super Admin approves a job
 
@@ -46,7 +46,7 @@ An **Admin Employee** can do the same only when the Super Admin gives that emplo
 3. Review the job and its minimum-wage result.
 4. Click **Approve**.
 5. Granvia checks the wage again on the backend.
-6. Approval succeeds only when the rule is verified and the offered qualifying wage meets the minimum.
+6. The wage result is recorded during approval but does not block approval.
 
 ## 5. Review coverage and history
 

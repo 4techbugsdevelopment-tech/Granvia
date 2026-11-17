@@ -29,12 +29,12 @@ Management requires `super_admin` or an active Admin Employee role with `Minimum
 
 Employer job endpoints verify ownership. Resolve previews do not persist. Job create/edit/approval persists snapshots through the job workflow.
 
-## Publishing rule
+## Publishing behavior
 
-An active job requires both:
+Every job create, edit, activation, and approval still records the minimum-wage resolution and comparison. The API does not reject the job when:
 
-- resolution status `VERIFIED`; and
-- compliance status `COMPLIANT`.
+- the resolution is not `VERIFIED`; or
+- the comparison is not `COMPLIANT`.
 
-Otherwise the API returns HTTP 422 with a `minimum_wage` validation error. Draft/pending records may be saved for review.
+These outcomes are advisory warnings retained in the job snapshot and audit history.
 

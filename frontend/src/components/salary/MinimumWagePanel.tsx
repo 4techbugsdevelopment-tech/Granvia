@@ -36,7 +36,7 @@ export default function MinimumWagePanel({ scope, state, district, jobRole, empl
   }, [scope, state, district, jobRole, employmentCategory, effectiveDate, paymentType, salaryStructure, validFrequency]);
 
   return <section className={`mt-4 rounded-xl border p-4 ${tone(preview)}`} aria-live="polite">
-    <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold">Applicable Minimum Wage</h4><p className="text-xs opacity-75">Checked from approved government notification data. Employers cannot change this amount.</p></div>{loading && <span className="text-xs font-semibold">Checking…</span>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold">Applicable Minimum Wage</h4><p className="text-xs opacity-75">Checked from approved government notification data. This is advisory and does not block saving or activating the job.</p></div>{loading && <span className="text-xs font-semibold">Checking…</span>}</div>
     {!state || !jobRole || !effectiveDate ? <p className="mt-3 text-sm">Select the work location, associate type and job start date to check the wage.</p>
       : error ? <p role="alert" className="mt-3 text-sm font-semibold">{error}</p>
       : !preview ? <p className="mt-3 text-sm">Waiting for complete salary details.</p>
@@ -46,7 +46,7 @@ export default function MinimumWagePanel({ scope, state, district, jobRole, empl
         <div><span className="text-xs opacity-70">Qualifying offered wage</span><p className="font-bold">{preview.comparison?.qualifying_wage ? `₹${preview.comparison.qualifying_wage}` : '--'}</p></div>
         <div><span className="text-xs opacity-70">Compliance</span><p className="font-bold">{preview.comparison?.compliance_status?.replaceAll('_', ' ') ?? 'REVIEW REQUIRED'}</p></div>
         <div className="sm:col-span-2"><span className="text-xs opacity-70">Government notification</span><p className="font-semibold">{preview.notification ? `${preview.notification.number} · effective ${new Date(preview.notification.effective_from).toLocaleDateString('en-IN')}` : '--'}</p></div>
-        <div className="sm:col-span-2"><span className="text-xs opacity-70">Result</span><p className="font-semibold">{preview.comparison?.compliance_status === 'NON_COMPLIANT' ? `Salary is short by ₹${preview.comparison.shortfall}. Publishing will be blocked.` : preview.reason.replaceAll('_', ' ')}</p></div>
+        <div className="sm:col-span-2"><span className="text-xs opacity-70">Result</span><p className="font-semibold">{preview.comparison?.compliance_status === 'NON_COMPLIANT' ? `Salary is short by ₹${preview.comparison.shortfall}. Review is recommended, but saving is allowed.` : preview.reason.replaceAll('_', ' ')}</p></div>
       </div>}
   </section>;
 }
